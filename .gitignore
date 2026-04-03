@@ -1,8 +1,52 @@
+# ROS / Catkin build outputs
 build/
 devel/
+install/
+log/
+.catkin_tools/
+
+# Runtime logs and recordings
 *.bag
 *.log
+*.out
+*.err
+
+# Python caches and tooling
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Python packaging artifacts
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local temp files
+*.tmp
+tmp/
+temp/
+
+# Generated/local result artifacts (keep curated results tracked explicitly)
+results/tmp/
+results/raw_runs/
+
+# Editor and IDE
 .vscode/
+.idea/
+*.swp
+*~
+
+# OS
 .DS_Store
+Thumbs.db
