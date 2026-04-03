@@ -1,0 +1,8 @@
+build/
+devel/
+*.bag
+*.log
+__pycache__/
+*.pyc
+.vscode/
+.DS_Store
