@@ -1,18 +1,39 @@
 # Learning-Augmented Model Predictive Control
 
 ## Overview
-Combining classical MPC with learning-based components to improve robustness, adaptability, and performance.
+This repository is a graduate research project scaffold for studying learning-augmented model predictive control (MPC). The focus is to combine classical MPC with learning components in a unified, testable framework that can support class deliverables and potential follow-on research.
+
+## Motivation
+Classical MPC provides structure, constraint handling, and interpretability, but performance can degrade under model mismatch and changing dynamics. Learning-augmented MPC aims to retain the reliability of model-based control while improving adaptation and predictive quality through data-driven components.
 
 ## Research Direction
-- Combine multiple papers into a unified framework
-- Explore residual learning, learned dynamics, or cost shaping
-- Evaluate model-based vs learning-based tradeoffs
+- Synthesize ideas from multiple MPC + learning papers into one coherent framework
+- Compare integration strategies (e.g., residual dynamics, learned costs, learned terminal components)
+- Evaluate tradeoffs between robustness, sample efficiency, and computational cost
 
-## Objectives
-- Implement baseline MPC
-- Add learning-based components
-- Build hybrid/compositional system
-- Run experiments and comparisons
+## Project Objectives
+- Implement a baseline MPC pipeline suitable for controlled comparisons
+- Add learning-based augmentation modules with clear interfaces
+- Build a fusion layer (`src/fusion/`) for multi-paper composition and ablation
+- Run reproducible experiments and document findings rigorously
+
+## Repository Structure
+- `docs/`: Project documentation, planning, paper synthesis, and presentation/report scaffolds
+- `src/`: Future implementation modules (`mpc`, `learning`, `fusion`, `simulation`)
+- `experiments/`: Experiment plans and run metadata conventions (no implementation here yet)
+- `results/`: Result logging conventions and future artifacts
+- `scripts/`: Utility scripts (intentionally minimal at this stage)
+- `references/`: Reference management (papers, links, and bibliography)
+
+## Current Status
+- Planned:
+  - Baseline controller design and evaluation protocol
+  - Learning augmentation strategy selection from literature
+- Scaffolded:
+  - Repository layout, documentation index, paper-note templates, planning docs
+  - Contribution and collaboration workflow templates
+- Implemented:
+  - No MPC/learning implementation code yet
 
 ## Team
 - Aaron John Sabu
@@ -20,21 +41,40 @@ Combining classical MPC with learning-based components to improve robustness, ad
 - Ben
 
 ## Collaborators
-- Nicholas Councell (nick12512)
-- Ben (GitHub TBD)
+- Nicholas Councell (`nick12512`)
+- Ben (GitHub username TBD)
 
-## Structure
-- `docs/paper_notes/`: Per-paper summaries and extraction of reusable ideas
-- `docs/literature_review/`: Cross-paper synthesis and research framing notes
-- `docs/figures/`: Figures for reports, writeups, and presentations
-- `src/mpc/`: Baseline MPC implementations and core control logic
-- `src/learning/`: Learning modules (models, residuals, estimators)
-- `src/fusion/`: Multi-paper integration layer for hybrid MPC + learning methods
-- `src/simulation/`: Simulation environments and evaluation harnesses
-- `experiments/`: Experiment configs, runners, and study scripts
-- `results/`: Experiment outputs, tables, and processed artifacts
-- `scripts/`: Utility scripts for setup, data prep, and reproducible runs
-- `references/`: Citation assets, BibTeX, and reading metadata
+## Collaboration Workflow
+- Use short-lived feature branches for documentation and code changes
+- Open PRs against `main` with clear scope and explicit assumptions
+- Keep commits focused and reviewable
+- Update docs whenever structure, experiments, or integration plans change
+- See `CONTRIBUTING.md` for detailed norms
 
-## Setup
-Environment setup instructions are TBD.
+## Setup Status
+Environment and tooling setup is not finalized yet. This repository currently prioritizes research planning and reproducibility scaffolding over implementation.
+
+## Documentation Map
+- `docs/README.md`: Documentation index and navigation
+- `docs/paper_notes/`: Per-paper extraction templates and notes
+- `docs/literature_review/`: Cross-paper synthesis
+- `docs/project_plan/`: Milestones, roadmap, open questions, and report/presentation planning
+- `docs/meeting_notes/`: Meeting records and action tracking templates
+- `docs/presentation_notes/`: Slide planning and speaking-point scaffolds
+
+## Next Steps
+1. Finalize baseline MPC problem definition and evaluation metrics
+2. Select first two papers for integration candidates in `docs/paper_notes/`
+3. Define initial experimental matrix and reproducibility checklist
+4. Start implementation only after interface and evaluation plan review
+
+## Contribution Expectations
+- Keep changes scoped, documented, and reproducible
+- Avoid undocumented assumptions in experiments and integration choices
+- Prefer explicit design notes before major implementation changes
+
+## Citation / Attribution (Placeholder)
+If this project is used for reports, papers, or external collaboration, add a formal citation entry here once title/authorship details are finalized.
+
+## License Status
+No project license has been selected yet. See `LICENSE_STATUS.md` for current guidance.
