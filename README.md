@@ -40,11 +40,6 @@ Classical MPC provides structure, constraint handling, and interpretability, but
 - Nicholas Councell (`@nick12512`)
 - Ben (`@benw7454`)
 
-## Collaborators
-- Aaron John Sabu (`@aaronjs99`)
-- Nicholas Councell (`@nick12512`)
-- Ben (`@benw7454`)
-
 ## Collaboration Workflow
 - Use short-lived feature branches for documentation and code changes
 - Open PRs against `main` with clear scope and explicit assumptions
@@ -53,7 +48,7 @@ Classical MPC provides structure, constraint handling, and interpretability, but
 - See `CONTRIBUTING.md` for detailed norms
 
 ## Setup Status
-Environment and tooling setup is not finalized yet. This repository currently prioritizes research planning and reproducibility scaffolding over implementation.
+Environment and tooling setup is not finalized yet. The repository is intentionally in a scaffolded holding state while the team finalizes scope and integration priorities.
 
 ## Documentation Map
 - `docs/README.md`: Documentation index and navigation
