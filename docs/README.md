@@ -7,8 +7,6 @@ This directory is the central index for research planning, literature synthesis,
   - Per-paper notes and extraction templates for integration planning
 - `literature_review/`
   - Cross-paper comparison notes and synthesis documents
-- `meeting_notes/`
-  - Meeting records, decisions, action items, and blockers
 - `project_plan/`
   - Roadmap, milestones, open questions, and deliverable outlines
 - `figures/`

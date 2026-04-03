@@ -24,5 +24,5 @@ Use this checklist for manual GitHub repo hardening and collaboration hygiene.
 
 ## Access Management
 - [ ] Review collaborator permissions
-- [ ] Confirm `nick12512` write access
-- [ ] Update Ben's access once GitHub username is known
+- [ ] Confirm `@nick12512` write access
+- [ ] Confirm `@benw7454` write access

@@ -1,7 +1,7 @@
 # Open Questions
 
 ## Usage
-Capture unresolved technical and project-management questions here. Move resolved items to meeting notes or roadmap updates.
+Capture unresolved technical and project-management questions here. Move resolved items to roadmap updates or implementation/design docs.
 
 ## Template
 - Question:

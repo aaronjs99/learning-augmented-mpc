@@ -4,10 +4,12 @@ This folder stores and organizes reference materials for the project.
 
 ## Structure
 - `bibliography.bib`: shared BibTeX entries
-- `pdfs/`: local paper copies (if licensing allows)
 - `links/`: plain-text index of canonical URLs and code repos
 
+## Policy
+- Do not store paper PDFs in this repository.
+- Store links, citations, and paper notes instead.
+
 ## Naming Conventions
-- PDFs: `YYYY_firstauthor_shorttitle.pdf`
-- Notes linking to papers should use the same short key where possible
+- Notes and links should use consistent short keys where possible
 - BibTeX keys should be consistent across docs and report drafts

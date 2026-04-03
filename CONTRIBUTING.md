@@ -46,6 +46,6 @@ If folders, conventions, or workflows change:
 If a code change materially affects experiment design, assumptions, interfaces, or evaluation, include a corresponding documentation change in the same PR.
 
 ## Team Collaboration Norms
-- Default reviewers: Aaron, Nicholas, Ben (as available)
-- Raise blockers early in meeting notes or PR discussion
+- Core collaborators: `@aaronjs99`, `@nick12512`, `@benw7454`
+- Raise blockers early in issue or PR discussion
 - Resolve open questions in writing (issue/PR/docs) to keep research decisions auditable

@@ -1,7 +1,7 @@
 # Learning-Augmented Model Predictive Control
 
 ## Overview
-This repository is a graduate research project scaffold for studying learning-augmented model predictive control (MPC). The focus is to combine classical MPC with learning components in a unified, testable framework that can support class deliverables and potential follow-on research.
+This repository is a graduate research scaffold for studying learning-augmented model predictive control (MPC). It currently holds standardized project structure, documentation conventions, and collaboration workflow assets while implementation choices are being finalized by the team.
 
 ## Motivation
 Classical MPC provides structure, constraint handling, and interpretability, but performance can degrade under model mismatch and changing dynamics. Learning-augmented MPC aims to retain the reliability of model-based control while improving adaptation and predictive quality through data-driven components.
@@ -36,13 +36,14 @@ Classical MPC provides structure, constraint handling, and interpretability, but
   - No MPC/learning implementation code yet
 
 ## Team
-- Aaron John Sabu
-- Nicholas Councell
-- Ben
+- Aaron John Sabu (`@aaronjs99`)
+- Nicholas Councell (`@nick12512`)
+- Ben (`@benw7454`)
 
 ## Collaborators
-- Nicholas Councell (`nick12512`)
-- Ben (GitHub username TBD)
+- Aaron John Sabu (`@aaronjs99`)
+- Nicholas Councell (`@nick12512`)
+- Ben (`@benw7454`)
 
 ## Collaboration Workflow
 - Use short-lived feature branches for documentation and code changes
@@ -59,14 +60,12 @@ Environment and tooling setup is not finalized yet. This repository currently pr
 - `docs/paper_notes/`: Per-paper extraction templates and notes
 - `docs/literature_review/`: Cross-paper synthesis
 - `docs/project_plan/`: Milestones, roadmap, open questions, and report/presentation planning
-- `docs/meeting_notes/`: Meeting records and action tracking templates
 - `docs/presentation_notes/`: Slide planning and speaking-point scaffolds
 
 ## Next Steps
-1. Finalize baseline MPC problem definition and evaluation metrics
-2. Select first two papers for integration candidates in `docs/paper_notes/`
-3. Define initial experimental matrix and reproducibility checklist
-4. Start implementation only after interface and evaluation plan review
+1. Align on baseline problem scope and first paper set at the next team meeting
+2. Confirm integration direction and evaluation plan
+3. Begin implementation only after team alignment on interfaces and milestones
 
 ## Contribution Expectations
 - Keep changes scoped, documented, and reproducible
