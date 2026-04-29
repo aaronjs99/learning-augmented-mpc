@@ -9,6 +9,8 @@ Generated artifacts from experiment runs live here.
 - Baseline runs also include `solver_statuses.json`.
 - Baseline runs with `--make-video` also include `animation.gif`.
 
+`solver_statuses.json` includes collision mode, per-agent status counts, and per-timestep agent statuses.
+
 ## Rules
 - Do not manually edit raw run artifacts.
 - Keep outputs traceable to one command and one commit.

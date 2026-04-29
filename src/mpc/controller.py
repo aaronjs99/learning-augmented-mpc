@@ -19,6 +19,8 @@ class MPCController:
         goal_weight: float = 1.0,
         control_weight: float = 0.05,
         terminal_weight: float = 8.0,
+        collision_mode: str = "hard_linearized",
+        collision_soft_weight: float = 200.0,
         solver: str = "OSQP",
     ) -> None:
         """Initialize QP weights, horizon, input limit, and CVXPY solver name."""
@@ -28,9 +30,13 @@ class MPCController:
         self.goal_weight = goal_weight
         self.control_weight = control_weight
         self.terminal_weight = terminal_weight
+        self.collision_mode = collision_mode
+        self.collision_soft_weight = collision_soft_weight
         self.solver = solver
         self.last_prediction: np.ndarray | None = None
         self.last_status = "not_solved"
+        if self.collision_mode not in ("hard_linearized", "soft_penalty"):
+            raise ValueError(f"unknown collision mode '{self.collision_mode}'")
 
     def solve(
         self,
@@ -58,18 +64,21 @@ class MPCController:
         constraints += input_bounds(u, self.u_max)
         for k in range(self.horizon):
             constraints.append(x[k + 1] == x[k] + self.dt * u[k])
-        constraints += linearized_collision_constraints(
+        collision_constraints, collision_penalty = linearized_collision_constraints(
             positions=x,
             agent_index=agent_index,
             reference_trajectories=refs,
             safety_distance=safety_distance,
             current_states=current,
+            mode=self.collision_mode,
+            soft_weight=self.collision_soft_weight,
         )
+        constraints += collision_constraints
 
         # Each decentralized agent tracks only its own goal while treating the
         # other agents' previous predictions as fixed collision references.
         goal = target[agent_index]
-        objective = 0
+        objective = collision_penalty
         for k in range(self.horizon):
             objective += self.goal_weight * cp.sum_squares(x[k] - goal)
             objective += self.control_weight * cp.sum_squares(u[k])
@@ -77,7 +86,7 @@ class MPCController:
 
         problem = cp.Problem(cp.Minimize(objective), constraints)
         try:
-            problem.solve(solver=self.solver, warm_start=True, verbose=False)
+            problem.solve(solver=self.solver, warm_start=True, verbose=False, max_iter=50000)
         except cp.SolverError:
             self.last_status = "solver_error"
             self.last_prediction = refs[:, agent_index].copy()

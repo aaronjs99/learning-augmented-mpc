@@ -19,16 +19,22 @@ def linearized_collision_constraints(
     reference_trajectories: np.ndarray,
     safety_distance: float,
     current_states: np.ndarray,
+    mode: str = "hard_linearized",
+    soft_weight: float = 200.0,
     other_agent_indices: Iterable[int] | None = None,
     min_norm: float = 1e-6,
-) -> list[cp.Constraint]:
-    """Return linearized pairwise collision-avoidance constraints.
+) -> tuple[list[cp.Constraint], cp.Expression]:
+    """Return linearized collision constraints and any soft-constraint penalty.
 
     The nonconvex constraint ``||p_i - p_j|| >= d_min`` is replaced by its
     first-order supporting half-space around the previous predicted relative
     position. With ``n`` as the reference separation direction, the convex
-    constraint is ``n.T @ (p_i - p_j_ref) >= d_min``.
+    constraint is ``n.T @ (p_i - p_j_ref) >= d_min``. In ``soft_penalty`` mode,
+    nonnegative slacks keep the QP feasible while penalizing safety violation.
     """
+    if mode not in ("hard_linearized", "soft_penalty"):
+        raise ValueError(f"unknown collision mode '{mode}'")
+
     refs = np.asarray(reference_trajectories, dtype=float)
     current = np.asarray(current_states, dtype=float)
     if refs.ndim != 3 or refs.shape[1:] != (3, 2):
@@ -40,6 +46,7 @@ def linearized_collision_constraints(
 
     others = range(3) if other_agent_indices is None else other_agent_indices
     constraints: list[cp.Constraint] = []
+    penalty = cp.Constant(0.0)
     for k in range(1, refs.shape[0]):
         for other_index in others:
             if other_index == agent_index:
@@ -52,5 +59,11 @@ def linearized_collision_constraints(
             if norm < min_norm:
                 continue
             normal = delta / norm
-            constraints.append(normal @ (positions[k] - refs[k, other_index]) >= safety_distance)
-    return constraints
+            lhs = normal @ (positions[k] - refs[k, other_index])
+            if mode == "soft_penalty":
+                slack = cp.Variable(nonneg=True)
+                constraints.append(lhs + slack >= safety_distance)
+                penalty += soft_weight * cp.square(slack)
+            else:
+                constraints.append(lhs >= safety_distance)
+    return constraints, penalty

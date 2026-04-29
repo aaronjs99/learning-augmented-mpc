@@ -12,3 +12,5 @@ Thin runnable entry points only.
 `python scripts/run_baseline_mpc.py --scenario all`
 
 `python scripts/run_baseline_mpc.py --scenario all --make-video`
+
+`python scripts/run_baseline_mpc.py --scenario crossing_paths --collision-mode hard_linearized`

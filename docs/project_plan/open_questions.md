@@ -6,8 +6,8 @@
 ## Q1: Collision Constraint Handling in MPC
 - Question: Hard pairwise distance only, or slack-augmented hard constraints?
 - Why it matters: Feasibility and interpretation of failure cases.
-- Decision: Use hard linearized pairwise constraints for the baseline MPC. No slack variables are included in Phase 1.
-- Status: Resolved for baseline; revisit only if LMPC/failure analysis needs controlled infeasibility handling.
+- Decision: Use hard linearized pairwise constraints for nominal baseline runs. Use `soft_penalty` for `crossing_paths` because its straight-line reference has zero midpoint separation and makes hard linearized constraints infeasible.
+- Status: Resolved for baseline. Crossing remains a safety stress case because soft penalties restore solver feasibility but may still allow threshold violations.
 
 ## Q2: LMPC Safe-Set Representation
 - Question: Store all successful trajectory points or prune/compress?

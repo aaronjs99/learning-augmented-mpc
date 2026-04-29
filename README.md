@@ -63,6 +63,10 @@ Run all baseline scenarios with animations:
 
 `python scripts/run_baseline_mpc.py --scenario all --make-video`
 
+Reproduce the hard-constraint crossing-path infeasibility:
+
+`python scripts/run_baseline_mpc.py --scenario crossing_paths --collision-mode hard_linearized`
+
 ## Expected Outputs
 Sanity checks write a timestamped folder under `results/` with:
 - per-scenario `metrics.json`
@@ -79,6 +83,8 @@ Baseline MPC writes a timestamped folder under `results/baseline/` with:
 - per-scenario `trajectories.png`
 - per-scenario `pairwise_distances.png`
 - per-scenario `animation.gif` when `--make-video` is used
+
+`solver_statuses.json` records the collision mode, status counts per agent, and every timestep's per-agent solver status. The crossing-path scenario defaults to `soft_penalty` because its straight-line reference collapses all agents to the same midpoint, making the hard linearized constraints infeasible at the default input bound.
 
 ## Next Steps
 1. Add LMPC safe-set and cost-to-go learning objects with no duplicated controller path.

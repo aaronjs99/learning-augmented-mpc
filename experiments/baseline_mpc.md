@@ -19,4 +19,8 @@ Evaluate the minimal decentralized 3-agent MPC baseline before adding LMPC safe 
 - Optional: `results/baseline/baseline_<timestamp>/<scenario>/animation.gif` from `--make-video`
 
 ## Interpretation
-The nominal scenario should show all agents reaching their goals without collision. The shifted-start scenario is retained as an expected stress/failure candidate for later failure-mode analysis.
+The nominal scenario should show all agents reaching their goals without collision.
+
+The hard-linearized `crossing_paths` QPs are infeasible because the straight-line reference sends all agents through the same midpoint, while the initial spacing is safely above the threshold. The baseline therefore uses `soft_penalty` for `crossing_paths`; this restores solver feasibility and goal convergence, but the scenario remains a safety stress case if `collision_count` is nonzero.
+
+The shifted-start scenario is retained as an expected stress/failure candidate for later failure-mode analysis.
