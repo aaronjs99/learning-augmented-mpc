@@ -22,7 +22,9 @@ class ThreeAgentSingleIntegratorEnv:
     Controls use shape ``(3, 2)`` and integrate as ``x_{k+1} = x_k + dt * u_k``.
     """
 
-    def __init__(self, starts: np.ndarray, goals: np.ndarray, config: EnvConfig) -> None:
+    def __init__(
+        self, starts: np.ndarray, goals: np.ndarray, config: EnvConfig
+    ) -> None:
         """Initialize environment with fixed starts/goals and simulation config."""
         self.starts = _as_agent_array(starts)
         self.goals = _as_agent_array(goals)
@@ -48,7 +50,11 @@ class ThreeAgentSingleIntegratorEnv:
 
     def step(self, control: np.ndarray | None = None) -> np.ndarray:
         """Advance one step using control, or zero-control if omitted."""
-        u = np.zeros((3, 2), dtype=float) if control is None else _as_agent_array(control)
+        u = (
+            np.zeros((3, 2), dtype=float)
+            if control is None
+            else _as_agent_array(control)
+        )
         self._state = self._state + self.config.dt * u
         self._step_idx += 1
         return self.state
@@ -69,7 +75,9 @@ def rollout(
     if controls is not None:
         controls = np.asarray(controls, dtype=float)
         if controls.shape != (horizon, 3, 2):
-            raise ValueError(f"controls must have shape {(horizon, 3, 2)}, got {controls.shape}")
+            raise ValueError(
+                f"controls must have shape {(horizon, 3, 2)}, got {controls.shape}"
+            )
         control_hist[:] = controls
 
     state_hist = np.zeros((horizon + 1, 3, 2), dtype=float)

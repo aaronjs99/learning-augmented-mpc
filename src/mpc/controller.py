@@ -51,11 +51,15 @@ class MPCController:
         target = np.asarray(goals, dtype=float)
         refs = np.asarray(reference_trajectories, dtype=float)
         if current.shape != (3, 2):
-            raise ValueError(f"current_states must have shape (3, 2), got {current.shape}")
+            raise ValueError(
+                f"current_states must have shape (3, 2), got {current.shape}"
+            )
         if target.shape != (3, 2):
             raise ValueError(f"goals must have shape (3, 2), got {target.shape}")
         if refs.shape != (self.horizon + 1, 3, 2):
-            raise ValueError(f"reference_trajectories must have shape {(self.horizon + 1, 3, 2)}, got {refs.shape}")
+            raise ValueError(
+                f"reference_trajectories must have shape {(self.horizon + 1, 3, 2)}, got {refs.shape}"
+            )
 
         x = cp.Variable((self.horizon + 1, 2))
         u = cp.Variable((self.horizon, 2))
@@ -86,14 +90,20 @@ class MPCController:
 
         problem = cp.Problem(cp.Minimize(objective), constraints)
         try:
-            problem.solve(solver=self.solver, warm_start=True, verbose=False, max_iter=50000)
+            problem.solve(
+                solver=self.solver, warm_start=True, verbose=False, max_iter=50000
+            )
         except cp.SolverError:
             self.last_status = "solver_error"
             self.last_prediction = refs[:, agent_index].copy()
             return np.zeros(2, dtype=float)
 
         self.last_status = problem.status
-        if problem.status not in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE) or u.value is None or x.value is None:
+        if (
+            problem.status not in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE)
+            or u.value is None
+            or x.value is None
+        ):
             self.last_prediction = refs[:, agent_index].copy()
             return np.zeros(2, dtype=float)
 

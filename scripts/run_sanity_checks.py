@@ -16,12 +16,20 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from src.metrics import compute_rollout_metrics, pairwise_distances
 from src.plotting import plot_pairwise_distances, plot_trajectories
-from src.simulation import EnvConfig, ThreeAgentSingleIntegratorEnv, get_scenario, list_scenarios, rollout
+from src.simulation import (
+    EnvConfig,
+    ThreeAgentSingleIntegratorEnv,
+    get_scenario,
+    list_scenarios,
+    rollout,
+)
 
 
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments for sanity-check runs."""
-    parser = argparse.ArgumentParser(description="Run simulation/metrics sanity checks.")
+    parser = argparse.ArgumentParser(
+        description="Run simulation/metrics sanity checks."
+    )
     parser.add_argument("--scenario", default="all", help="scenario name or 'all'")
     parser.add_argument("--horizon", type=int, default=80, help="simulation horizon")
     parser.add_argument("--dt", type=float, default=0.1, help="simulation time step")
@@ -39,7 +47,11 @@ def main() -> None:
     names = list_scenarios() if args.scenario == "all" else [args.scenario]
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    root = Path(args.output_dir) if args.output_dir else Path("results") / f"sanity_{timestamp}"
+    root = (
+        Path(args.output_dir)
+        if args.output_dir
+        else Path("results") / f"sanity_{timestamp}"
+    )
     root.mkdir(parents=True, exist_ok=True)
 
     summary: dict[str, dict[str, float | int | None]] = {}

@@ -15,9 +15,17 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from src.metrics import compute_rollout_metrics, pairwise_distances
 from src.mpc import MPCController
-from src.plotting import plot_pairwise_distances, plot_trajectories, save_rollout_animation
-from src.simulation import EnvConfig, ThreeAgentSingleIntegratorEnv, get_scenario, list_scenarios
-
+from src.plotting import (
+    plot_pairwise_distances,
+    plot_trajectories,
+    save_rollout_animation,
+)
+from src.simulation import (
+    EnvConfig,
+    ThreeAgentSingleIntegratorEnv,
+    get_scenario,
+    list_scenarios,
+)
 
 BASELINE_COLLISION_DEFAULTS = {
     "crossing_paths": ("soft_penalty", 10000.0),
@@ -28,18 +36,31 @@ def parse_args() -> argparse.Namespace:
     """Parse baseline MPC run arguments."""
     parser = argparse.ArgumentParser(description="Run decentralized baseline MPC.")
     parser.add_argument("--scenario", default="all", help="scenario name or 'all'")
-    parser.add_argument("--horizon", type=int, default=80, help="closed-loop simulation horizon")
+    parser.add_argument(
+        "--horizon", type=int, default=80, help="closed-loop simulation horizon"
+    )
     parser.add_argument("--dt", type=float, default=0.1, help="simulation time step")
-    parser.add_argument("--mpc-horizon", type=int, default=20, help="MPC prediction horizon")
-    parser.add_argument("--u-max", type=float, default=1.0, help="componentwise input limit")
+    parser.add_argument(
+        "--mpc-horizon", type=int, default=20, help="MPC prediction horizon"
+    )
+    parser.add_argument(
+        "--u-max", type=float, default=1.0, help="componentwise input limit"
+    )
     parser.add_argument(
         "--collision-mode",
         choices=("hard_linearized", "soft_penalty"),
         default=None,
         help="override the scenario baseline collision mode",
     )
-    parser.add_argument("--collision-soft-weight", type=float, default=None, help="override soft collision slack penalty")
-    parser.add_argument("--make-video", action="store_true", help="save one trajectory GIF per scenario")
+    parser.add_argument(
+        "--collision-soft-weight",
+        type=float,
+        default=None,
+        help="override soft collision slack penalty",
+    )
+    parser.add_argument(
+        "--make-video", action="store_true", help="save one trajectory GIF per scenario"
+    )
     parser.add_argument(
         "--output-dir",
         default=None,
@@ -54,7 +75,11 @@ def main() -> None:
     names = list_scenarios() if args.scenario == "all" else [args.scenario]
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    root = Path(args.output_dir) if args.output_dir else Path("results") / "baseline" / f"baseline_{timestamp}"
+    root = (
+        Path(args.output_dir)
+        if args.output_dir
+        else Path("results") / "baseline" / f"baseline_{timestamp}"
+    )
     root.mkdir(parents=True, exist_ok=True)
 
     summary: dict[str, dict[str, object]] = {}
@@ -64,7 +89,9 @@ def main() -> None:
         default_collision_mode, default_soft_weight = _baseline_collision_defaults(name)
         collision_mode = args.collision_mode or default_collision_mode
         collision_soft_weight = (
-            args.collision_soft_weight if args.collision_soft_weight is not None else default_soft_weight
+            args.collision_soft_weight
+            if args.collision_soft_weight is not None
+            else default_soft_weight
         )
         run_dir = root / name
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -115,7 +142,13 @@ def main() -> None:
         _save_states_csv(run_dir / "states.csv", states, args.dt)
         _save_controls_csv(run_dir / "controls.csv", controls, args.dt)
         with (run_dir / "solver_statuses.json").open("w", encoding="utf-8") as f:
-            json.dump(_solver_diagnostics(solver_statuses, collision_mode, collision_soft_weight), f, indent=2)
+            json.dump(
+                _solver_diagnostics(
+                    solver_statuses, collision_mode, collision_soft_weight
+                ),
+                f,
+                indent=2,
+            )
         with (run_dir / "metrics.json").open("w", encoding="utf-8") as f:
             json.dump(run_metrics, f, indent=2)
 
@@ -173,7 +206,9 @@ def _closed_loop_rollout(
                 safety_distance=safety_distance,
             )
             prediction = controller.last_prediction
-            predictions[:, agent_index] = reference[:, agent_index] if prediction is None else prediction
+            predictions[:, agent_index] = (
+                reference[:, agent_index] if prediction is None else prediction
+            )
             step_statuses.append(controller.last_status)
 
         current = env.step(controls[k])
@@ -188,17 +223,21 @@ def _baseline_collision_defaults(scenario_name: str) -> tuple[str, float]:
     return BASELINE_COLLISION_DEFAULTS.get(scenario_name, ("hard_linearized", 200.0))
 
 
-def _goal_reference(current_states: np.ndarray, goals: np.ndarray, horizon: int) -> np.ndarray:
+def _goal_reference(
+    current_states: np.ndarray, goals: np.ndarray, horizon: int
+) -> np.ndarray:
     reference = np.zeros((horizon + 1, 3, 2), dtype=float)
     alpha = np.linspace(0.0, 1.0, horizon + 1)
     for agent_index in range(3):
-        reference[:, agent_index] = (1.0 - alpha[:, None]) * current_states[agent_index] + alpha[:, None] * goals[
+        reference[:, agent_index] = (1.0 - alpha[:, None]) * current_states[
             agent_index
-        ]
+        ] + alpha[:, None] * goals[agent_index]
     return reference
 
 
-def _shift_reference(predictions: np.ndarray, current_states: np.ndarray, goals: np.ndarray) -> np.ndarray:
+def _shift_reference(
+    predictions: np.ndarray, current_states: np.ndarray, goals: np.ndarray
+) -> np.ndarray:
     shifted = np.empty_like(predictions)
     shifted[0] = current_states
     shifted[1:-1] = predictions[2:]
@@ -225,9 +264,13 @@ def _run_record(
     reference_distances = pairwise_distances(reference)
     record: dict[str, object] = dict(metrics)
     record["collision_mode"] = collision_mode
-    record["collision_soft_weight"] = collision_soft_weight if collision_mode == "soft_penalty" else None
+    record["collision_soft_weight"] = (
+        collision_soft_weight if collision_mode == "soft_penalty" else None
+    )
     record["initial_min_pairwise_distance"] = float(np.min(initial_distances))
-    record["straight_line_reference_min_pairwise_distance"] = float(np.min(reference_distances))
+    record["straight_line_reference_min_pairwise_distance"] = float(
+        np.min(reference_distances)
+    )
     record["final_goal_error_by_agent"] = final_goal_error.tolist()
     record["success_by_agent"] = (final_goal_error <= 0.1).tolist()
     record["solver_feasibility_rate"] = float(np.mean(feasible)) if feasible else 0.0
@@ -242,16 +285,25 @@ def _solver_diagnostics(
 ) -> dict[str, object]:
     return {
         "collision_mode": collision_mode,
-        "collision_soft_weight": collision_soft_weight if collision_mode == "soft_penalty" else None,
+        "collision_soft_weight": (
+            collision_soft_weight if collision_mode == "soft_penalty" else None
+        ),
         "status_counts_by_agent": _status_counts_by_agent(solver_statuses),
         "steps": [
-            {"step": step, "agent_statuses": {str(agent): status for agent, status in enumerate(statuses)}}
+            {
+                "step": step,
+                "agent_statuses": {
+                    str(agent): status for agent, status in enumerate(statuses)
+                },
+            }
             for step, statuses in enumerate(solver_statuses)
         ],
     }
 
 
-def _status_counts_by_agent(solver_statuses: list[list[str]]) -> dict[str, dict[str, int]]:
+def _status_counts_by_agent(
+    solver_statuses: list[list[str]],
+) -> dict[str, dict[str, int]]:
     counts: dict[str, dict[str, int]] = {str(agent): {} for agent in range(3)}
     for statuses in solver_statuses:
         for agent, status in enumerate(statuses):
@@ -267,7 +319,13 @@ def _save_states_csv(path: Path, states: np.ndarray, dt: float) -> None:
         for step in range(states.shape[0]):
             for agent_index in range(3):
                 writer.writerow(
-                    (step, step * dt, agent_index, states[step, agent_index, 0], states[step, agent_index, 1])
+                    (
+                        step,
+                        step * dt,
+                        agent_index,
+                        states[step, agent_index, 0],
+                        states[step, agent_index, 1],
+                    )
                 )
 
 
@@ -278,7 +336,13 @@ def _save_controls_csv(path: Path, controls: np.ndarray, dt: float) -> None:
         for step in range(controls.shape[0]):
             for agent_index in range(3):
                 writer.writerow(
-                    (step, step * dt, agent_index, controls[step, agent_index, 0], controls[step, agent_index, 1])
+                    (
+                        step,
+                        step * dt,
+                        agent_index,
+                        controls[step, agent_index, 0],
+                        controls[step, agent_index, 1],
+                    )
                 )
 
 

@@ -38,11 +38,15 @@ def linearized_collision_constraints(
     refs = np.asarray(reference_trajectories, dtype=float)
     current = np.asarray(current_states, dtype=float)
     if refs.ndim != 3 or refs.shape[1:] != (3, 2):
-        raise ValueError(f"reference_trajectories must have shape (N+1, 3, 2), got {refs.shape}")
+        raise ValueError(
+            f"reference_trajectories must have shape (N+1, 3, 2), got {refs.shape}"
+        )
     if current.shape != (3, 2):
         raise ValueError(f"current_states must have shape (3, 2), got {current.shape}")
     if positions.shape != (refs.shape[0], 2):
-        raise ValueError(f"positions must have shape {(refs.shape[0], 2)}, got {positions.shape}")
+        raise ValueError(
+            f"positions must have shape {(refs.shape[0], 2)}, got {positions.shape}"
+        )
 
     others = range(3) if other_agent_indices is None else other_agent_indices
     constraints: list[cp.Constraint] = []

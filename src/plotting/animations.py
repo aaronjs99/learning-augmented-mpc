@@ -39,9 +39,13 @@ def save_rollout_animation(
     points = []
     safety_circles = []
     for agent_index, color in enumerate(AGENT_COLORS):
-        ax.scatter(s[0, agent_index, 0], s[0, agent_index, 1], color=color, marker="o", s=45)
+        ax.scatter(
+            s[0, agent_index, 0], s[0, agent_index, 1], color=color, marker="o", s=45
+        )
         ax.scatter(g[agent_index, 0], g[agent_index, 1], color=color, marker="x", s=75)
-        (trail,) = ax.plot([], [], color=color, linewidth=2, alpha=0.75, label=f"agent {agent_index}")
+        (trail,) = ax.plot(
+            [], [], color=color, linewidth=2, alpha=0.75, label=f"agent {agent_index}"
+        )
         (point,) = ax.plot([], [], color=color, marker="o", markersize=7)
         circle = patches.Circle(
             s[0, agent_index],
@@ -66,19 +70,29 @@ def save_rollout_animation(
     def update(frame: int) -> list[object]:
         artists: list[object] = [time_text]
         for agent_index in range(3):
-            trails[agent_index].set_data(s[: frame + 1, agent_index, 0], s[: frame + 1, agent_index, 1])
-            points[agent_index].set_data([s[frame, agent_index, 0]], [s[frame, agent_index, 1]])
+            trails[agent_index].set_data(
+                s[: frame + 1, agent_index, 0], s[: frame + 1, agent_index, 1]
+            )
+            points[agent_index].set_data(
+                [s[frame, agent_index, 0]], [s[frame, agent_index, 1]]
+            )
             safety_circles[agent_index].center = s[frame, agent_index]
-            artists.extend((trails[agent_index], points[agent_index], safety_circles[agent_index]))
+            artists.extend(
+                (trails[agent_index], points[agent_index], safety_circles[agent_index])
+            )
         time_text.set_text(f"t = {frame * dt:.1f}s")
         return artists
 
-    anim = animation.FuncAnimation(fig, update, frames=s.shape[0], interval=1000 / fps, blit=True)
+    anim = animation.FuncAnimation(
+        fig, update, frames=s.shape[0], interval=1000 / fps, blit=True
+    )
     anim.save(path, writer=animation.PillowWriter(fps=fps), dpi=120)
     plt.close(fig)
 
 
-def _set_equal_limits(ax: plt.Axes, states: np.ndarray, goals: np.ndarray, safety_distance: float) -> None:
+def _set_equal_limits(
+    ax: plt.Axes, states: np.ndarray, goals: np.ndarray, safety_distance: float
+) -> None:
     points = np.vstack((states.reshape(-1, 2), goals))
     margin = max(0.25, safety_distance)
     mins = np.min(points, axis=0) - margin

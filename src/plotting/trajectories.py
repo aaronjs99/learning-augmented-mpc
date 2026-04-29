@@ -9,12 +9,13 @@ import numpy as np
 configure_matplotlib()
 from matplotlib import pyplot as plt
 
-
 PAIR_LABELS = ("d(0,1)", "d(0,2)", "d(1,2)")
 AGENT_COLORS = ("tab:blue", "tab:orange", "tab:green")
 
 
-def plot_trajectories(states: np.ndarray, goals: np.ndarray, title: str, out_path: str) -> None:
+def plot_trajectories(
+    states: np.ndarray, goals: np.ndarray, title: str, out_path: str
+) -> None:
     """Save a 2D trajectory plot for all agents with start and goal markers."""
     s = np.asarray(states, dtype=float)
     g = np.asarray(goals, dtype=float)
@@ -51,7 +52,9 @@ def plot_pairwise_distances(
     for i, label in enumerate(PAIR_LABELS):
         ax.plot(t, d[:, i], linewidth=2, label=label)
 
-    ax.axhline(safety_distance, color="red", linestyle="--", linewidth=1.5, label="safety")
+    ax.axhline(
+        safety_distance, color="red", linestyle="--", linewidth=1.5, label="safety"
+    )
     ax.set_title(title)
     ax.set_xlabel("time [s]")
     ax.set_ylabel("distance")

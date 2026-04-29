@@ -72,7 +72,9 @@ def compute_rollout_metrics(
     if controls is not None:
         u = np.asarray(controls, dtype=float)
         if u.shape != (s.shape[0] - 1, 3, 2):
-            raise ValueError(f"controls must have shape {(s.shape[0] - 1, 3, 2)}, got {u.shape}")
+            raise ValueError(
+                f"controls must have shape {(s.shape[0] - 1, 3, 2)}, got {u.shape}"
+            )
         control_effort = float(np.sum(u**2))
 
     return RolloutMetrics(
