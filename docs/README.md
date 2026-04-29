@@ -1,20 +1,15 @@
-# Documentation Hub
+# Documentation
 
-This directory is the central index for research planning, literature synthesis, and project communication.
+Documentation for the minimal 3-agent decentralized LMPC project.
 
 ## Sections
-- `paper_notes/`
-  - Per-paper notes and extraction templates for integration planning
-- `literature_review/`
-  - Cross-paper comparison notes and synthesis documents
-- `project_plan/`
-  - Roadmap, milestones, open questions, and deliverable outlines
-- `figures/`
-  - Figures for reports/slides (when generated)
-- `presentation_notes/`
-  - Slide planning notes and speaking points
+- `project_plan/`: roadmap, milestones, and open assumptions.
+- `figures/`: report/presentation figures generated from results.
+- `paper_notes/`: concise notes directly tied to implementation choices.
+- `literature_review/`: optional synthesis for final writeup.
+- `presentation_notes/`: final presentation prep.
 
-## Usage
-- Use templates before creating ad-hoc files
-- Keep filenames descriptive and date-aware where relevant
-- Prefer updating existing notes over duplicating near-identical documents
+## Reproducibility Rules
+- Every experiment record includes: purpose, command, outputs, interpretation.
+- Update `project_plan/roadmap.md` and `project_plan/open_questions.md` when assumptions change.
+- Keep docs synchronized with runnable scripts and actual outputs under `results/`.

@@ -1,21 +1,35 @@
 # Roadmap
 
-## Purpose
-Track the staged path from planning to implementation and evaluation.
+## Goal
+Deliver a minimal, reproducible decentralized LMPC pipeline for 3 collision-aware agents.
 
-## Phases
-1. Problem Definition and Baseline Scope
-   - Define control task and constraints
-   - Define baseline MPC target and acceptance criteria
-2. Learning Augmentation Design
-   - Select integration mechanism(s)
-   - Define required interfaces and data flow
-3. Paper Fusion and Ablations
-   - Integrate multi-paper components in `src/fusion/`
-   - Plan ablation matrix and evaluation protocol
-4. Evaluation and Deliverables
-   - Summarize findings for class report and presentation
-   - Document reproducibility and limitations
+## Phase 0 (Done): Simulation and Evaluation Foundation
+- Fixed dynamics for initial build: single-integrator.
+- Implemented one reusable 3-agent environment.
+- Implemented centralized named scenarios.
+- Implemented metrics and plotting utilities.
+- Added thin zero-control sanity-check script.
 
-## Notes
-- Keep this file updated when scope changes materially.
+## Phase 1: Baseline Decentralized MPC
+- Implement one decentralized MPC controller interface.
+- Reuse existing simulation/scenario/metrics/plotting modules.
+- Acceptance:
+  - agents reach goals in nominal scenario
+  - no collisions under nominal settings
+  - reproducible command + documented outputs
+
+## Phase 2: LMPC Learning Components
+- Add learned safe-set storage from successful trajectories.
+- Add learned terminal cost-to-go from stored trajectories.
+- Keep MPC/LMPC in one controller path with config switches only.
+
+## Phase 3: Failure-Mode Analysis
+- Evaluate shifted initial/goal and/or tighter safety settings.
+- Document failure types (infeasibility, collision risk, goal failure).
+
+## Phase 4: Optional BO (Only After 1-3)
+- Optional tuning of selected hyperparameters only.
+
+## Out of Scope for Initial Delivery
+- Agent counts other than 3.
+- Multiple duplicated controller or simulator codepaths.

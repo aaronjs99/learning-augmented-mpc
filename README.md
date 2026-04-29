@@ -1,74 +1,56 @@
-# Learning-Augmented Model Predictive Control
+# MAE 271D: Decentralized Learning MPC (3-Agent)
 
-## Overview
-This repository is a graduate research scaffold for studying learning-augmented model predictive control (MPC). It currently holds standardized project structure, documentation conventions, and collaboration workflow assets while implementation choices are being finalized by the team.
+Minimal, reproducible project for decentralized LMPC with collision-aware trajectory optimization for exactly 3 agents.
 
-## Motivation
-Classical MPC provides structure, constraint handling, and interpretability, but performance can degrade under model mismatch and changing dynamics. Learning-augmented MPC aims to retain the reliability of model-based control while improving adaptation and predictive quality through data-driven components.
+## Scope (Required Story)
+1. Baseline decentralized MPC for 3 agents.
+2. Decentralized LMPC with learned safe sets and learned cost-to-go.
+3. Failure-mode analysis under shifted initial/goal conditions and/or tighter safety constraints.
+4. Optional BO only after 1-3 are complete.
 
-## Research Direction
-- Synthesize ideas from multiple MPC + learning papers into one coherent framework
-- Compare integration strategies (e.g., residual dynamics, learned costs, learned terminal components)
-- Evaluate tradeoffs between robustness, sample efficiency, and computational cost
+## Current Implementation Status
+Implemented now:
+- simulation layer (single-integrator, 3 agents)
+- centralized scenario definitions
+- rollout metrics
+- plotting utilities
+- thin sanity-check script (zero-control/open-loop)
 
-## Project Objectives
-- Implement a baseline MPC pipeline suitable for controlled comparisons
-- Add learning-based augmentation modules with clear interfaces
-- Build a fusion layer (`src/fusion/`) for multi-paper composition and ablation
-- Run reproducible experiments and document findings rigorously
+Not implemented yet:
+- MPC and LMPC controllers
 
-## Repository Structure
-- `docs/`: Project documentation, planning, paper synthesis, and presentation/report scaffolds
-- `src/`: Future implementation modules (`mpc`, `learning`, `fusion`, `simulation`)
-- `experiments/`: Experiment plans and run metadata conventions (no implementation here yet)
-- `results/`: Result logging conventions and future artifacts
-- `scripts/`: Utility scripts (intentionally minimal at this stage)
-- `references/`: Reference management (papers, links, and bibliography)
+## Minimal Repository Layout
+- `src/simulation/`: 3-agent environment and scenarios.
+- `src/metrics/`: rollout metrics.
+- `src/plotting/`: centralized plotting utilities.
+- `src/mpc/`: reserved for baseline MPC (next step).
+- `src/learning/`: reserved for LMPC learning objects (next step).
+- `scripts/`: thin runnable scripts.
+- `experiments/`: experiment records (purpose/command/outputs/interpretation).
+- `results/`: generated artifacts.
 
-## Current Status
-- Planned:
-  - Baseline controller design and evaluation protocol
-  - Learning augmentation strategy selection from literature
-- Scaffolded:
-  - Repository layout, documentation index, paper-note templates, planning docs
-  - Contribution and collaboration workflow templates
-- Implemented:
-  - No MPC/learning implementation code yet
+## Setup
+Recommended minimal dependencies:
+- `numpy`
+- `matplotlib`
 
-## Team
-- Aaron John Sabu (`@aaronjs99`)
-- Nicholas Councell (`@nick12512`)
-- Ben (`@benw7454`)
+## Run (Sanity Checks)
+Run all scenarios with zero-control rollout:
 
-## Collaboration Workflow
-- Use short-lived feature branches for documentation and code changes
-- Open PRs against `main` with clear scope and explicit assumptions
-- Keep commits focused and reviewable
-- Update docs whenever structure, experiments, or integration plans change
-- See `CONTRIBUTING.md` for detailed norms
+`python scripts/run_sanity_checks.py --scenario all`
 
-## Setup Status
-Environment and tooling setup is not finalized yet. The repository is intentionally in a scaffolded holding state while the team finalizes scope and integration priorities.
+Run one scenario:
 
-## Documentation Map
-- `docs/README.md`: Documentation index and navigation
-- `docs/paper_notes/`: Per-paper extraction templates and notes
-- `docs/literature_review/`: Cross-paper synthesis
-- `docs/project_plan/`: Milestones, roadmap, open questions, and report/presentation planning
-- `docs/presentation_notes/`: Slide planning and speaking-point scaffolds
+`python scripts/run_sanity_checks.py --scenario crossing_paths`
+
+## Expected Outputs
+Each run writes a timestamped folder under `results/` with:
+- per-scenario `metrics.json`
+- per-scenario `trajectories.png`
+- per-scenario `pairwise_distances.png`
+- top-level `summary.json`
 
 ## Next Steps
-1. Align on baseline problem scope and first paper set at the next team meeting
-2. Confirm integration direction and evaluation plan
-3. Begin implementation only after team alignment on interfaces and milestones
-
-## Contribution Expectations
-- Keep changes scoped, documented, and reproducible
-- Avoid undocumented assumptions in experiments and integration choices
-- Prefer explicit design notes before major implementation changes
-
-## Citation / Attribution (Placeholder)
-If this project is used for reports, papers, or external collaboration, add a formal citation entry here once title/authorship details are finalized.
-
-## License Status
-No project license has been selected yet. See `LICENSE_STATUS.md` for current guidance.
+1. Implement baseline decentralized MPC on top of the existing simulation/scenario/metrics stack.
+2. Add LMPC safe-set and cost-to-go learning objects with no duplicated controller path.
+3. Run failure-mode experiments and document outcomes in `experiments/`.
