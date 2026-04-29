@@ -38,6 +38,8 @@ tmp/
 temp/
 
 # Generated/local result artifacts (keep curated results tracked explicitly)
+results/baseline/
+results/sanity_*/
 results/tmp/
 results/raw_runs/
 

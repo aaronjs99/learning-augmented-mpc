@@ -10,9 +10,10 @@ Deliver a minimal, reproducible decentralized LMPC pipeline for 3 collision-awar
 - Implemented metrics and plotting utilities.
 - Added thin zero-control sanity-check script.
 
-## Phase 1: Baseline Decentralized MPC
-- Implement one decentralized MPC controller interface.
-- Reuse existing simulation/scenario/metrics/plotting modules.
+## Phase 1 (Done): Baseline Decentralized MPC
+- Implemented one decentralized MPC controller interface.
+- Reused existing simulation/scenario/metrics/plotting modules.
+- Baseline command: `python scripts/run_baseline_mpc.py --scenario all`
 - Acceptance:
   - agents reach goals in nominal scenario
   - no collisions under nominal settings

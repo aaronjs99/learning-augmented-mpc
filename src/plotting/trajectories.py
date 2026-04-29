@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from ._backend import configure_matplotlib
+
 import numpy as np
+
+configure_matplotlib()
 from matplotlib import pyplot as plt
 
 

@@ -3,10 +3,11 @@
 Generated artifacts from experiment runs live here.
 
 ## Layout
-- `results/<experiment_id>/metrics.json`
-- `results/<experiment_id>/trajectories.csv` (or equivalent compact format)
-- `results/<experiment_id>/plots/`
-- `results/<experiment_id>/interpretation.md`
+- `results/sanity_<timestamp>/`: zero-control simulation checks.
+- `results/baseline/baseline_<timestamp>/`: decentralized baseline MPC outputs.
+- Per scenario: `metrics.json`, `states.csv`, `controls.csv`, `trajectories.png`, and `pairwise_distances.png`.
+- Baseline runs also include `solver_statuses.json`.
+- Baseline runs with `--make-video` also include `animation.gif`.
 
 ## Rules
 - Do not manually edit raw run artifacts.

@@ -10,9 +10,12 @@ Keep implementation minimal, reusable, and non-duplicated.
   - `core.py`: rollout metric computation and pairwise distances
 - `src/plotting/`
   - `trajectories.py`: trajectory and pairwise-distance plots
+  - `animations.py`: optional rollout GIFs for baseline visual checks
+- `src/mpc/`
+  - `controller.py`: shared decentralized MPC QP controller
+  - `constraints.py`: input bounds and linearized collision constraints
 
 ## Reserved for Next Phases
-- `src/mpc/`: baseline decentralized MPC implementation
 - `src/learning/`: LMPC safe-set and cost-to-go objects
 
 ## Rules

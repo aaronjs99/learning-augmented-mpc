@@ -22,7 +22,7 @@ Use one directory or markdown record per experiment id, for example:
 4. Optional BO tuning only after 1-3
 
 ## Canonical Planned Commands
-- `python scripts/run_experiment.py --scenario baseline --controller mpc`
+- `python scripts/run_baseline_mpc.py --scenario all`
 - `python scripts/run_experiment.py --scenario baseline --controller lmpc`
 - `python scripts/run_experiment.py --scenario shifted_init_goal --controller lmpc`
 
