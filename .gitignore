@@ -1,16 +1,3 @@
-# ROS / Catkin build outputs
-build/
-devel/
-install/
-log/
-.catkin_tools/
-
-# Runtime logs and recordings
-*.bag
-*.log
-*.out
-*.err
-
 # Python caches and tooling
 __pycache__/
 *.pyc
@@ -25,6 +12,8 @@ __pycache__/
 # Python packaging artifacts
 *.egg-info/
 .eggs/
+build/
+dist/
 
 # Virtual environments
 .venv/
@@ -37,11 +26,17 @@ ENV/
 tmp/
 temp/
 
-# Generated/local result artifacts (keep curated results tracked explicitly)
-results/baseline/
-results/sanity_*/
-results/tmp/
-results/raw_runs/
+# Local data inputs/exports. Keep only documentation tracked.
+data/**
+!data/
+!data/README.md
+
+# Generated run artifacts. Keep only docs and the curated working snapshot.
+results/**
+!results/
+!results/README.md
+!results/latest_working/
+!results/latest_working/**
 
 # Editor and IDE
 .vscode/

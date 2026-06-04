@@ -1,0 +1,33 @@
+"""Root command dispatcher for the manta LMPC project."""
+
+from __future__ import annotations
+
+import sys
+
+
+def main() -> None:
+    """Run manta LMPC by default, with baseline and sanity shortcuts."""
+    command = sys.argv[1] if len(sys.argv) > 1 else "manta"
+    if command in {"manta", "lmpc"}:
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_manta_lmpc import main as run_manta
+
+        run_manta()
+    elif command == "baseline":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_baseline_mpc import main as run_baseline
+
+        run_baseline()
+    elif command == "sanity":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_sanity_checks import main as run_sanity
+
+        run_sanity()
+    else:
+        from scripts.run_manta_lmpc import main as run_manta
+
+        run_manta()
+
+
+if __name__ == "__main__":
+    main()

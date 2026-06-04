@@ -1,94 +1,59 @@
-# MAE 271D: Decentralized Learning MPC (3-Agent)
+# MAE 271D: Decentralized Learning MPC
 
-Minimal, reproducible project for decentralized LMPC with collision-aware trajectory optimization for exactly 3 agents.
+Config-driven 3-agent manta LMPC implementation. The active state is:
 
-## Scope (Required Story)
-1. Baseline decentralized MPC for 3 agents.
-2. Decentralized LMPC with learned safe sets and learned cost-to-go.
-3. Failure-mode analysis under shifted initial/goal conditions and/or tighter safety constraints.
-4. Optional BO only after 1-3 are complete.
+`[x, y, theta, p_L, q_L, p_R, q_R]`
 
-## Current Implementation Status
-Implemented now:
-- simulation layer (single-integrator, 3 agents)
-- centralized scenario definitions
-- rollout metrics
-- plotting utilities
-- thin sanity-check script (zero-control/open-loop)
-- baseline decentralized MPC with CVXPY/OSQP
+The default run is controlled by `config/manta.yaml`.
 
-Not implemented yet:
-- LMPC safe-set and learned cost-to-go components
+## Workflow
+1. Generate iteration-0 safe trajectories with an APF autopilot.
+2. Run decentralized CasADi/IPOPT LMPC with learned safe-set terminal hulls and time-to-go costs.
+3. Use SVM spatial hyperplanes plus soft slacks for inter-agent avoidance and a softened circular static-obstacle constraint.
 
-## Minimal Repository Layout
-- `src/simulation/`: 3-agent environment and scenarios.
-- `src/metrics/`: rollout metrics.
-- `src/plotting/`: centralized plotting utilities.
-- `src/mpc/`: shared baseline decentralized MPC controller and constraints.
-- `src/learning/`: reserved for LMPC learning objects (next step).
-- `scripts/`: thin runnable scripts.
-- `experiments/`: experiment records (purpose/command/outputs/interpretation).
-- `results/`: generated artifacts.
+## Layout
+- `run.py`: root command dispatcher.
+- `config/`: YAML runtime configuration.
+- `scripts/dynamics/`: manta dynamics and RK4 integration.
+- `scripts/simulation/`: manta environment and scenario dataclasses.
+- `scripts/learning/`: APF initialization, safe-set sampling, SVM hyperplanes, runner.
+- `scripts/mpc/`: CasADi LMPC agent builder.
+- `scripts/metrics/`, `scripts/plotting/`: diagnostics, plots, and GIFs.
+- `results/`: generated outputs.
 
 ## Setup
-Recommended minimal dependencies:
-- `numpy`
-- `matplotlib`
-- `cvxpy`
-- `osqp`
-
-Install with:
-
 `pip install -r requirements.txt`
 
-## Run (Sanity Checks)
-Run all scenarios with zero-control rollout:
+## Run
+Full manta LMPC using `config/manta.yaml`:
 
-`python scripts/run_sanity_checks.py --scenario all`
+`python run.py`
 
-Run one scenario:
+APF baseline only, equivalent to iteration 0:
 
-`python scripts/run_sanity_checks.py --scenario crossing_paths`
+`python run.py baseline`
 
-## Run (Baseline MPC)
-Run decentralized baseline MPC on all scenarios:
+Zero-control manta sanity check:
 
-`python scripts/run_baseline_mpc.py --scenario all`
+`python run.py sanity`
 
-Run only the nominal scenario:
+Useful overrides:
 
-`python scripts/run_baseline_mpc.py --scenario nominal_triangle_rotation`
+`python run.py --iterations 1`
 
-Run all baseline scenarios with animations:
+`python run.py --make-video`
 
-`python scripts/run_baseline_mpc.py --scenario all --make-video`
+`python run.py --config config/manta.yaml --output-dir results/debug_run`
 
-Reproduce the hard-constraint crossing-path infeasibility:
+Outputs are written under `results/manta_lmpc/` by default.
 
-`python scripts/run_baseline_mpc.py --scenario crossing_paths --collision-mode hard_linearized`
+## Tracked Results and Data
+Timestamped run folders are ignored by git. Keep only the current report-ready
+snapshot in `results/latest_working/`.
 
-## Expected Outputs
-Sanity checks write a timestamped folder under `results/` with:
-- per-scenario `metrics.json`
-- per-scenario `trajectories.png`
-- per-scenario `pairwise_distances.png`
-- top-level `summary.json`
-
-Baseline MPC writes a timestamped folder under `results/baseline/` with:
-- top-level `summary.json`
-- per-scenario `metrics.json`
-- per-scenario `states.csv`
-- per-scenario `controls.csv`
-- per-scenario `solver_statuses.json`
-- per-scenario `trajectories.png`
-- per-scenario `pairwise_distances.png`
-- per-scenario `animation.gif` when `--make-video` is used
-
-`solver_statuses.json` records the collision mode, status counts per agent, and every timestep's per-agent solver status. The crossing-path scenario defaults to `soft_penalty` because its straight-line reference collapses all agents to the same midpoint, making the hard linearized constraints infeasible at the default input bound.
-
-## Next Steps
-1. Add LMPC safe-set and cost-to-go learning objects with no duplicated controller path.
-2. Run failure-mode experiments and document outcomes in `experiments/`.
+The current workflow does not require external data files. `data/` is available
+for optional local inputs or scratch exports, but its contents are ignored
+except for `data/README.md`.
 
 ## License
-This project is licensed under the MIT License. See `LICENSE`.
+MIT. See `LICENSE`.

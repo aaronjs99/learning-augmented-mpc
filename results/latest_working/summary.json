@@ -1,0 +1,47 @@
+{
+  "scenario": "manta_triangle",
+  "config": "C:\\Users\\aaron\\Desktop\\aaronjs99\\learning-augmented-mpc\\config\\manta.yaml",
+  "iterations": 4,
+  "dt": 0.2,
+  "prediction_horizon": 20,
+  "k_hull": 10,
+  "max_steps": 300,
+  "apf_max_steps": 400,
+  "success_by_iteration": [
+    true,
+    false,
+    true,
+    true,
+    true
+  ],
+  "cost_by_iteration": {
+    "0": [
+      74,
+      301,
+      198,
+      184,
+      171
+    ],
+    "1": [
+      154,
+      301,
+      198,
+      184,
+      171
+    ],
+    "2": [
+      225,
+      301,
+      198,
+      184,
+      171
+    ]
+  },
+  "metrics_final_iteration": {
+    "total_cost_proxy": 6694.57440433145,
+    "minimum_pairwise_distance": 0.9523212317008564,
+    "collision_count": 0,
+    "time_to_goal": 33.800000000000004,
+    "control_effort": 879.6928045554339
+  }
+}

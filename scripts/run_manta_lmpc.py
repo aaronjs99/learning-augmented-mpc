@@ -1,0 +1,223 @@
+"""CLI entry point for config-driven manta APF/LMPC runs."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+from dataclasses import replace
+from datetime import datetime
+from pathlib import Path
+import sys
+
+import numpy as np
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from scripts.config import DEFAULT_CONFIG_PATH, ProjectConfig, load_project_config
+from scripts.learning import cost_by_iteration, run_manta_lmpc
+from scripts.metrics import compute_rollout_metrics, pairwise_distances
+from scripts.plotting import (
+    plot_cost_decrease,
+    plot_learning_progression,
+    plot_pairwise_distances,
+    plot_trajectories,
+    save_manta_animation,
+)
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse CLI overrides for the YAML-backed manta LMPC run."""
+    parser = argparse.ArgumentParser(description="Run config-driven manta APF/LMPC.")
+    parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
+    parser.add_argument("--scenario", default=None)
+    parser.add_argument("--iterations", type=int, default=None)
+    parser.add_argument("--max-steps", type=int, default=None)
+    parser.add_argument("--apf-max-steps", type=int, default=None)
+    parser.add_argument("--dt", type=float, default=None)
+    parser.add_argument("--mpc-horizon", type=int, default=None)
+    parser.add_argument("--k-hull", type=int, default=None)
+    parser.add_argument("--goal-tolerance", type=float, default=None)
+    parser.add_argument("--make-video", action="store_true", default=None)
+    parser.add_argument("--no-video", action="store_false", dest="make_video")
+    parser.add_argument("--quiet", action="store_true", default=None)
+    parser.add_argument("--verbose", action="store_false", dest="quiet")
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="override output directory for this run",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    """Run APF/LMPC from YAML config and save all diagnostics."""
+    args = parse_args()
+    project_config = _load_effective_config(args)
+    scenario = project_config.scenario
+    lmpc_config = project_config.lmpc
+    apf_config = project_config.apf
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    root = (
+        Path(args.output_dir)
+        if args.output_dir
+        else project_config.output.root_dir
+        / f"{project_config.output.run_prefix}_{timestamp}"
+    )
+    root.mkdir(parents=True, exist_ok=True)
+
+    result = run_manta_lmpc(
+        scenario,
+        config=lmpc_config,
+        apf_config=apf_config,
+        dynamics_config=project_config.dynamics,
+        verbose=not project_config.quiet,
+    )
+
+    final_states = _history_to_tensor(result.final_history)
+    final_controls = (
+        result.controls_by_iteration[-1] if result.controls_by_iteration else None
+    )
+    metrics = compute_rollout_metrics(
+        states=final_states,
+        goals=scenario.goals,
+        safety_distance=scenario.safety_distance,
+        dt=lmpc_config.dt,
+        controls=final_controls,
+        goal_tolerance=lmpc_config.goal_tolerance,
+    )
+    dists = pairwise_distances(final_states)
+    costs = cost_by_iteration(
+        result.histories,
+        scenario.goals,
+        goal_tolerance=project_config.plots.cost_goal_tolerance,
+    )
+
+    summary = {
+        "scenario": scenario.name,
+        "config": str(Path(args.config).resolve()),
+        "iterations": lmpc_config.iterations,
+        "dt": lmpc_config.dt,
+        "prediction_horizon": lmpc_config.prediction_horizon,
+        "k_hull": lmpc_config.k_hull,
+        "max_steps": lmpc_config.max_steps,
+        "apf_max_steps": apf_config.max_steps,
+        "success_by_iteration": result.success_by_iteration,
+        "cost_by_iteration": {str(agent): values for agent, values in costs.items()},
+        "metrics_final_iteration": metrics.to_dict(),
+    }
+    with (root / "summary.json").open("w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
+
+    _save_histories_csv(
+        root / "states_by_iteration.csv", result.histories, lmpc_config.dt
+    )
+    plot_learning_progression(
+        result.histories,
+        scenario.goals,
+        scenario.obstacle,
+        str(root / "learning_progression.png"),
+    )
+    plot_cost_decrease(
+        result.histories, scenario.goals, str(root / "cost_decrease.png")
+    )
+    plot_trajectories(
+        states=final_states,
+        goals=scenario.goals,
+        title=f"{scenario.name}: final manta LMPC iteration",
+        out_path=str(root / "final_trajectories.png"),
+    )
+    plot_pairwise_distances(
+        distances=dists,
+        dt=lmpc_config.dt,
+        safety_distance=scenario.safety_distance,
+        title=f"{scenario.name}: pairwise distances",
+        out_path=str(root / "pairwise_distances.png"),
+    )
+    if project_config.make_video:
+        save_manta_animation(
+            result.final_history,
+            scenario.goals,
+            scenario.obstacle,
+            lmpc_config.dt,
+            str(root / "final_iteration.gif"),
+            fps=project_config.plots.animation_fps,
+        )
+
+    print(f"Saved manta LMPC outputs to: {root}")
+
+
+def _load_effective_config(args: argparse.Namespace) -> ProjectConfig:
+    """Load YAML config, then apply explicit CLI overrides."""
+    config = load_project_config(args.config, scenario_name=args.scenario)
+    lmpc_updates = {
+        "iterations": args.iterations,
+        "max_steps": args.max_steps,
+        "dt": args.dt,
+        "prediction_horizon": args.mpc_horizon,
+        "k_hull": args.k_hull,
+        "goal_tolerance": args.goal_tolerance,
+    }
+    lmpc_updates = {
+        key: value for key, value in lmpc_updates.items() if value is not None
+    }
+    apf_updates = {"max_steps": args.apf_max_steps}
+    apf_updates = {
+        key: value for key, value in apf_updates.items() if value is not None
+    }
+
+    make_video = config.make_video if args.make_video is None else args.make_video
+    quiet = config.quiet if args.quiet is None else args.quiet
+
+    return replace(
+        config,
+        lmpc=replace(config.lmpc, **lmpc_updates),
+        apf=replace(config.apf, **apf_updates),
+        make_video=make_video,
+        quiet=quiet,
+    )
+
+
+def _history_to_tensor(history: dict[int, np.ndarray]) -> np.ndarray:
+    max_len = max(len(history[agent]) for agent in range(3))
+    states = np.zeros((max_len, 3, 7), dtype=float)
+    for agent in range(3):
+        traj = np.asarray(history[agent], dtype=float)
+        states[: len(traj), agent] = traj
+        if len(traj) < max_len:
+            states[len(traj) :, agent] = traj[-1]
+    return states
+
+
+def _save_histories_csv(
+    path: Path, histories: list[dict[int, np.ndarray]], dt: float
+) -> None:
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            (
+                "iteration",
+                "step",
+                "time",
+                "agent",
+                "x",
+                "y",
+                "theta",
+                "p_L",
+                "q_L",
+                "p_R",
+                "q_R",
+            )
+        )
+        for iteration, run in enumerate(histories):
+            for agent in range(3):
+                traj = np.asarray(run[agent], dtype=float)
+                for step, state in enumerate(traj):
+                    writer.writerow(
+                        (iteration, step, step * dt, agent, *state.tolist())
+                    )
+
+
+if __name__ == "__main__":
+    main()

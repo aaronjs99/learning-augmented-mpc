@@ -1,16 +1,26 @@
-# Scripts
+# Scripts Package
 
-Thin runnable entry points only.
+This package contains both runnable entry points and reusable modules.
 
-## Available
-- `run_sanity_checks.py`: zero-control/open-loop checks for simulation, metrics, and plotting.
-- `run_baseline_mpc.py`: closed-loop decentralized baseline MPC for all named scenarios.
+## Entry Points
+- `run_manta_lmpc.py`: full APF + LMPC workflow, driven by `config/manta.yaml`.
+- `run_baseline_mpc.py`: APF iteration-0 baseline shortcut.
+- `run_sanity_checks.py`: zero-control manta simulation check.
 
-## Usage
-`python scripts/run_sanity_checks.py --scenario all`
+Prefer the root dispatcher:
 
-`python scripts/run_baseline_mpc.py --scenario all`
+`python run.py`
 
-`python scripts/run_baseline_mpc.py --scenario all --make-video`
+`python run.py baseline`
 
-`python scripts/run_baseline_mpc.py --scenario crossing_paths --collision-mode hard_linearized`
+`python run.py sanity`
+
+## Modules
+- `dynamics/`: shared manta/CPG dynamics.
+- `simulation/`: environment and scenario dataclasses.
+- `learning/`: APF, safe sets, SVM hyperplanes, run loop.
+- `mpc/`: CasADi/IPOPT LMPC optimizer.
+- `metrics/`: rollout metrics from position dimensions.
+- `plotting/`: trajectory, learning-progress, cost, and GIF outputs.
+
+Runtime constants should live in YAML under `config/` unless they are structural code assumptions.

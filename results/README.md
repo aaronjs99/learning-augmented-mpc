@@ -1,25 +1,17 @@
 # Results
 
-Generated artifacts from experiment runs live here.
+Generated runs write timestamped folders under `results/` and are ignored by
+git by default.
 
-## Layout
-- `results/sanity_<timestamp>/`: zero-control simulation checks.
-- `results/baseline/baseline_<timestamp>/`: decentralized baseline MPC outputs.
-- Per scenario: `metrics.json`, `states.csv`, `controls.csv`, `trajectories.png`, and `pairwise_distances.png`.
-- Baseline runs also include `solver_statuses.json`.
-- Baseline runs with `--make-video` also include `animation.gif`.
+The one exception is `results/latest_working/`. Use that folder for the curated
+result snapshot that should travel with the code and report. When a new run is
+better, replace `results/latest_working/` with that run's key files.
 
-`solver_statuses.json` includes collision mode, per-agent status counts, and per-timestep agent statuses.
-
-## Rules
-- Do not manually edit raw run artifacts.
-- Keep outputs traceable to one command and one commit.
-- Keep only artifacts needed for reproducibility and reporting.
-
-## Minimum Comparison Metrics
-- success/failure per agent
-- time-to-goal
-- cumulative control effort
-- minimum pairwise distance
-- collision count
-- solver feasibility rate
+Typical tracked snapshot files:
+- `summary.json`
+- `states_by_iteration.csv`
+- `learning_progression.png`
+- `cost_decrease.png`
+- `final_trajectories.png`
+- `pairwise_distances.png`
+- optional `final_iteration.gif`

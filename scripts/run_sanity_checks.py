@@ -1,8 +1,4 @@
-"""Run open-loop sanity checks for all 3-agent scenarios.
-
-This script intentionally uses zero control to validate simulation, metrics,
-and plotting layers before MPC is implemented.
-"""
+"""CLI entry point for zero-control manta sanity checks."""
 
 from __future__ import annotations
 
@@ -14,25 +10,27 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from src.metrics import compute_rollout_metrics, pairwise_distances
-from src.plotting import plot_pairwise_distances, plot_trajectories
-from src.simulation import (
-    EnvConfig,
-    ThreeAgentSingleIntegratorEnv,
-    get_scenario,
-    list_scenarios,
-    rollout,
+from scripts.config import (
+    DEFAULT_CONFIG_PATH,
+    list_config_scenarios,
+    load_project_config,
+)
+from scripts.metrics import compute_rollout_metrics, pairwise_distances
+from scripts.plotting import plot_pairwise_distances, plot_trajectories
+from scripts.simulation import (
+    MantaEnvConfig,
+    ThreeMantaRayEnv,
+    manta_rollout,
 )
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse CLI arguments for sanity-check runs."""
-    parser = argparse.ArgumentParser(
-        description="Run simulation/metrics sanity checks."
-    )
+    """Parse YAML config path and lightweight sanity-check overrides."""
+    parser = argparse.ArgumentParser(description="Run manta simulation sanity checks.")
+    parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
     parser.add_argument("--scenario", default="all", help="scenario name or 'all'")
-    parser.add_argument("--horizon", type=int, default=80, help="simulation horizon")
-    parser.add_argument("--dt", type=float, default=0.1, help="simulation time step")
+    parser.add_argument("--horizon", type=int, default=None, help="simulation horizon")
+    parser.add_argument("--dt", type=float, default=None, help="simulation time step")
     parser.add_argument(
         "--output-dir",
         default=None,
@@ -42,9 +40,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    """Execute zero-control rollouts and save metrics/plots."""
+    """Execute zero-control manta rollouts and save metrics/plots."""
     args = parse_args()
-    names = list_scenarios() if args.scenario == "all" else [args.scenario]
+    names = (
+        list_config_scenarios(args.config)
+        if args.scenario == "all"
+        else [args.scenario]
+    )
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     root = (
@@ -57,23 +59,32 @@ def main() -> None:
     summary: dict[str, dict[str, float | int | None]] = {}
 
     for name in names:
-        scenario = get_scenario(name)
+        project_config = load_project_config(args.config, scenario_name=name)
+        scenario = project_config.scenario
+        dt = project_config.lmpc.dt if args.dt is None else args.dt
+        horizon = (
+            project_config.lmpc.max_steps if args.horizon is None else args.horizon
+        )
         run_dir = root / name
         run_dir.mkdir(parents=True, exist_ok=True)
 
-        env = ThreeAgentSingleIntegratorEnv(
+        env = ThreeMantaRayEnv(
             starts=scenario.starts,
             goals=scenario.goals,
-            config=EnvConfig(dt=args.dt, horizon=args.horizon),
+            config=MantaEnvConfig(
+                dt=dt,
+                horizon=horizon,
+                dynamics=project_config.dynamics,
+            ),
         )
-        states, controls = rollout(env, controls=None)
+        states, controls = manta_rollout(env, controls=None)
 
         dists = pairwise_distances(states)
         metrics = compute_rollout_metrics(
             states=states,
             goals=scenario.goals,
             safety_distance=scenario.safety_distance,
-            dt=args.dt,
+            dt=dt,
             controls=controls,
         )
         summary[name] = metrics.to_dict()
@@ -86,7 +97,7 @@ def main() -> None:
         )
         plot_pairwise_distances(
             distances=dists,
-            dt=args.dt,
+            dt=dt,
             safety_distance=scenario.safety_distance,
             title=f"{name}: pairwise distances (zero control)",
             out_path=str(run_dir / "pairwise_distances.png"),

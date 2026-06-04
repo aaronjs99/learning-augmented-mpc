@@ -1,15 +1,17 @@
-# Documentation
+# Project Notes
 
-Documentation for the minimal 3-agent decentralized LMPC project.
+The current implementation is config-driven and keeps executable entry points at
+the repository root or in `scripts/`.
 
-## Sections
-- `project_plan/`: roadmap, milestones, and open assumptions.
-- `figures/`: report/presentation figures generated from results.
-- `paper_notes/`: concise notes directly tied to implementation choices.
-- `literature_review/`: optional synthesis for final writeup.
-- `presentation_notes/`: final presentation prep.
+Run the main manta LMPC workflow with:
 
-## Reproducibility Rules
-- Every experiment record includes: purpose, command, outputs, interpretation.
-- Update `project_plan/roadmap.md` and `project_plan/open_questions.md` when assumptions change.
-- Keep docs synchronized with runnable scripts and actual outputs under `results/`.
+`python run.py`
+
+The default settings live in `config/manta.yaml`. Use command-line flags for
+temporary overrides such as fewer LMPC iterations, a different output directory,
+or enabling the final GIF.
+
+Useful shortcuts:
+- `python run.py baseline` runs APF iteration 0 only.
+- `python run.py sanity` runs a zero-control manta rollout check.
+- `python run.py --make-video` runs the full manta LMPC workflow and writes a GIF.
