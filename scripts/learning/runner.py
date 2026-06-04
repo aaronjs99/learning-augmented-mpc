@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 import time
 
@@ -38,6 +39,7 @@ def run_manta_lmpc(
     config: MantaLMPCConfig = MantaLMPCConfig(),
     apf_config: APFConfig = APFConfig(),
     dynamics_config: MantaDynamicsConfig = MantaDynamicsConfig(),
+    should_stop: Callable[[], bool] | None = None,
     verbose: bool = True,
 ) -> MantaLMPCRunResult:
     """Run APF iteration 0 followed by decentralized manta LMPC iterations."""
@@ -78,6 +80,7 @@ def run_manta_lmpc(
     goals = np.asarray(scenario.goals, dtype=float)
 
     for iteration in range(1, config.iterations + 1):
+        _raise_if_stop_requested(should_stop)
         if verbose:
             print(f"Starting LMPC iteration {iteration}...")
 
@@ -88,6 +91,7 @@ def run_manta_lmpc(
         all_reached = False
 
         for step in range(config.max_steps):
+            _raise_if_stop_requested(should_stop)
             step_start = time.time()
             hyperplanes = _build_pairwise_hyperplanes(safe_sets, step, config)
             next_states: dict[int, np.ndarray] = {}
@@ -95,12 +99,13 @@ def run_manta_lmpc(
             all_reached = True
 
             for agent in range(3):
+                _raise_if_stop_requested(should_stop)
                 dist_to_goal = np.linalg.norm(
                     current_states[agent][:2] - goals[agent][:2]
                 )
                 if dist_to_goal <= config.goal_tolerance:
                     next_states[agent] = current_states[agent].copy()
-                    step_statuses[agent] = "goal"
+                    step_statuses[agent] = "hold"
                     continue
 
                 all_reached = False
@@ -126,7 +131,9 @@ def run_manta_lmpc(
                         warm_controls=warm_controls,
                     )
                     step_statuses[agent] = "ok"
-                except RuntimeError:
+                except RuntimeError as exc:
+                    if _is_interrupted_solve(exc):
+                        raise KeyboardInterrupt from exc
                     control = np.zeros(2, dtype=float)
                     next_idx = min(step + 1, len(safe_sets[agent]) - 1)
                     next_state = np.asarray(
@@ -154,7 +161,10 @@ def run_manta_lmpc(
 
             if all_reached:
                 if verbose:
-                    print(f"  success: all agents reached goals at step {step}.")
+                    print(
+                        "  success: all agents reached the goal tolerance "
+                        f"and are holding goals at step {step}."
+                    )
                 break
 
         if verbose and not all_reached:
@@ -245,3 +255,14 @@ def _warm_start_from_safe_set(
         idx = min(step + k, len(states) - 1)
         warm_states[:, k] = states[idx]
     return warm_states, warm_controls
+
+
+def _is_interrupted_solve(exc: RuntimeError) -> bool:
+    """Return true when CasADi/IPOPT converted Ctrl+C into RuntimeError."""
+    message = str(exc)
+    return "KeyboardInterrupt" in message or "KeyboardInterruptException" in message
+
+
+def _raise_if_stop_requested(should_stop: Callable[[], bool] | None) -> None:
+    if should_stop is not None and should_stop():
+        raise KeyboardInterrupt

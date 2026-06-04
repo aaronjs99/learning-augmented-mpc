@@ -31,12 +31,12 @@ data/**
 !data/
 !data/README.md
 
-# Generated run artifacts. Keep only docs and the curated working snapshot.
+# Generated run artifacts. Keep only docs and the curated latest snapshot.
 results/**
 !results/
 !results/README.md
-!results/latest_working/
-!results/latest_working/**
+!results/latest/
+!results/latest/**
 
 # Editor and IDE
 .vscode/

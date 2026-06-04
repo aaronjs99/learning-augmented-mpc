@@ -31,7 +31,6 @@ def build_staggered_safe_sets(
         )
         for agent in range(3)
     }
-
     len_0 = len(solo_trajs[0])
     len_1 = len(solo_trajs[1])
     len_2 = len(solo_trajs[2])

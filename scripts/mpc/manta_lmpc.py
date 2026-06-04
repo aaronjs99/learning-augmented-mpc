@@ -93,6 +93,9 @@ class MantaAgentOptimizer:
         opti.set_initial(self.slack_static, 0.0)
 
         sol = opti.solve()
+        return_status = str(opti.stats().get("return_status", ""))
+        if _is_interrupted_status(return_status):
+            raise KeyboardInterrupt
         return (
             np.asarray(sol.value(self.U[:, 0]), dtype=float).reshape(2),
             np.asarray(sol.value(self.X_state[:, 1]), dtype=float).reshape(7),
@@ -194,3 +197,11 @@ class MantaAgentOptimizer:
         self.terminal_slack = terminal_slack
         self.slack_hyper = slack_hyper
         self.slack_static = slack_static
+
+
+def _is_interrupted_status(return_status: str) -> bool:
+    return (
+        "KeyboardInterrupt" in return_status
+        or "KeyboardInterruptException" in return_status
+        or "User_Requested_Stop" in return_status
+    )

@@ -47,6 +47,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="override output directory for this run",
     )
+    parser.add_argument(
+        "--stop-file",
+        default="STOP_RUN",
+        help="file path that stops the run when created",
+    )
     return parser.parse_args()
 
 
@@ -66,14 +71,24 @@ def main() -> None:
         / f"{project_config.output.run_prefix}_{timestamp}"
     )
     root.mkdir(parents=True, exist_ok=True)
+    stop_path = _resolve_stop_file(args.stop_file)
+    if stop_path.exists():
+        stop_path.unlink()
 
-    result = run_manta_lmpc(
-        scenario,
-        config=lmpc_config,
-        apf_config=apf_config,
-        dynamics_config=project_config.dynamics,
-        verbose=not project_config.quiet,
-    )
+    try:
+        result = run_manta_lmpc(
+            scenario,
+            config=lmpc_config,
+            apf_config=apf_config,
+            dynamics_config=project_config.dynamics,
+            should_stop=stop_path.exists,
+            verbose=not project_config.quiet,
+        )
+    except KeyboardInterrupt:
+        if stop_path.exists():
+            stop_path.unlink()
+        print("Stopped manta LMPC run.")
+        raise SystemExit(130) from None
 
     final_states = _history_to_tensor(result.final_history)
     final_controls = (
@@ -93,6 +108,7 @@ def main() -> None:
         scenario.goals,
         goal_tolerance=project_config.plots.cost_goal_tolerance,
     )
+    final_goal_errors = _final_goal_errors(final_states, scenario.goals)
 
     summary = {
         "scenario": scenario.name,
@@ -103,8 +119,13 @@ def main() -> None:
         "k_hull": lmpc_config.k_hull,
         "max_steps": lmpc_config.max_steps,
         "apf_max_steps": apf_config.max_steps,
+        "goal_tolerance": lmpc_config.goal_tolerance,
+        "cost_goal_tolerance": project_config.plots.cost_goal_tolerance,
         "success_by_iteration": result.success_by_iteration,
         "cost_by_iteration": {str(agent): values for agent, values in costs.items()},
+        "final_goal_error_by_agent": {
+            str(agent): error for agent, error in enumerate(final_goal_errors)
+        },
         "metrics_final_iteration": metrics.to_dict(),
     }
     with (root / "summary.json").open("w", encoding="utf-8") as f:
@@ -118,15 +139,29 @@ def main() -> None:
         scenario.goals,
         scenario.obstacle,
         str(root / "learning_progression.png"),
+        goal_tolerance=lmpc_config.goal_tolerance,
+        obstacle_padding=apf_config.obstacle_padding,
+        safety_distance=scenario.safety_distance,
+        statuses_by_iteration=result.statuses_by_iteration,
     )
     plot_cost_decrease(
-        result.histories, scenario.goals, str(root / "cost_decrease.png")
+        result.histories,
+        scenario.goals,
+        str(root / "cost_decrease.png"),
+        goal_tolerance=project_config.plots.cost_goal_tolerance,
     )
     plot_trajectories(
         states=final_states,
         goals=scenario.goals,
         title=f"{scenario.name}: final manta LMPC iteration",
         out_path=str(root / "final_trajectories.png"),
+        goal_tolerance=lmpc_config.goal_tolerance,
+        obstacle=scenario.obstacle,
+        obstacle_padding=apf_config.obstacle_padding,
+        safety_distance=scenario.safety_distance,
+        statuses=result.statuses_by_iteration[-1]
+        if result.statuses_by_iteration
+        else None,
     )
     plot_pairwise_distances(
         distances=dists,
@@ -143,6 +178,12 @@ def main() -> None:
             lmpc_config.dt,
             str(root / "final_iteration.gif"),
             fps=project_config.plots.animation_fps,
+            goal_tolerance=lmpc_config.goal_tolerance,
+            obstacle_padding=apf_config.obstacle_padding,
+            safety_distance=scenario.safety_distance,
+            statuses=result.statuses_by_iteration[-1]
+            if result.statuses_by_iteration
+            else None,
         )
 
     print(f"Saved manta LMPC outputs to: {root}")
@@ -188,6 +229,19 @@ def _history_to_tensor(history: dict[int, np.ndarray]) -> np.ndarray:
         if len(traj) < max_len:
             states[len(traj) :, agent] = traj[-1]
     return states
+
+
+def _resolve_stop_file(path: str | Path) -> Path:
+    stop_path = Path(path)
+    if not stop_path.is_absolute():
+        stop_path = Path.cwd() / stop_path
+    return stop_path
+
+
+def _final_goal_errors(states: np.ndarray, goals: np.ndarray) -> list[float]:
+    goal_pos = np.asarray(goals, dtype=float)[:, :2]
+    final_pos = np.asarray(states, dtype=float)[-1, :, :2]
+    return np.linalg.norm(final_pos - goal_pos, axis=1).astype(float).tolist()
 
 
 def _save_histories_csv(

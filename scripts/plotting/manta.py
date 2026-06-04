@@ -13,6 +13,15 @@ from matplotlib import animation, patches, pyplot as plt
 from scripts.learning.runner import cost_by_iteration
 from scripts.simulation import StaticObstacle
 
+from .diagnostics import (
+    add_diagnostic_box,
+    add_highlighted_segments,
+    add_status_markers,
+    compute_diagnostics,
+    legend_label,
+    to_position_history,
+)
+
 AGENT_COLORS = ("tab:blue", "tab:red", "tab:green")
 
 
@@ -21,6 +30,11 @@ def plot_learning_progression(
     goals: np.ndarray,
     obstacle: StaticObstacle,
     out_path: str,
+    *,
+    goal_tolerance: float | None = None,
+    obstacle_padding: float = 0.0,
+    safety_distance: float | None = None,
+    statuses_by_iteration: list[list[dict[int, str]]] | None = None,
 ) -> None:
     """Save the APF and LMPC trajectory progression plot."""
     path = Path(out_path)
@@ -31,19 +45,29 @@ def plot_learning_progression(
     _set_workspace_limits(ax)
     ax.grid(True, linestyle="--", alpha=0.6)
     ax.set_title("3-Agent Manta LMPC Learning Progression")
-    ax.add_patch(_obstacle_patch(obstacle, alpha=0.45))
+    _add_obstacle_layers(ax, obstacle, obstacle_padding)
 
+    labels_used: set[str] = set()
     final_idx = len(histories) - 1
     for iteration, run in enumerate(histories):
+        positions = to_position_history(run)
         for agent, color in enumerate(AGENT_COLORS):
             traj = np.asarray(run[agent], dtype=float)
+            _add_safe_set_points(
+                ax,
+                traj,
+                color,
+                labels_used,
+                is_final=iteration == final_idx,
+            )
             if iteration == final_idx:
                 ax.plot(
                     traj[:, 0],
                     traj[:, 1],
                     color=color,
                     linewidth=2.5,
-                    label=f"Agent {agent} final",
+                    label=legend_label(f"Agent {agent} final", labels_used),
+                    zorder=3,
                 )
             else:
                 alpha = 0.15 + 0.35 * (iteration / max(1, final_idx))
@@ -54,11 +78,45 @@ def plot_learning_progression(
                     color=color,
                     linewidth=1.5,
                     alpha=alpha,
+                    zorder=2,
                 )
+            add_highlighted_segments(
+                ax,
+                positions,
+                agent,
+                obstacle=obstacle,
+                obstacle_padding=obstacle_padding,
+                safety_distance=safety_distance,
+                linewidth=4.0 if iteration == final_idx else 2.8,
+                labels_used=labels_used,
+            )
+
+        _add_iteration_label(ax, positions, iteration, final_idx)
+        statuses = _statuses_for_history(iteration, statuses_by_iteration)
+        add_status_markers(ax, positions, statuses, labels_used=labels_used)
 
     for agent, color in enumerate(AGENT_COLORS):
+        start = np.asarray(histories[0][agent], dtype=float)[0]
+        ax.scatter(
+            start[0],
+            start[1],
+            marker="^",
+            color=color,
+            edgecolors="black",
+            s=62,
+            linewidths=0.8,
+            label=legend_label("Starts", labels_used),
+            zorder=6,
+        )
         ax.plot(g[agent, 0], g[agent, 1], marker="*", color=color, markersize=15)
+        if goal_tolerance is not None:
+            ax.add_patch(_goal_tolerance_patch(g[agent], goal_tolerance, color))
 
+    final_positions = to_position_history(histories[-1])
+    diagnostics = compute_diagnostics(
+        final_positions, obstacle, safety_distance, obstacle_padding
+    )
+    add_diagnostic_box(ax, diagnostics, safety_distance=safety_distance)
     ax.legend(loc="upper right")
     fig.tight_layout()
     fig.savefig(path, dpi=200)
@@ -122,6 +180,10 @@ def save_manta_animation(
     out_path: str,
     *,
     fps: int = 20,
+    goal_tolerance: float | None = None,
+    obstacle_padding: float = 0.0,
+    safety_distance: float | None = None,
+    statuses: list[dict[int, str]] | None = None,
 ) -> None:
     """Save the final-iteration trajectory and wing-motion GIF."""
     path = Path(out_path)
@@ -139,18 +201,46 @@ def save_manta_animation(
     _set_workspace_limits(ax_top)
     ax_top.grid(True, linestyle="--", alpha=0.6)
     ax_top.set_title("LMPC Final Iteration: Dynamic Avoidance")
-    ax_top.add_patch(_obstacle_patch(obstacle, alpha=0.45))
+    _add_obstacle_layers(ax_top, obstacle, obstacle_padding)
+    labels_used: set[str] = set()
 
     lines = []
     dots = []
     for agent, color in enumerate(AGENT_COLORS):
+        start = histories[agent][0]
+        ax_top.scatter(
+            start[0],
+            start[1],
+            marker="^",
+            color=color,
+            edgecolors="black",
+            s=52,
+            linewidths=0.8,
+            label=legend_label("Starts", labels_used),
+            zorder=6,
+        )
         (line,) = ax_top.plot([], [], color=color, linewidth=2, alpha=0.8)
         (dot,) = ax_top.plot(
             [], [], marker="o", color=color, markersize=8, label=f"Agent {agent}"
         )
         ax_top.plot(g[agent, 0], g[agent, 1], marker="*", color=color, markersize=15)
+        if goal_tolerance is not None:
+            ax_top.add_patch(_goal_tolerance_patch(g[agent], goal_tolerance, color))
         lines.append(line)
         dots.append(dot)
+    diagnostics = compute_diagnostics(
+        {agent: traj[:, :2] for agent, traj in histories.items()},
+        obstacle,
+        safety_distance,
+        obstacle_padding,
+    )
+    add_diagnostic_box(ax_top, diagnostics, safety_distance=safety_distance)
+    add_status_markers(
+        ax_top,
+        {agent: traj[:, :2] for agent, traj in histories.items()},
+        statuses,
+        labels_used=labels_used,
+    )
     ax_top.legend(loc="upper right")
 
     wing_lines = {}
@@ -201,6 +291,14 @@ def save_manta_animation(
     plt.close(fig)
 
 
+def _add_obstacle_layers(
+    ax: plt.Axes, obstacle: StaticObstacle, obstacle_padding: float
+) -> None:
+    if obstacle_padding > 0.0:
+        ax.add_patch(_obstacle_padding_patch(obstacle, obstacle_padding))
+    ax.add_patch(_obstacle_patch(obstacle, alpha=0.55))
+
+
 def _obstacle_patch(obstacle: StaticObstacle, alpha: float) -> patches.Circle:
     return patches.Circle(
         obstacle.center,
@@ -208,6 +306,95 @@ def _obstacle_patch(obstacle: StaticObstacle, alpha: float) -> patches.Circle:
         color="gray",
         alpha=alpha,
         label="Static Obstacle",
+        zorder=1,
+    )
+
+
+def _obstacle_padding_patch(
+    obstacle: StaticObstacle, obstacle_padding: float
+) -> patches.Circle:
+    return patches.Circle(
+        obstacle.center,
+        obstacle.radius + obstacle_padding,
+        color="lightgray",
+        alpha=0.25,
+        label="APF Padding",
+        zorder=0,
+    )
+
+
+def _add_safe_set_points(
+    ax: plt.Axes,
+    traj: np.ndarray,
+    color: str,
+    labels_used: set[str],
+    *,
+    is_final: bool,
+) -> None:
+    stride = max(1, len(traj) // 45)
+    ax.scatter(
+        traj[::stride, 0],
+        traj[::stride, 1],
+        marker=".",
+        s=12 if is_final else 8,
+        color=color,
+        alpha=0.22 if is_final else 0.10,
+        label=legend_label("Safe-set samples", labels_used),
+        zorder=1.5,
+    )
+
+
+def _add_iteration_label(
+    ax: plt.Axes,
+    positions: dict[int, np.ndarray],
+    iteration: int,
+    final_idx: int,
+) -> None:
+    if iteration == final_idx:
+        return
+    if 0 not in positions or len(positions[0]) == 0:
+        return
+    traj = positions[0]
+    idx = min(len(traj) - 1, max(0, len(traj) // 2))
+    label = "APF" if iteration == 0 else f"Iter {iteration}"
+    ax.text(
+        traj[idx, 0] + 0.06,
+        traj[idx, 1] + 0.06,
+        label,
+        fontsize=8,
+        color="0.25",
+        bbox={
+            "boxstyle": "round,pad=0.18",
+            "facecolor": "white",
+            "edgecolor": "0.75",
+            "alpha": 0.72,
+        },
+        zorder=8,
+    )
+
+
+def _statuses_for_history(
+    iteration: int, statuses_by_iteration: list[list[dict[int, str]]] | None
+) -> list[dict[int, str]] | None:
+    if iteration == 0 or statuses_by_iteration is None:
+        return None
+    status_idx = iteration - 1
+    if status_idx >= len(statuses_by_iteration):
+        return None
+    return statuses_by_iteration[status_idx]
+
+
+def _goal_tolerance_patch(
+    goal: np.ndarray, goal_tolerance: float, color: str
+) -> patches.Circle:
+    return patches.Circle(
+        goal[:2],
+        goal_tolerance,
+        fill=False,
+        edgecolor=color,
+        linestyle=":",
+        linewidth=1.2,
+        alpha=0.8,
     )
 
 

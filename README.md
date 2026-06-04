@@ -45,11 +45,11 @@ Useful overrides:
 
 `python run.py --config config/manta.yaml --output-dir results/debug_run`
 
-Outputs are written under `results/manta_lmpc/` by default.
+Outputs are written under the output root set in `config/manta.yaml`.
 
 ## Tracked Results and Data
 Timestamped run folders are ignored by git. Keep only the current report-ready
-snapshot in `results/latest_working/`.
+snapshot in `results/latest/`.
 
 The current workflow does not require external data files. `data/` is available
 for optional local inputs or scratch exports, but its contents are ignored
