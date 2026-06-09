@@ -24,8 +24,10 @@ class MantaLMPCConfig:
     hyperplane_safety_margin: float = 0.3
     hyperplane_slack_bound: float = 2.0
     static_slack_bound: float = 2.0
+    terminal_slack_bound: float = 0.5
     terminal_slack_weight: float = 1000.0
-    safety_slack_weight: float = 10000.0
+    hyperplane_slack_weight: float = 10000.0
+    static_slack_weight: float = 1000000.0
     safe_cost_weight: float = 10.0
     state_cost_weights: tuple[float, ...] = (1.0, 1.0, 0.1, 0.0, 0.0, 0.0, 0.0)
     control_cost_weights: tuple[float, ...] = (0.5, 0.5)
@@ -111,6 +113,8 @@ class MantaAgentOptimizer:
             raise ValueError("lmpc.state_cost_weights must contain 7 values")
         if len(cfg.control_cost_weights) != 2:
             raise ValueError("lmpc.control_cost_weights must contain 2 values")
+        if cfg.terminal_slack_bound < 0.0:
+            raise ValueError("lmpc.terminal_slack_bound must be nonnegative")
 
         opti = ca.Opti()
         X_state = opti.variable(7, N + 1)
@@ -137,6 +141,13 @@ class MantaAgentOptimizer:
         opti.subject_to(ca.sum1(lambdas) == 1.0)
         opti.subject_to(opti.bounded(0.0, slack_hyper, cfg.hyperplane_slack_bound))
         opti.subject_to(opti.bounded(0.0, slack_static, cfg.static_slack_bound))
+        opti.subject_to(
+            opti.bounded(
+                -cfg.terminal_slack_bound,
+                terminal_slack,
+                cfg.terminal_slack_bound,
+            )
+        )
 
         for k in range(N):
             x_next = rk4_step_ca(X_state[:, k], U[:, k], cfg.dt, dyn)
@@ -153,7 +164,9 @@ class MantaAgentOptimizer:
             dist_sq = (X_state[0, k + 1] - obs_x) ** 2 + (
                 X_state[1, k + 1] - obs_y
             ) ** 2
-            opti.subject_to(dist_sq >= (self.obstacle.radius - slack_static[0, k]) ** 2)
+            opti.subject_to(
+                dist_sq + slack_static[0, k] >= self.obstacle.radius**2
+            )
 
         opti.subject_to(X_state[:, 0] == p_init)
         opti.subject_to(
@@ -170,8 +183,8 @@ class MantaAgentOptimizer:
 
         cost += cfg.safe_cost_weight * ca.mtimes(lambdas.T, p_safe_costs)
         cost += cfg.terminal_slack_weight * ca.dot(terminal_slack, terminal_slack)
-        cost += cfg.safety_slack_weight * ca.sum1(ca.vec(slack_hyper))
-        cost += cfg.safety_slack_weight * ca.sum1(ca.vec(slack_static))
+        cost += cfg.hyperplane_slack_weight * ca.sum1(ca.vec(slack_hyper))
+        cost += cfg.static_slack_weight * ca.sum1(ca.vec(slack_static))
 
         opti.minimize(cost)
         opti.solver(

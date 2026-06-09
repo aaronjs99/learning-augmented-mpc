@@ -118,6 +118,11 @@ def _scenario_from_config(raw: dict[str, Any], name: str) -> Scenario:
     obstacle = StaticObstacle(
         center=tuple(float(value) for value in obstacle_data["center"]),
         radius=float(obstacle_data["radius"]),
+        physical_radius=(
+            float(obstacle_data["physical_radius"])
+            if "physical_radius" in obstacle_data
+            else None
+        ),
     )
     return Scenario(
         name=name,

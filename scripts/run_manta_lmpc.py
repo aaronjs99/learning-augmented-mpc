@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+from collections import Counter
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -106,8 +107,9 @@ def main() -> None:
     costs = cost_by_iteration(
         result.histories,
         scenario.goals,
-        goal_tolerance=project_config.plots.cost_goal_tolerance,
+        goal_tolerance=lmpc_config.goal_tolerance,
     )
+    status_counts = _status_counts_by_iteration(result.statuses_by_iteration)
     final_goal_errors = _final_goal_errors(final_states, scenario.goals)
 
     summary = {
@@ -120,8 +122,11 @@ def main() -> None:
         "max_steps": lmpc_config.max_steps,
         "apf_max_steps": apf_config.max_steps,
         "goal_tolerance": lmpc_config.goal_tolerance,
-        "cost_goal_tolerance": project_config.plots.cost_goal_tolerance,
+        "cost_goal_tolerance": lmpc_config.goal_tolerance,
+        "cost_by_iteration_goal_tolerance": lmpc_config.goal_tolerance,
+        "plot_cost_goal_tolerance": project_config.plots.cost_goal_tolerance,
         "success_by_iteration": result.success_by_iteration,
+        "status_counts_by_iteration": status_counts,
         "cost_by_iteration": {str(agent): values for agent, values in costs.items()},
         "final_goal_error_by_agent": {
             str(agent): error for agent, error in enumerate(final_goal_errors)
@@ -238,6 +243,18 @@ def _resolve_stop_file(path: str | Path) -> Path:
     return stop_path
 
 
+def _status_counts_by_iteration(
+    statuses_by_iteration: list[list[dict[int, str]]],
+) -> list[dict[str, int]]:
+    counts_by_iteration: list[dict[str, int]] = [{}]
+    for iteration_statuses in statuses_by_iteration:
+        counter: Counter[str] = Counter()
+        for step_statuses in iteration_statuses:
+            counter.update(step_statuses.values())
+        counts_by_iteration.append(dict(sorted(counter.items())))
+    return counts_by_iteration
+
+
 def _final_goal_errors(states: np.ndarray, goals: np.ndarray) -> list[float]:
     goal_pos = np.asarray(goals, dtype=float)[:, :2]
     final_pos = np.asarray(states, dtype=float)[-1, :, :2]
@@ -248,7 +265,7 @@ def _save_histories_csv(
     path: Path, histories: list[dict[int, np.ndarray]], dt: float
 ) -> None:
     with path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
+        writer = csv.writer(f, lineterminator="\n")
         writer.writerow(
             (
                 "iteration",

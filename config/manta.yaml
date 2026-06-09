@@ -18,10 +18,12 @@ dynamics:
   oscillator_bound: 6.0
 
 scenario:
+  # radius is the inflated LMPC constraint radius. physical_radius is the rock.
   manta_triangle:
     safety_distance: 0.6
     obstacle:
       center: [3.1, 2.9]
+      physical_radius: 0.80
       radius: 0.95
     starts:
       - [0.0, 0.0, 0.785, 0.1, 0.0, 0.1, 0.0]
@@ -35,6 +37,7 @@ scenario:
     safety_distance: 0.6
     obstacle:
       center: [3.1, 2.9]
+      physical_radius: 0.80
       radius: 0.95
     starts:
       - [0.3, 1.0, 0.0, 0.1, 0.0, 0.1, 0.0]
@@ -48,6 +51,7 @@ scenario:
     safety_distance: 0.6
     obstacle:
       center: [3.1, 2.9]
+      physical_radius: 0.80
       radius: 0.95
     starts:
       - [0.6, 0.6, 0.78, 0.1, 0.0, 0.1, 0.0]
@@ -61,6 +65,7 @@ scenario:
     safety_distance: 0.6
     obstacle:
       center: [3.1, 2.9]
+      physical_radius: 0.80
       radius: 0.95
     starts:
       - [0.6, 1.4, 0.5, 0.1, 0.0, 0.1, 0.0]
@@ -91,9 +96,11 @@ lmpc:
   goal_tolerance: 0.65
   hyperplane_safety_margin: 0.3
   hyperplane_slack_bound: 2.0
-  static_slack_bound: 2.0
+  static_slack_bound: 0.02
+  terminal_slack_bound: 0.5
   terminal_slack_weight: 1000.0
-  safety_slack_weight: 10000.0
+  hyperplane_slack_weight: 10000.0
+  static_slack_weight: 1000000.0
   safe_cost_weight: 10.0
   state_cost_weights: [1.0, 1.0, 0.1, 0.0, 0.0, 0.0, 0.0]
   control_cost_weights: [0.5, 0.5]

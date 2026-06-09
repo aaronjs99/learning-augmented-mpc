@@ -137,9 +137,9 @@ def plot_cost_decrease(
     iterations = np.arange(len(histories), dtype=float)
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.set_title("LMPC Learning: Agent Cost per Iteration")
+    ax.set_title(f"LMPC Learning: Agent Cost Proxy (tol={goal_tolerance:g})")
     ax.set_xlabel("Iteration Number (0 = APF Baseline)")
-    ax.set_ylabel("Total Cost (Time Steps to Goal)")
+    ax.set_ylabel("First-Hit Step Proxy")
     ax.grid(True, linestyle="--", alpha=0.7)
 
     for agent, color in enumerate(AGENT_COLORS):
@@ -296,17 +296,32 @@ def _add_obstacle_layers(
 ) -> None:
     if obstacle_padding > 0.0:
         ax.add_patch(_obstacle_padding_patch(obstacle, obstacle_padding))
-    ax.add_patch(_obstacle_patch(obstacle, alpha=0.55))
+    ax.add_patch(_inflated_obstacle_patch(obstacle))
+    if obstacle.physical_radius is not None and obstacle.physical_radius < obstacle.radius:
+        ax.add_patch(_physical_obstacle_patch(obstacle))
 
 
-def _obstacle_patch(obstacle: StaticObstacle, alpha: float) -> patches.Circle:
+def _inflated_obstacle_patch(obstacle: StaticObstacle) -> patches.Circle:
     return patches.Circle(
         obstacle.center,
         obstacle.radius,
-        color="gray",
-        alpha=alpha,
-        label="Static Obstacle",
+        facecolor="gray",
+        edgecolor="black",
+        linewidth=1.0,
+        alpha=0.25,
+        label="Inflated obstacle constraint",
         zorder=1,
+    )
+
+
+def _physical_obstacle_patch(obstacle: StaticObstacle) -> patches.Circle:
+    return patches.Circle(
+        obstacle.center,
+        obstacle.physical_radius,
+        color="dimgray",
+        alpha=0.75,
+        label="Physical obstacle",
+        zorder=2,
     )
 
 

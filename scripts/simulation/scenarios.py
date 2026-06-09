@@ -9,10 +9,13 @@ import numpy as np
 
 @dataclass(frozen=True)
 class StaticObstacle:
-    """Circular static obstacle used by APF initialization and LMPC."""
+    """Circular obstacle metadata used by APF, LMPC, and plotting."""
 
     center: tuple[float, float]
+    # Inflated radius used by LMPC/APF constraints.
     radius: float
+    # Physical obstacle radius, when it is smaller than the inflated constraint.
+    physical_radius: float | None = None
 
 
 @dataclass(frozen=True)

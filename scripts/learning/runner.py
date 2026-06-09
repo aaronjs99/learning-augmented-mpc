@@ -8,11 +8,11 @@ import time
 
 import numpy as np
 
-from scripts.dynamics import MantaDynamicsConfig
+from scripts.dynamics import MantaDynamicsConfig, rk4_step_np
 from scripts.mpc.manta_lmpc import MantaAgentOptimizer, MantaLMPCConfig
-from scripts.simulation import Scenario
+from scripts.simulation import Scenario, StaticObstacle
 
-from .apf import APFConfig
+from .apf import APFConfig, compute_apf_control
 from .hyperplanes import get_symmetric_hyperplanes_spatial
 from .safe_sets import build_staggered_safe_sets, sample_terminal_safe_set
 
@@ -134,12 +134,15 @@ def run_manta_lmpc(
                 except RuntimeError as exc:
                     if _is_interrupted_solve(exc):
                         raise KeyboardInterrupt from exc
-                    control = np.zeros(2, dtype=float)
-                    next_idx = min(step + 1, len(safe_sets[agent]) - 1)
-                    next_state = np.asarray(
-                        safe_sets[agent][next_idx], dtype=float
-                    ).copy()
-                    step_statuses[agent] = "fallback"
+                    control, next_state = _safe_fallback_apf_step(
+                        current_state=current_states[agent],
+                        goal_state=goals[agent],
+                        obstacle=scenario.obstacle,
+                        apf_config=apf_config,
+                        dt=config.dt,
+                        dynamics_config=dynamics_config,
+                    )
+                    step_statuses[agent] = "fallback_apf"
 
                 iteration_controls[step, agent] = control
                 next_states[agent] = next_state
@@ -255,6 +258,83 @@ def _warm_start_from_safe_set(
         idx = min(step + k, len(states) - 1)
         warm_states[:, k] = states[idx]
     return warm_states, warm_controls
+
+
+def _safe_fallback_apf_step(
+    *,
+    current_state: np.ndarray,
+    goal_state: np.ndarray,
+    obstacle: StaticObstacle,
+    apf_config: APFConfig,
+    dt: float,
+    dynamics_config: MantaDynamicsConfig,
+) -> tuple[np.ndarray, np.ndarray]:
+    apf_control = compute_apf_control(
+        current_state=current_state,
+        goal_state=goal_state,
+        obstacle=obstacle,
+        apf_config=apf_config,
+        dynamics_config=dynamics_config,
+    )
+    candidates = _fallback_control_candidates(apf_control, dynamics_config)
+    scored_feasible: list[tuple[float, np.ndarray, np.ndarray]] = []
+    best_any: tuple[float, np.ndarray, np.ndarray] | None = None
+
+    for control in candidates:
+        next_state = rk4_step_np(current_state, control, dt, dynamics_config)
+        clearance = _inflated_obstacle_clearance(next_state, obstacle)
+        goal_distance = float(np.linalg.norm(next_state[:2] - goal_state[:2]))
+        score = goal_distance - 0.25 * clearance + 0.01 * float(np.linalg.norm(control))
+        if clearance >= 0.0:
+            scored_feasible.append((score, control, next_state))
+        if best_any is None or clearance > best_any[0]:
+            best_any = (clearance, control, next_state)
+
+    if scored_feasible:
+        _, control, next_state = min(scored_feasible, key=lambda item: item[0])
+        return control, next_state
+    if best_any is None:
+        raise RuntimeError("fallback APF candidate set was empty")
+    _, control, next_state = best_any
+    return control, next_state
+
+
+def _fallback_control_candidates(
+    apf_control: np.ndarray,
+    dynamics_config: MantaDynamicsConfig,
+) -> list[np.ndarray]:
+    mu_min = dynamics_config.mu_min
+    mu_max = dynamics_config.mu_max
+    low = min(mu_max, max(mu_min, 0.25))
+    medium = min(mu_max, max(mu_min, 0.75))
+    high = min(mu_max, max(mu_min, 1.5))
+    raw = [
+        apf_control,
+        np.zeros(2, dtype=float),
+        np.array([low, 0.0], dtype=float),
+        np.array([0.0, low], dtype=float),
+        np.array([medium, 0.0], dtype=float),
+        np.array([0.0, medium], dtype=float),
+        np.array([high, 0.0], dtype=float),
+        np.array([0.0, high], dtype=float),
+        np.array([low, low], dtype=float),
+        np.array([medium, medium], dtype=float),
+    ]
+    candidates: list[np.ndarray] = []
+    seen: set[tuple[float, float]] = set()
+    for control in raw:
+        clipped = np.clip(np.asarray(control, dtype=float), mu_min, mu_max)
+        key = (round(float(clipped[0]), 6), round(float(clipped[1]), 6))
+        if key not in seen:
+            seen.add(key)
+            candidates.append(clipped)
+    return candidates
+
+
+def _inflated_obstacle_clearance(state: np.ndarray, obstacle: StaticObstacle) -> float:
+    position = np.asarray(state, dtype=float)[:2]
+    center = np.asarray(obstacle.center, dtype=float)
+    return float(np.linalg.norm(position - center) - obstacle.radius)
 
 
 def _is_interrupted_solve(exc: RuntimeError) -> bool:

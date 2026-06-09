@@ -187,7 +187,7 @@ def add_status_markers(
     *,
     labels_used: set[str],
 ) -> None:
-    """Mark first hold and fallback locations from one LMPC iteration."""
+    """Mark first hold and solver fallback locations from one LMPC iteration."""
     if not statuses:
         return
 
@@ -215,7 +215,7 @@ def add_status_markers(
                     labels_used=labels_used,
                 )
                 hold_seen.add(agent)
-            elif status == "fallback" and fallback_count < 40:
+            elif status in {"fallback", "fallback_apf"} and fallback_count < 40:
                 _scatter_once(
                     ax,
                     x_val,

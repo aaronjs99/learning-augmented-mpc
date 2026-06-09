@@ -65,12 +65,25 @@ def plot_trajectories(
             plt.Circle(
                 obstacle.center,
                 obstacle.radius,
-                color="gray",
-                alpha=0.55,
-                label="obstacle",
+                facecolor="gray",
+                edgecolor="black",
+                linewidth=1.0,
+                alpha=0.25,
+                label="inflated obstacle constraint",
                 zorder=1,
             )
         )
+        if obstacle.physical_radius is not None and obstacle.physical_radius < obstacle.radius:
+            ax.add_patch(
+                plt.Circle(
+                    obstacle.center,
+                    obstacle.physical_radius,
+                    color="dimgray",
+                    alpha=0.75,
+                    label="physical obstacle",
+                    zorder=2,
+                )
+            )
     for i, color in enumerate(AGENT_COLORS):
         stride = max(1, len(pos[:, i]) // 45)
         ax.scatter(
