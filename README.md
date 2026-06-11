@@ -22,28 +22,28 @@ The default run is controlled by `config/manta.yaml`.
 - `results/`: generated outputs.
 
 ## Setup
-`pip install -r requirements.txt`
+`python3 -m pip install -r requirements.txt`
 
 ## Run
 Full manta LMPC using `config/manta.yaml`:
 
-`python run.py`
+`python3 run.py`
 
 APF baseline only, equivalent to iteration 0:
 
-`python run.py baseline`
+`python3 run.py baseline`
 
 Zero-control manta sanity check:
 
-`python run.py sanity`
+`python3 run.py sanity`
 
 Useful overrides:
 
-`python run.py --iterations 1`
+`python3 run.py --iterations 1`
 
-`python run.py --make-video`
+`python3 run.py --make-video`
 
-`python run.py --config config/manta.yaml --output-dir results/debug_run`
+`python3 run.py --config config/manta.yaml --output-dir results/debug_run`
 
 Outputs are written under the output root set in `config/manta.yaml`.
 

@@ -1,0 +1,79 @@
+{
+  "scenario": "lane_swap",
+  "config": "/home/aaronjs/Desktop/learning-augmented-mpc/config/manta.yaml",
+  "iterations": 4,
+  "dt": 0.2,
+  "prediction_horizon": 20,
+  "k_hull": 10,
+  "max_steps": 300,
+  "apf_max_steps": 400,
+  "goal_tolerance": 0.65,
+  "cost_goal_tolerance": 0.65,
+  "cost_by_iteration_goal_tolerance": 0.65,
+  "plot_cost_goal_tolerance": 0.65,
+  "success_by_iteration": [
+    true,
+    false,
+    false,
+    false,
+    false
+  ],
+  "status_counts_by_iteration": [
+    {},
+    {
+      "fallback_apf": 20,
+      "hold": 346,
+      "ok": 534
+    },
+    {
+      "fallback_apf": 45,
+      "hold": 342,
+      "ok": 513
+    },
+    {
+      "fallback_apf": 31,
+      "hold": 352,
+      "ok": 517
+    },
+    {
+      "fallback_apf": 32,
+      "hold": 360,
+      "ok": 508
+    }
+  ],
+  "cost_by_iteration": {
+    "0": [
+      64,
+      58,
+      59,
+      50,
+      42
+    ],
+    "1": [
+      131,
+      301,
+      301,
+      301,
+      301
+    ],
+    "2": [
+      198,
+      196,
+      199,
+      198,
+      198
+    ]
+  },
+  "final_goal_error_by_agent": {
+    "0": 0.630924676101455,
+    "1": 0.7299347850228822,
+    "2": 0.607402044548744
+  },
+  "metrics_final_iteration": {
+    "total_cost_proxy": 6844.576510989431,
+    "minimum_pairwise_distance": 0.6670397206642058,
+    "collision_count": 0,
+    "time_to_goal": 60.0,
+    "control_effort": 791.9418557261527
+  }
+}
