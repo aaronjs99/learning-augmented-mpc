@@ -24,7 +24,7 @@ class MantaLMPCConfig:
     hyperplane_safety_margin: float = 0.3
     hyperplane_slack_bound: float = 2.0
     static_slack_bound: float = 2.0
-    terminal_slack_bound: float = 0.5
+    terminal_slack_bound: float = 4.0
     terminal_slack_weight: float = 1000.0
     hyperplane_slack_weight: float = 10000.0
     static_slack_weight: float = 1000000.0

@@ -108,7 +108,7 @@ lmpc:
   hyperplane_safety_margin: 0.3
   hyperplane_slack_bound: 2.0
   static_slack_bound: 0.02
-  terminal_slack_bound: 0.5
+  terminal_slack_bound: 4.0
   terminal_slack_weight: 1000.0
   hyperplane_slack_weight: 10000.0
   static_slack_weight: 1000000.0
