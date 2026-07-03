@@ -1,15 +1,16 @@
 # MAE 271D: Decentralized Learning MPC
 
-Config-driven 3-agent manta LMPC implementation. The active state is:
+Config-driven multi-agent manta LMPC implementation. The active state is:
 
 `[x, y, theta, p_L, q_L, p_R, q_R]`
 
 The default run is controlled by `config/manta.yaml`.
 
 ## Workflow
-1. Generate iteration-0 safe trajectories with an APF autopilot.
+1. Generate iteration-0 safe trajectories with a staged APF autopilot.
 2. Run decentralized CasADi/IPOPT LMPC with learned safe-set terminal hulls and time-to-go costs.
 3. Use SVM spatial hyperplanes plus soft slacks for inter-agent avoidance and a softened circular static-obstacle constraint.
+4. Select the latest iteration that reaches all goals without pairwise or obstacle violations.
 
 ## Layout
 - `run.py`: root command dispatcher.
@@ -41,11 +42,19 @@ Useful overrides:
 
 `python3 run.py --iterations 1`
 
+`python3 run.py --scenario lane_swap --iterations 2 --max-steps 240 --no-video --output-dir results/lmpc/test_lane_swap`
+
+`python3 run.py --scenario manta_crossover --output-dir results/lmpc/test_manta_crossover`
+
 `python3 run.py --make-video`
 
 `python3 run.py --config config/manta.yaml --output-dir results/debug_run`
 
 Outputs are written under the output root set in `config/manta.yaml`.
+`summary.json` records every candidate iteration in `validation_by_iteration`.
+`selected_iteration` is the APF or LMPC iteration used for the final plots.
+`solver_clean: false` means IPOPT needed a safe-set fallback step, but the
+trajectory can still be valid if it is complete and collision-free.
 
 ## Tracked Results and Data
 Timestamped run folders are ignored by git. Keep only the current report-ready

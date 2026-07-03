@@ -1,4 +1,4 @@
-"""Animation utilities for 3-agent rollout diagnostics."""
+"""Animation utilities for multi-agent rollout diagnostics."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ configure_matplotlib()
 import numpy as np
 from matplotlib import animation, patches, pyplot as plt
 
-from .trajectories import AGENT_COLORS
+from .trajectories import agent_color
 
 
 def save_rollout_animation(
@@ -24,12 +24,14 @@ def save_rollout_animation(
     """Save a GIF animation with agent positions, trails, goals, and safety radii."""
     s = np.asarray(states, dtype=float)
     g = np.asarray(goals, dtype=float)
-    if s.ndim != 3 or s.shape[1] != 3 or s.shape[2] < 2:
-        raise ValueError(f"states must have shape (T+1, 3, D>=2), got {s.shape}")
-    if g.ndim != 2 or g.shape[0] != 3 or g.shape[1] < 2:
-        raise ValueError(f"goals must have shape (3, D>=2), got {g.shape}")
+    if s.ndim != 3 or s.shape[1] < 2 or s.shape[2] < 2:
+        raise ValueError(f"states must have shape (T+1, A>=2, D>=2), got {s.shape}")
+    if g.ndim != 2 or g.shape[0] != s.shape[1] or g.shape[1] < 2:
+        expected = (s.shape[1], "D>=2")
+        raise ValueError(f"goals must have shape {expected}, got {g.shape}")
     pos = s[:, :, :2]
     goal_pos = g[:, :2]
+    num_agents = s.shape[1]
 
     path = Path(out_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -40,7 +42,8 @@ def save_rollout_animation(
     trails = []
     points = []
     safety_circles = []
-    for agent_index, color in enumerate(AGENT_COLORS):
+    for agent_index in range(num_agents):
+        color = agent_color(agent_index)
         ax.scatter(
             pos[0, agent_index, 0],
             pos[0, agent_index, 1],
@@ -81,7 +84,7 @@ def save_rollout_animation(
 
     def update(frame: int) -> list[object]:
         artists: list[object] = [time_text]
-        for agent_index in range(3):
+        for agent_index in range(num_agents):
             trails[agent_index].set_data(
                 pos[: frame + 1, agent_index, 0], pos[: frame + 1, agent_index, 1]
             )

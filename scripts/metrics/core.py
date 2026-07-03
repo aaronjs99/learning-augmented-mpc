@@ -1,4 +1,4 @@
-"""Run-level metrics for 3-agent trajectory rollouts."""
+"""Run-level metrics for multi-agent trajectory rollouts."""
 
 from __future__ import annotations
 
@@ -26,20 +26,21 @@ def pairwise_distances(states: np.ndarray) -> np.ndarray:
     """Compute pairwise distances over time.
 
     Args:
-        states: array of shape ``(T+1, 3, D)`` with position in the first 2 dims.
+        states: array of shape ``(T+1, A, D)`` with position in the first 2 dims.
 
     Returns:
-        Array of shape ``(T+1, 3)`` for pairs ``(0,1), (0,2), (1,2)``.
+        Array of shape ``(T+1, A * (A - 1) / 2)`` in lexicographic pair order.
     """
     s = np.asarray(states, dtype=float)
-    if s.ndim != 3 or s.shape[1] != 3 or s.shape[2] < 2:
-        raise ValueError(f"states must have shape (T+1, 3, D>=2), got {s.shape}")
+    if s.ndim != 3 or s.shape[1] < 2 or s.shape[2] < 2:
+        raise ValueError(f"states must have shape (T+1, A>=2, D>=2), got {s.shape}")
     pos = s[:, :, :2]
 
-    d01 = np.linalg.norm(pos[:, 0] - pos[:, 1], axis=1)
-    d02 = np.linalg.norm(pos[:, 0] - pos[:, 2], axis=1)
-    d12 = np.linalg.norm(pos[:, 1] - pos[:, 2], axis=1)
-    return np.stack((d01, d02, d12), axis=1)
+    distances = []
+    for i in range(pos.shape[1]):
+        for j in range(i + 1, pos.shape[1]):
+            distances.append(np.linalg.norm(pos[:, i] - pos[:, j], axis=1))
+    return np.stack(distances, axis=1)
 
 
 def compute_rollout_metrics(
@@ -53,10 +54,11 @@ def compute_rollout_metrics(
     """Compute minimal rollout metrics used by baseline and LMPC comparisons."""
     s = np.asarray(states, dtype=float)
     g = np.asarray(goals, dtype=float)
-    if s.ndim != 3 or s.shape[1] != 3 or s.shape[2] < 2:
-        raise ValueError(f"states must have shape (T+1, 3, D>=2), got {s.shape}")
-    if g.ndim != 2 or g.shape[0] != 3 or g.shape[1] < 2:
-        raise ValueError(f"goals must have shape (3, D>=2), got {g.shape}")
+    if s.ndim != 3 or s.shape[1] < 2 or s.shape[2] < 2:
+        raise ValueError(f"states must have shape (T+1, A>=2, D>=2), got {s.shape}")
+    if g.ndim != 2 or g.shape[0] != s.shape[1] or g.shape[1] < 2:
+        expected = (s.shape[1], "D>=2")
+        raise ValueError(f"goals must have shape {expected}, got {g.shape}")
     pos = s[:, :, :2]
     goal_pos = g[:, :2]
 
@@ -74,8 +76,8 @@ def compute_rollout_metrics(
     control_effort: float | None = None
     if controls is not None:
         u = np.asarray(controls, dtype=float)
-        if u.ndim != 3 or u.shape[:2] != (s.shape[0] - 1, 3):
-            expected = (s.shape[0] - 1, 3, "control_dim")
+        if u.ndim != 3 or u.shape[:2] != (s.shape[0] - 1, s.shape[1]):
+            expected = (s.shape[0] - 1, s.shape[1], "control_dim")
             raise ValueError(f"controls must have shape {expected}, got {u.shape}")
         control_effort = float(np.sum(u**2))
 

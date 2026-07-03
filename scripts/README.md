@@ -18,7 +18,7 @@ Prefer the root dispatcher:
 ## Modules
 - `dynamics/`: shared manta/CPG dynamics.
 - `simulation/`: environment and scenario dataclasses.
-- `learning/`: APF, safe sets, SVM hyperplanes, run loop.
+- `learning/`: staged APF safe sets, SVM hyperplanes, validation, run loop.
 - `mpc/`: CasADi/IPOPT LMPC optimizer.
 - `metrics/`: rollout metrics from position dimensions.
 - `plotting/`: trajectory, learning-progress, cost, and GIF outputs.

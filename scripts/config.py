@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args, get_origin, get_type_hints
 
 import numpy as np
 import yaml
@@ -67,9 +67,11 @@ def load_project_config(
     if not selected_scenario:
         raise ValueError("config must set run.scenario or pass --scenario")
 
-    dynamics = MantaDynamicsConfig(**raw.get("dynamics", {}))
-    apf = APFConfig(**raw.get("apf", {}))
-    lmpc = MantaLMPCConfig(**raw.get("lmpc", {}))
+    dynamics = _load_dataclass_config(
+        MantaDynamicsConfig, raw.get("dynamics", {}), "dynamics"
+    )
+    apf = _load_dataclass_config(APFConfig, raw.get("apf", {}), "apf")
+    lmpc = _load_dataclass_config(MantaLMPCConfig, raw.get("lmpc", {}), "lmpc")
     scenario = _scenario_from_config(raw, selected_scenario)
 
     output_data = raw.get("output", {})
@@ -131,6 +133,59 @@ def _scenario_from_config(raw: dict[str, Any], name: str) -> Scenario:
         safety_distance=float(data["safety_distance"]),
         obstacle=obstacle,
     )
+
+
+def _load_dataclass_config(config_cls: type, data: dict[str, Any], section: str) -> Any:
+    """Instantiate a config dataclass with numeric YAML strings coerced."""
+    if not isinstance(data, dict):
+        raise TypeError(f"{section} config must be a mapping")
+
+    known_fields = {field.name for field in fields(config_cls)}
+    unknown = sorted(set(data) - known_fields)
+    if unknown:
+        joined = ", ".join(unknown)
+        raise ValueError(f"unknown {section} config field(s): {joined}")
+
+    hints = get_type_hints(config_cls)
+    kwargs = {
+        field.name: _coerce_config_value(
+            data[field.name],
+            hints.get(field.name, field.type),
+            f"{section}.{field.name}",
+        )
+        for field in fields(config_cls)
+        if field.name in data
+    }
+    return config_cls(**kwargs)
+
+
+def _coerce_config_value(value: Any, expected_type: Any, key: str) -> Any:
+    """Coerce scalar numeric config values while keeping type errors readable."""
+    origin = get_origin(expected_type)
+    args = get_args(expected_type)
+
+    if origin in (tuple, list):
+        if isinstance(value, (str, bytes)) or not isinstance(value, (list, tuple)):
+            raise TypeError(f"{key} must be a list/tuple, got {type(value).__name__}")
+        item_type = args[0] if args else Any
+        return tuple(
+            _coerce_config_value(item, item_type, f"{key}[{index}]")
+            for index, item in enumerate(value)
+        )
+
+    if expected_type is float:
+        try:
+            return float(value)
+        except (TypeError, ValueError) as exc:
+            raise TypeError(f"{key} must be a float, got {value!r}") from exc
+
+    if expected_type is int:
+        try:
+            return int(value)
+        except (TypeError, ValueError) as exc:
+            raise TypeError(f"{key} must be an int, got {value!r}") from exc
+
+    return value
 
 
 def _project_path(value: str | Path) -> Path:

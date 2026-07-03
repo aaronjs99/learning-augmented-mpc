@@ -1,7 +1,8 @@
-"""Artificial-potential-field initializer for iteration-0 manta safe sets."""
+"""Artificial-potential-field initializer and backup control for manta runs."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -30,12 +31,12 @@ def compute_apf_control(
     goal_state: np.ndarray,
     *,
     obstacle: StaticObstacle,
+    extra_obstacles: Sequence[StaticObstacle] | None = None,
     apf_config: APFConfig = APFConfig(),
     dynamics_config: MantaDynamicsConfig = MantaDynamicsConfig(),
 ) -> np.ndarray:
     """Return one obstacle-aware APF control for the current manta state."""
     x, y, theta = np.asarray(current_state, dtype=float)[:3]
-    obs = np.asarray(obstacle.center, dtype=float)
 
     goal_delta = np.asarray(goal_state[:2], dtype=float) - np.array([x, y])
     goal_dist = float(np.linalg.norm(goal_delta))
@@ -46,17 +47,23 @@ def compute_apf_control(
         apf_config.base_mu_max,
     )
 
-    obs_delta = np.array([x, y]) - obs
-    obs_dist = float(np.linalg.norm(obs_delta))
     repulsion = np.zeros(2, dtype=float)
-    if obs_dist < apf_config.influence_radius:
-        surface_dist = obs_dist - (obstacle.radius + apf_config.obstacle_padding)
-        surface_dist = max(surface_dist, 0.05)
-        denominator = apf_config.influence_radius - obstacle.radius
-        strength = apf_config.repulsion_gain * (
-            1.0 / surface_dist - 1.0 / denominator
-        )
-        repulsion = (obs_delta / (obs_dist + 1e-9)) * strength
+    for static_obstacle in (obstacle, *(extra_obstacles or ())):
+        obs = np.asarray(static_obstacle.center, dtype=float)
+        obs_delta = np.array([x, y]) - obs
+        obs_dist = float(np.linalg.norm(obs_delta))
+        if obs_dist < apf_config.influence_radius:
+            surface_dist = obs_dist - (
+                static_obstacle.radius + apf_config.obstacle_padding
+            )
+            surface_dist = max(surface_dist, 0.05)
+            denominator = max(
+                apf_config.influence_radius - static_obstacle.radius, 0.05
+            )
+            strength = apf_config.repulsion_gain * (
+                1.0 / surface_dist - 1.0 / denominator
+            )
+            repulsion += (obs_delta / (obs_dist + 1e-9)) * strength
 
     desired_velocity = attraction + repulsion
     target_theta = np.arctan2(desired_velocity[1], desired_velocity[0])
@@ -82,10 +89,11 @@ def simulate_manta_autopilot(
     *,
     dt: float = 0.2,
     obstacle: StaticObstacle = StaticObstacle(center=(3.1, 2.9), radius=0.95),
+    extra_obstacles: Sequence[StaticObstacle] | None = None,
     apf_config: APFConfig = APFConfig(),
     dynamics_config: MantaDynamicsConfig = MantaDynamicsConfig(),
 ) -> np.ndarray:
-    """Generate one solo trajectory with obstacle-aware APF steering."""
+    """Generate one APF trajectory from ``start_state`` toward ``goal_state``."""
     history = [np.asarray(start_state, dtype=float).copy()]
     current_state = history[0].copy()
 
@@ -94,6 +102,7 @@ def simulate_manta_autopilot(
             current_state=current_state,
             goal_state=goal_state,
             obstacle=obstacle,
+            extra_obstacles=extra_obstacles,
             apf_config=apf_config,
             dynamics_config=dynamics_config,
         )

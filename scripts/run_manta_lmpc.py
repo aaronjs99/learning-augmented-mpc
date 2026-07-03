@@ -92,9 +92,7 @@ def main() -> None:
         raise SystemExit(130) from None
 
     final_states = _history_to_tensor(result.final_history)
-    final_controls = (
-        result.controls_by_iteration[-1] if result.controls_by_iteration else None
-    )
+    final_controls = result.final_controls
     metrics = compute_rollout_metrics(
         states=final_states,
         goals=scenario.goals,
@@ -104,12 +102,18 @@ def main() -> None:
         goal_tolerance=lmpc_config.goal_tolerance,
     )
     dists = pairwise_distances(final_states)
+    report_histories = result.report_histories
     costs = cost_by_iteration(
         result.histories,
         scenario.goals,
         goal_tolerance=lmpc_config.goal_tolerance,
     )
     status_counts = _status_counts_by_iteration(result.statuses_by_iteration)
+    report_costs = cost_by_iteration(
+        report_histories,
+        scenario.goals,
+        goal_tolerance=project_config.plots.cost_goal_tolerance,
+    )
     final_goal_errors = _final_goal_errors(final_states, scenario.goals)
 
     summary = {
@@ -122,12 +126,21 @@ def main() -> None:
         "max_steps": lmpc_config.max_steps,
         "apf_max_steps": apf_config.max_steps,
         "goal_tolerance": lmpc_config.goal_tolerance,
-        "cost_goal_tolerance": lmpc_config.goal_tolerance,
+        "cost_goal_tolerance": project_config.plots.cost_goal_tolerance,
         "cost_by_iteration_goal_tolerance": lmpc_config.goal_tolerance,
         "plot_cost_goal_tolerance": project_config.plots.cost_goal_tolerance,
+        "selected_iteration": result.selected_iteration,
         "success_by_iteration": result.success_by_iteration,
+        "goal_reached_by_iteration": result.goal_reached_by_iteration,
+        "learned_by_iteration": result.learned_by_iteration,
+        "validation_by_iteration": [
+            validation.to_dict() for validation in result.validation_by_iteration
+        ],
         "status_counts_by_iteration": status_counts,
         "cost_by_iteration": {str(agent): values for agent, values in costs.items()},
+        "report_cost_by_iteration": {
+            str(agent): values for agent, values in report_costs.items()
+        },
         "final_goal_error_by_agent": {
             str(agent): error for agent, error in enumerate(final_goal_errors)
         },
@@ -140,17 +153,17 @@ def main() -> None:
         root / "states_by_iteration.csv", result.histories, lmpc_config.dt
     )
     plot_learning_progression(
-        result.histories,
+        report_histories,
         scenario.goals,
         scenario.obstacle,
         str(root / "learning_progression.png"),
         goal_tolerance=lmpc_config.goal_tolerance,
         obstacle_padding=apf_config.obstacle_padding,
         safety_distance=scenario.safety_distance,
-        statuses_by_iteration=result.statuses_by_iteration,
+        statuses_by_iteration=result.report_statuses,
     )
     plot_cost_decrease(
-        result.histories,
+        report_histories,
         scenario.goals,
         str(root / "cost_decrease.png"),
         goal_tolerance=project_config.plots.cost_goal_tolerance,
@@ -164,9 +177,7 @@ def main() -> None:
         obstacle=scenario.obstacle,
         obstacle_padding=apf_config.obstacle_padding,
         safety_distance=scenario.safety_distance,
-        statuses=result.statuses_by_iteration[-1]
-        if result.statuses_by_iteration
-        else None,
+        statuses=result.final_statuses,
     )
     plot_pairwise_distances(
         distances=dists,
@@ -186,9 +197,7 @@ def main() -> None:
             goal_tolerance=lmpc_config.goal_tolerance,
             obstacle_padding=apf_config.obstacle_padding,
             safety_distance=scenario.safety_distance,
-            statuses=result.statuses_by_iteration[-1]
-            if result.statuses_by_iteration
-            else None,
+            statuses=result.final_statuses,
         )
 
     print(f"Saved manta LMPC outputs to: {root}")
@@ -226,13 +235,15 @@ def _load_effective_config(args: argparse.Namespace) -> ProjectConfig:
 
 
 def _history_to_tensor(history: dict[int, np.ndarray]) -> np.ndarray:
-    max_len = max(len(history[agent]) for agent in range(3))
-    states = np.zeros((max_len, 3, 7), dtype=float)
-    for agent in range(3):
+    agents = sorted(history)
+    max_len = max(len(history[agent]) for agent in agents)
+    state_dim = np.asarray(history[agents[0]], dtype=float).shape[1]
+    states = np.zeros((max_len, len(agents), state_dim), dtype=float)
+    for out_agent, agent in enumerate(agents):
         traj = np.asarray(history[agent], dtype=float)
-        states[: len(traj), agent] = traj
+        states[: len(traj), out_agent] = traj
         if len(traj) < max_len:
-            states[len(traj) :, agent] = traj[-1]
+            states[len(traj) :, out_agent] = traj[-1]
     return states
 
 
@@ -282,7 +293,7 @@ def _save_histories_csv(
             )
         )
         for iteration, run in enumerate(histories):
-            for agent in range(3):
+            for agent in sorted(run):
                 traj = np.asarray(run[agent], dtype=float)
                 for step, state in enumerate(traj):
                     writer.writerow(

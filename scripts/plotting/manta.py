@@ -21,8 +21,7 @@ from .diagnostics import (
     legend_label,
     to_position_history,
 )
-
-AGENT_COLORS = ("tab:blue", "tab:red", "tab:green")
+from .trajectories import agent_color
 
 
 def plot_learning_progression(
@@ -40,18 +39,20 @@ def plot_learning_progression(
     path = Path(out_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     g = np.asarray(goals, dtype=float)
+    num_agents = g.shape[0]
 
     fig, ax = plt.subplots(figsize=(8, 8))
     _set_workspace_limits(ax)
     ax.grid(True, linestyle="--", alpha=0.6)
-    ax.set_title("3-Agent Manta LMPC Learning Progression")
+    ax.set_title(f"{num_agents}-Agent Manta LMPC Learning Progression")
     _add_obstacle_layers(ax, obstacle, obstacle_padding)
 
     labels_used: set[str] = set()
     final_idx = len(histories) - 1
     for iteration, run in enumerate(histories):
         positions = to_position_history(run)
-        for agent, color in enumerate(AGENT_COLORS):
+        for agent in range(num_agents):
+            color = agent_color(agent)
             traj = np.asarray(run[agent], dtype=float)
             _add_safe_set_points(
                 ax,
@@ -95,7 +96,8 @@ def plot_learning_progression(
         statuses = _statuses_for_history(iteration, statuses_by_iteration)
         add_status_markers(ax, positions, statuses, labels_used=labels_used)
 
-    for agent, color in enumerate(AGENT_COLORS):
+    for agent in range(num_agents):
+        color = agent_color(agent)
         start = np.asarray(histories[0][agent], dtype=float)[0]
         ax.scatter(
             start[0],
@@ -135,6 +137,7 @@ def plot_cost_decrease(
     path.parent.mkdir(parents=True, exist_ok=True)
     costs = cost_by_iteration(histories, goals, goal_tolerance=goal_tolerance)
     iterations = np.arange(len(histories), dtype=float)
+    num_agents = len(costs)
 
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.set_title(f"LMPC Learning: Agent Cost Proxy (tol={goal_tolerance:g})")
@@ -142,8 +145,9 @@ def plot_cost_decrease(
     ax.set_ylabel("First-Hit Step Proxy")
     ax.grid(True, linestyle="--", alpha=0.7)
 
-    for agent, color in enumerate(AGENT_COLORS):
-        jitter = (agent - 1) * 0.05
+    for agent in sorted(costs):
+        color = agent_color(agent)
+        jitter = (agent - (num_agents - 1) / 2.0) * 0.05
         values = costs[agent]
         ax.plot(
             iterations + jitter,
@@ -189,13 +193,17 @@ def save_manta_animation(
     path = Path(out_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     g = np.asarray(goals, dtype=float)
+    num_agents = g.shape[0]
     histories = {
-        agent: np.asarray(final_history[agent], dtype=float) for agent in range(3)
+        agent: np.asarray(final_history[agent], dtype=float)
+        for agent in range(num_agents)
     }
-    max_frames = max(len(histories[agent]) for agent in range(3))
+    max_frames = max(len(histories[agent]) for agent in range(num_agents))
 
     fig = plt.figure(figsize=(10, 14))
-    gs = fig.add_gridspec(4, 2, height_ratios=[3, 1, 1, 1])
+    gs = fig.add_gridspec(
+        num_agents + 1, 2, height_ratios=[3] + [1] * num_agents
+    )
 
     ax_top = fig.add_subplot(gs[0, :])
     _set_workspace_limits(ax_top)
@@ -206,7 +214,8 @@ def save_manta_animation(
 
     lines = []
     dots = []
-    for agent, color in enumerate(AGENT_COLORS):
+    for agent in range(num_agents):
+        color = agent_color(agent)
         start = histories[agent][0]
         ax_top.scatter(
             start[0],
@@ -244,7 +253,8 @@ def save_manta_animation(
     ax_top.legend(loc="upper right")
 
     wing_lines = {}
-    for agent, color in enumerate(AGENT_COLORS):
+    for agent in range(num_agents):
+        color = agent_color(agent)
         ax_rear = fig.add_subplot(gs[agent + 1, 0])
         ax_rear.set_xlim(-1.2, 1.2)
         ax_rear.set_ylim(-0.8, 0.8)
@@ -267,7 +277,7 @@ def save_manta_animation(
     def update(frame: int) -> list[object]:
         t = frame * dt
         artists: list[object] = []
-        for agent in range(3):
+        for agent in range(num_agents):
             traj = histories[agent]
             idx = min(frame, len(traj) - 1)
             lines[agent].set_data(traj[: idx + 1, 0], traj[: idx + 1, 1])

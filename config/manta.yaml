@@ -33,6 +33,17 @@ scenario:
       - [6.0, 6.0, 0.785, 0.0, 0.0, 0.0, 0.0]
       - [0.0, 6.0, 2.35, 0.0, 0.0, 0.0, 0.0]
       - [3.0, 0.0, -1.57, 0.0, 0.0, 0.0, 0.0]
+  manta_crossover:
+    safety_distance: 0.6
+    obstacle:
+      center: [3.1, 2.9]
+      radius: 0.95
+    starts:
+      - [0.0, 0.0, 0.785, 0.1, 0.0, 0.1, 0.0]
+      - [5.0, 0.5, 2.35, 0.1, 0.0, 0.1, 0.0]
+    goals:
+      - [5.0, 5.0, 0.785, 0.0, 0.0, 0.0, 0.0]
+      - [0.0, 5.0, 2.35, 0.0, 0.0, 0.0, 0.0]
   lane_swap:
     safety_distance: 0.6
     obstacle:
@@ -80,9 +91,9 @@ apf:
   heading_gain: 1.5
   influence_radius: 4.0
   obstacle_padding: 0.2
-  repulsion_gain: 1.5
+  repulsion_gain: 6.0
   goal_tolerance: 0.35
-  max_steps: 400
+  max_steps: 800
   base_mu_gain: 0.8
   base_mu_min: 0.5
   base_mu_max: 1.5

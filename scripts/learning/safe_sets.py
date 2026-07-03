@@ -2,11 +2,30 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from itertools import permutations
+
 import numpy as np
 
 from .apf import APFConfig, simulate_manta_autopilot
 from scripts.dynamics import MantaDynamicsConfig, rk4_step_np
-from scripts.simulation import Scenario
+from scripts.simulation import Scenario, StaticObstacle
+
+
+_STATIC_AGENT_RADIUS_SCALES = (1.5, 1.2, 1.0, 0.85, 0.7)
+
+
+@dataclass(frozen=True)
+class _SafeSetScore:
+    """Validation metrics used to choose an APF staging order."""
+
+    all_goals_reached: bool
+    usable_for_learning: bool
+    pairwise_violation_count: int
+    obstacle_violation_count: int
+    final_goal_error: float
+    min_pairwise_distance: float
+    min_obstacle_clearance: float
 
 
 def hold_trajectory(
@@ -35,86 +54,190 @@ def build_staggered_safe_sets(
     apf_config: APFConfig = APFConfig(),
     dynamics_config: MantaDynamicsConfig = MantaDynamicsConfig(),
 ) -> tuple[dict[int, np.ndarray], dict[int, np.ndarray]]:
-    """Build dynamically valid staggered APF iteration-0 safe sets."""
+    """Build the best dynamically valid staged APF iteration-0 safe sets."""
     starts = np.asarray(scenario.starts, dtype=float)
     goals = np.asarray(scenario.goals, dtype=float)
+    num_agents = len(starts)
+    if goals.shape[0] != num_agents:
+        raise ValueError("scenario starts and goals must have the same agent count")
+    if num_agents < 2:
+        raise ValueError("manta LMPC requires at least two agents")
 
-    solo0 = simulate_manta_autopilot(
-        starts[0],
-        goals[0],
-        dt=dt,
-        obstacle=scenario.obstacle,
-        apf_config=apf_config,
-        dynamics_config=dynamics_config,
-    )
-    _validate_apf_goal_reached(0, solo0, goals[0], apf_config)
+    candidates = []
+    for radius_scale in _STATIC_AGENT_RADIUS_SCALES:
+        for order in permutations(range(num_agents)):
+            safe_sets, staged_trajs = _build_ordered_safe_sets(
+                scenario,
+                starts,
+                goals,
+                order,
+                radius_scale,
+                dt=dt,
+                apf_config=apf_config,
+                dynamics_config=dynamics_config,
+            )
+            score = _score_safe_sets(
+                safe_sets,
+                goals,
+                scenario.safety_distance,
+                scenario.obstacle.center,
+                scenario.obstacle.radius,
+                apf_config.goal_tolerance,
+            )
+            candidates.append((score, safe_sets, staged_trajs))
 
-    hold1_prefix = hold_trajectory(
-        starts[1],
-        len(solo0) - 1,
-        dt=dt,
-        dynamics_config=dynamics_config,
-    )
-    solo1 = simulate_manta_autopilot(
-        hold1_prefix[-1],
-        goals[1],
-        dt=dt,
-        obstacle=scenario.obstacle,
-        apf_config=apf_config,
-        dynamics_config=dynamics_config,
-    )
-    _validate_apf_goal_reached(1, solo1, goals[1], apf_config)
-
-    hold2_prefix = hold_trajectory(
-        starts[2],
-        (len(solo0) - 1) + (len(solo1) - 1),
-        dt=dt,
-        dynamics_config=dynamics_config,
-    )
-    solo2 = simulate_manta_autopilot(
-        hold2_prefix[-1],
-        goals[2],
-        dt=dt,
-        obstacle=scenario.obstacle,
-        apf_config=apf_config,
-        dynamics_config=dynamics_config,
-    )
-    _validate_apf_goal_reached(2, solo2, goals[2], apf_config)
-
-    hold0_suffix = hold_trajectory(
-        solo0[-1],
-        (len(solo1) - 1) + (len(solo2) - 1),
-        dt=dt,
-        dynamics_config=dynamics_config,
-    )
-    hold1_suffix = hold_trajectory(
-        solo1[-1],
-        len(solo2) - 1,
-        dt=dt,
-        dynamics_config=dynamics_config,
-    )
-
-    safe_sets = {
-        0: np.vstack((solo0, hold0_suffix[1:])),
-        1: np.vstack((hold1_prefix[:-1], solo1, hold1_suffix[1:])),
-        2: np.vstack((hold2_prefix[:-1], solo2)),
-    }
-    solo_trajs = {0: solo0, 1: solo1, 2: solo2}
-    return safe_sets, solo_trajs
+    _, safe_sets, staged_trajs = min(candidates, key=_score_key)
+    return safe_sets, staged_trajs
 
 
-def _validate_apf_goal_reached(
-    agent: int,
-    trajectory: np.ndarray,
-    goal: np.ndarray,
+def _build_ordered_safe_sets(
+    scenario: Scenario,
+    starts: np.ndarray,
+    goals: np.ndarray,
+    order: tuple[int, ...],
+    static_agent_radius_scale: float,
+    *,
+    dt: float,
     apf_config: APFConfig,
-) -> None:
-    distance = float(np.linalg.norm(trajectory[-1, :2] - goal[:2]))
-    if distance > apf_config.goal_tolerance:
-        raise RuntimeError(
-            f"APF trajectory for agent {agent} ended {distance:.3f} from goal, "
-            f"exceeding tolerance {apf_config.goal_tolerance:.3f}."
+    dynamics_config: MantaDynamicsConfig,
+) -> tuple[dict[int, np.ndarray], dict[int, np.ndarray]]:
+    """Generate staged APF paths while treating waiting agents as obstacles."""
+    staged_trajs: dict[int, np.ndarray] = {}
+    start_steps: dict[int, int] = {}
+    elapsed_steps = 0
+
+    for order_index, agent in enumerate(order):
+        start_steps[agent] = elapsed_steps
+        active_start = hold_trajectory(
+            starts[agent],
+            elapsed_steps,
+            dt=dt,
+            dynamics_config=dynamics_config,
+        )[-1]
+
+        extra_obstacles: list[StaticObstacle] = []
+        for other in order[:order_index]:
+            extra_obstacles.append(
+                StaticObstacle(
+                    center=tuple(staged_trajs[other][-1, :2]),
+                    radius=scenario.safety_distance * static_agent_radius_scale,
+                )
+            )
+        for other in order[order_index + 1 :]:
+            waiting_state = hold_trajectory(
+                starts[other],
+                elapsed_steps,
+                dt=dt,
+                dynamics_config=dynamics_config,
+            )[-1]
+            extra_obstacles.append(
+                StaticObstacle(
+                    center=tuple(waiting_state[:2]),
+                    radius=scenario.safety_distance * static_agent_radius_scale,
+                )
+            )
+
+        staged_trajs[agent] = simulate_manta_autopilot(
+            active_start,
+            goals[agent],
+            dt=dt,
+            obstacle=scenario.obstacle,
+            extra_obstacles=extra_obstacles,
+            apf_config=apf_config,
+            dynamics_config=dynamics_config,
         )
+        elapsed_steps += len(staged_trajs[agent]) - 1
+
+    total_steps = elapsed_steps
+    safe_sets: dict[int, np.ndarray] = {}
+    for agent in order:
+        prefix_steps = start_steps[agent]
+        solo = staged_trajs[agent]
+        solo_steps = len(solo) - 1
+        suffix_steps = total_steps - prefix_steps - solo_steps
+
+        prefix = hold_trajectory(
+            starts[agent],
+            prefix_steps,
+            dt=dt,
+            dynamics_config=dynamics_config,
+        )
+        suffix = hold_trajectory(
+            solo[-1],
+            suffix_steps,
+            dt=dt,
+            dynamics_config=dynamics_config,
+        )
+        safe_sets[agent] = np.vstack((prefix[:-1], solo, suffix[1:]))
+
+    return safe_sets, staged_trajs
+
+
+def _score_safe_sets(
+    safe_sets: dict[int, np.ndarray],
+    goals: np.ndarray,
+    safety_distance: float,
+    obstacle_center: tuple[float, float],
+    obstacle_radius: float,
+    goal_tolerance: float,
+) -> _SafeSetScore:
+    """Score a staged APF candidate without importing the LMPC runner."""
+    agents = sorted(safe_sets)
+    max_len = max(len(safe_sets[agent]) for agent in agents)
+    state_dim = np.asarray(safe_sets[agents[0]], dtype=float).shape[1]
+    states = np.zeros((max_len, len(agents), state_dim), dtype=float)
+    for out_agent, agent in enumerate(agents):
+        traj = np.asarray(safe_sets[agent], dtype=float)
+        states[: len(traj), out_agent] = traj
+        if len(traj) < max_len:
+            states[len(traj) :, out_agent] = traj[-1]
+
+    pos = states[:, :, :2]
+    goal_pos = np.asarray(goals, dtype=float)[agents, :2]
+    final_goal_errors = np.linalg.norm(pos[-1] - goal_pos, axis=1)
+    all_goals_reached = bool(np.all(final_goal_errors <= goal_tolerance))
+
+    pairwise = []
+    for i in range(pos.shape[1]):
+        for j in range(i + 1, pos.shape[1]):
+            pairwise.append(np.linalg.norm(pos[:, i] - pos[:, j], axis=1))
+    pairwise_distances = np.vstack(pairwise).T
+    pairwise_violation_count = int(np.sum(pairwise_distances < safety_distance))
+    min_pairwise_distance = float(np.min(pairwise_distances))
+
+    center = np.asarray(obstacle_center, dtype=float)
+    obstacle_clearance = np.linalg.norm(pos - center[None, None, :], axis=2)
+    obstacle_clearance -= obstacle_radius
+    obstacle_violation_count = int(np.sum(obstacle_clearance < 0.0))
+    min_obstacle_clearance = float(np.min(obstacle_clearance))
+
+    return _SafeSetScore(
+        all_goals_reached=all_goals_reached,
+        usable_for_learning=(
+            pairwise_violation_count == 0 and obstacle_violation_count == 0
+        ),
+        pairwise_violation_count=pairwise_violation_count,
+        obstacle_violation_count=obstacle_violation_count,
+        final_goal_error=float(np.sum(final_goal_errors)),
+        min_pairwise_distance=min_pairwise_distance,
+        min_obstacle_clearance=min_obstacle_clearance,
+    )
+
+
+def _score_key(
+    candidate: tuple[_SafeSetScore, dict[int, np.ndarray], dict[int, np.ndarray]],
+) -> tuple[bool, bool, int, int, float, float, float]:
+    """Prefer safe, complete, short-error APF seeds with larger margins."""
+    score = candidate[0]
+    return (
+        not score.usable_for_learning,
+        not score.all_goals_reached,
+        score.pairwise_violation_count,
+        score.obstacle_violation_count,
+        score.final_goal_error,
+        -score.min_pairwise_distance,
+        -score.min_obstacle_clearance,
+    )
 
 
 def sample_terminal_safe_set(
