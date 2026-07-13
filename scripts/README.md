@@ -6,6 +6,7 @@ This package contains both runnable entry points and reusable modules.
 - `run_manta_lmpc.py`: full APF + LMPC workflow, driven by `config/manta.yaml`.
 - `run_baseline_mpc.py`: APF iteration-0 baseline shortcut.
 - `run_sanity_checks.py`: zero-control manta simulation check.
+- `run_sweep.py`: compact APF/LMPC benchmark table without plot generation.
 
 Prefer the root dispatcher:
 
@@ -14,6 +15,8 @@ Prefer the root dispatcher:
 `python run.py baseline`
 
 `python run.py sanity`
+
+`python run.py sweep`
 
 ## Modules
 - `dynamics/`: shared manta/CPG dynamics.

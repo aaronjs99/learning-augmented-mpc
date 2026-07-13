@@ -7,7 +7,7 @@ from itertools import permutations
 
 import numpy as np
 
-from .apf import APFConfig, simulate_manta_autopilot
+from .apf import APFConfig, simulate_manta_autopilot_with_controls
 from scripts.dynamics import MantaDynamicsConfig, rk4_step_np
 from scripts.simulation import Scenario, StaticObstacle
 
@@ -47,6 +47,11 @@ def hold_trajectory(
     return np.asarray(traj, dtype=float)
 
 
+def hold_controls(steps: int) -> np.ndarray:
+    """Return zero controls for a dynamic hold trajectory."""
+    return np.zeros((steps, 2), dtype=float)
+
+
 def build_staggered_safe_sets(
     scenario: Scenario,
     *,
@@ -54,7 +59,7 @@ def build_staggered_safe_sets(
     apf_config: APFConfig = APFConfig(),
     dynamics_config: MantaDynamicsConfig = MantaDynamicsConfig(),
 ) -> tuple[dict[int, np.ndarray], dict[int, np.ndarray]]:
-    """Build the best dynamically valid staged APF iteration-0 safe sets."""
+    """Build staged APF safe sets and their corresponding controls."""
     starts = np.asarray(scenario.starts, dtype=float)
     goals = np.asarray(scenario.goals, dtype=float)
     num_agents = len(starts)
@@ -66,7 +71,7 @@ def build_staggered_safe_sets(
     candidates = []
     for radius_scale in _STATIC_AGENT_RADIUS_SCALES:
         for order in permutations(range(num_agents)):
-            safe_sets, staged_trajs = _build_ordered_safe_sets(
+            safe_sets, safe_controls, staged_trajs = _build_ordered_safe_sets(
                 scenario,
                 starts,
                 goals,
@@ -84,10 +89,10 @@ def build_staggered_safe_sets(
                 scenario.obstacle.radius,
                 apf_config.goal_tolerance,
             )
-            candidates.append((score, safe_sets, staged_trajs))
+            candidates.append((score, safe_sets, safe_controls, staged_trajs))
 
-    _, safe_sets, staged_trajs = min(candidates, key=_score_key)
-    return safe_sets, staged_trajs
+    _, safe_sets, safe_controls, _ = min(candidates, key=_score_key)
+    return safe_sets, safe_controls
 
 
 def _build_ordered_safe_sets(
@@ -100,9 +105,10 @@ def _build_ordered_safe_sets(
     dt: float,
     apf_config: APFConfig,
     dynamics_config: MantaDynamicsConfig,
-) -> tuple[dict[int, np.ndarray], dict[int, np.ndarray]]:
+) -> tuple[dict[int, np.ndarray], dict[int, np.ndarray], dict[int, np.ndarray]]:
     """Generate staged APF paths while treating waiting agents as obstacles."""
     staged_trajs: dict[int, np.ndarray] = {}
+    staged_controls: dict[int, np.ndarray] = {}
     start_steps: dict[int, int] = {}
     elapsed_steps = 0
 
@@ -137,7 +143,10 @@ def _build_ordered_safe_sets(
                 )
             )
 
-        staged_trajs[agent] = simulate_manta_autopilot(
+        (
+            staged_trajs[agent],
+            staged_controls[agent],
+        ) = simulate_manta_autopilot_with_controls(
             active_start,
             goals[agent],
             dt=dt,
@@ -150,6 +159,7 @@ def _build_ordered_safe_sets(
 
     total_steps = elapsed_steps
     safe_sets: dict[int, np.ndarray] = {}
+    safe_controls: dict[int, np.ndarray] = {}
     for agent in order:
         prefix_steps = start_steps[agent]
         solo = staged_trajs[agent]
@@ -169,8 +179,15 @@ def _build_ordered_safe_sets(
             dynamics_config=dynamics_config,
         )
         safe_sets[agent] = np.vstack((prefix[:-1], solo, suffix[1:]))
+        safe_controls[agent] = np.vstack(
+            (
+                hold_controls(prefix_steps),
+                staged_controls[agent],
+                hold_controls(suffix_steps),
+            )
+        )
 
-    return safe_sets, staged_trajs
+    return safe_sets, safe_controls, staged_trajs
 
 
 def _score_safe_sets(
@@ -225,7 +242,12 @@ def _score_safe_sets(
 
 
 def _score_key(
-    candidate: tuple[_SafeSetScore, dict[int, np.ndarray], dict[int, np.ndarray]],
+    candidate: tuple[
+        _SafeSetScore,
+        dict[int, np.ndarray],
+        dict[int, np.ndarray],
+        dict[int, np.ndarray],
+    ],
 ) -> tuple[bool, bool, int, int, float, float, float]:
     """Prefer safe, complete, short-error APF seeds with larger margins."""
     score = candidate[0]

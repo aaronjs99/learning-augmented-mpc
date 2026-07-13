@@ -23,6 +23,11 @@ def main() -> None:
         from scripts.run_sanity_checks import main as run_sanity
 
         run_sanity()
+    elif command == "sweep":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_sweep import main as run_sweep
+
+        run_sweep()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

@@ -10,3 +10,7 @@ The LMPC defaults are conservative: SVM hyperplanes use a margin larger than
 half the configured pairwise safety distance, and terminal safe-set matching is
 position-only by default so oscillator phase states do not over-constrain the
 short-horizon NLP.
+
+`warm_start_control_blend` controls how much stored safe-set control history is
+used in IPOPT initialization. `0.0` means constant nominal controls only, while
+`1.0` means raw stored controls only.

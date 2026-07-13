@@ -94,7 +94,31 @@ def simulate_manta_autopilot(
     dynamics_config: MantaDynamicsConfig = MantaDynamicsConfig(),
 ) -> np.ndarray:
     """Generate one APF trajectory from ``start_state`` toward ``goal_state``."""
+    history, _ = simulate_manta_autopilot_with_controls(
+        start_state,
+        goal_state,
+        dt=dt,
+        obstacle=obstacle,
+        extra_obstacles=extra_obstacles,
+        apf_config=apf_config,
+        dynamics_config=dynamics_config,
+    )
+    return history
+
+
+def simulate_manta_autopilot_with_controls(
+    start_state: np.ndarray,
+    goal_state: np.ndarray,
+    *,
+    dt: float = 0.2,
+    obstacle: StaticObstacle = StaticObstacle(center=(3.1, 2.9), radius=0.95),
+    extra_obstacles: Sequence[StaticObstacle] | None = None,
+    apf_config: APFConfig = APFConfig(),
+    dynamics_config: MantaDynamicsConfig = MantaDynamicsConfig(),
+) -> tuple[np.ndarray, np.ndarray]:
+    """Generate one APF trajectory and the controls that produced it."""
     history = [np.asarray(start_state, dtype=float).copy()]
+    controls: list[np.ndarray] = []
     current_state = history[0].copy()
 
     for _ in range(apf_config.max_steps):
@@ -107,6 +131,7 @@ def simulate_manta_autopilot(
             dynamics_config=dynamics_config,
         )
 
+        controls.append(control.copy())
         current_state = rk4_step_np(current_state, control, dt, dynamics_config)
         history.append(current_state.copy())
 
@@ -116,4 +141,4 @@ def simulate_manta_autopilot(
         ):
             break
 
-    return np.asarray(history, dtype=float)
+    return np.asarray(history, dtype=float), np.asarray(controls, dtype=float)

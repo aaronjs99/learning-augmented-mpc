@@ -137,7 +137,7 @@ def run_manta_lmpc(
 
     if verbose:
         print("Generating staggered APF trajectories (iteration 0)...")
-    safe_sets, _ = build_staggered_safe_sets(
+    safe_sets, safe_controls = build_staggered_safe_sets(
         scenario,
         dt=config.dt,
         apf_config=apf_config,
@@ -237,7 +237,7 @@ def run_manta_lmpc(
                     safe_sets[agent], target_idx, config.k_hull
                 )
                 warm_states, warm_controls = _warm_start_from_safe_set(
-                    safe_sets[agent], step, config
+                    safe_sets[agent], safe_controls[agent], step, config
                 )
                 agent_hyperplanes = [
                     hyperplanes[agent][other]
@@ -327,6 +327,9 @@ def run_manta_lmpc(
         learned_by_iteration.append(validation.usable_for_learning)
         if validation.usable_for_learning:
             safe_sets = {agent: history[agent] for agent in range(num_agents)}
+            safe_controls = _controls_by_agent(
+                iteration_controls[: len(iteration_statuses)], num_agents
+            )
             histories[-1] = _snapshot_safe_sets(safe_sets)
             if verbose:
                 print("  learned: complete safe trajectory kept for the next iteration.")
@@ -455,6 +458,17 @@ def _snapshot_safe_sets(
     }
 
 
+def _controls_by_agent(
+    controls: np.ndarray, num_agents: int
+) -> dict[int, np.ndarray]:
+    """Convert iteration controls from ``(T, A, 2)`` to per-agent histories."""
+    control_array = np.asarray(controls, dtype=float)
+    return {
+        agent: control_array[:, agent, :].copy()
+        for agent in range(num_agents)
+    }
+
+
 def _live_reference_sets(
     safe_sets: dict[int, list[np.ndarray]],
     current_states: dict[int, np.ndarray],
@@ -500,10 +514,15 @@ def _build_pairwise_hyperplanes(
 
 def _warm_start_from_safe_set(
     safe_set: list[np.ndarray] | np.ndarray,
+    safe_controls: list[np.ndarray] | np.ndarray,
     step: int,
     config: MantaLMPCConfig,
 ) -> tuple[np.ndarray, np.ndarray]:
     states = np.asarray(safe_set, dtype=float)
+    controls = np.asarray(safe_controls, dtype=float)
+    control_blend = config.warm_start_control_blend
+    if not 0.0 <= control_blend <= 1.0:
+        raise ValueError("lmpc.warm_start_control_blend must be in [0, 1]")
     warm_states = np.zeros((7, config.prediction_horizon + 1), dtype=float)
     warm_controls = np.full(
         (2, config.prediction_horizon),
@@ -513,6 +532,13 @@ def _warm_start_from_safe_set(
     for k in range(config.prediction_horizon + 1):
         idx = min(step + k, len(states) - 1)
         warm_states[:, k] = states[idx]
+    if len(controls) > 0:
+        for k in range(config.prediction_horizon):
+            idx = min(step + k, len(controls) - 1)
+            warm_controls[:, k] = (
+                (1.0 - control_blend) * warm_controls[:, k]
+                + control_blend * controls[idx]
+            )
     return warm_states, warm_controls
 
 

@@ -34,6 +34,7 @@ class MantaLMPCConfig:
     control_cost_weights: tuple[float, ...] = (0.5, 0.5)
     hyperplane_ignore_distance: float = 4.0
     warm_start_control: float = 1.0
+    warm_start_control_blend: float = 0.25
     ipopt_max_iter: int = 200
     ipopt_print_level: int = 0
     log_interval: int = 5
