@@ -1,0 +1,115 @@
+{
+  "scenario": "manta_crossover",
+  "config": "C:\\Users\\aaron\\Desktop\\aaronjs99\\learning-augmented-mpc\\config\\manta.yaml",
+  "iterations": 2,
+  "dt": 0.2,
+  "prediction_horizon": 20,
+  "k_hull": 10,
+  "max_steps": 230,
+  "apf_max_steps": 800,
+  "goal_tolerance": 0.65,
+  "cost_goal_tolerance": 0.65,
+  "cost_by_iteration_goal_tolerance": 0.65,
+  "plot_cost_goal_tolerance": 0.65,
+  "selected_iteration": 2,
+  "success_by_iteration": [
+    true,
+    true,
+    true
+  ],
+  "goal_reached_by_iteration": [
+    true,
+    true,
+    true
+  ],
+  "learned_by_iteration": [
+    true,
+    true,
+    true
+  ],
+  "validation_by_iteration": [
+    {
+      "valid": true,
+      "safe": true,
+      "solver_clean": true,
+      "usable_for_learning": true,
+      "all_goals_reached": true,
+      "min_pairwise_distance": 2.558938475427258,
+      "pairwise_violation_count": 0,
+      "min_obstacle_clearance": 1.1040765177346203,
+      "obstacle_violation_count": 0,
+      "fallback_count": 0
+    },
+    {
+      "valid": true,
+      "safe": true,
+      "solver_clean": false,
+      "usable_for_learning": true,
+      "all_goals_reached": true,
+      "min_pairwise_distance": 3.780630789964343,
+      "pairwise_violation_count": 0,
+      "min_obstacle_clearance": 0.44609310173297523,
+      "obstacle_violation_count": 0,
+      "fallback_count": 1
+    },
+    {
+      "valid": true,
+      "safe": true,
+      "solver_clean": true,
+      "usable_for_learning": true,
+      "all_goals_reached": true,
+      "min_pairwise_distance": 3.47645129443454,
+      "pairwise_violation_count": 0,
+      "min_obstacle_clearance": 1.4025841577058884e-07,
+      "obstacle_violation_count": 0,
+      "fallback_count": 0
+    }
+  ],
+  "status_counts_by_iteration": [
+    {},
+    {
+      "fallback_apf": 1,
+      "hold": 136,
+      "ok": 265
+    },
+    {
+      "hold": 130,
+      "ok": 234
+    }
+  ],
+  "cost_by_iteration": {
+    "0": [
+      84,
+      65,
+      52
+    ],
+    "1": [
+      223,
+      201,
+      182
+    ]
+  },
+  "report_cost_by_iteration": {
+    "0": [
+      84,
+      65,
+      52
+    ],
+    "1": [
+      223,
+      201,
+      182
+    ]
+  },
+  "final_goal_error_by_agent": {
+    "0": 0.6480395745966379,
+    "1": 0.6486426028983479
+  },
+  "metrics_final_iteration": {
+    "total_cost_proxy": 6113.902990018665,
+    "minimum_pairwise_distance": 3.47645129443454,
+    "collision_count": 0,
+    "time_to_goal": 36.4,
+    "control_effort": 479.11094312359614
+  }
+}

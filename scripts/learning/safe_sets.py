@@ -245,7 +245,7 @@ def sample_terminal_safe_set(
     target_index: int,
     k_hull: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Sample terminal safe states and time-to-go costs for the LMPC hull."""
+    """Sample future terminal safe states and time-to-go costs for the LMPC hull."""
     states = np.asarray(safe_set, dtype=float)
     safe_states = np.zeros((7, k_hull), dtype=float)
     safe_costs = np.zeros((k_hull, 1), dtype=float)

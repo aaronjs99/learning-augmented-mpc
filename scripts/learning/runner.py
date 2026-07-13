@@ -29,14 +29,22 @@ class TrajectoryValidation:
     fallback_count: int
 
     @property
+    def safe(self) -> bool:
+        """Return true when pairwise and obstacle constraints are satisfied."""
+        return (
+            self.pairwise_violation_count == 0
+            and self.obstacle_violation_count == 0
+        )
+
+    @property
     def valid(self) -> bool:
         """Return true when the trajectory is complete and safe."""
-        return self.all_goals_reached and self.usable_for_learning
+        return self.all_goals_reached and self.safe
 
     @property
     def usable_for_learning(self) -> bool:
-        """Return true when a trajectory is safe enough to seed the next solve."""
-        return self.pairwise_violation_count == 0 and self.obstacle_violation_count == 0
+        """Return true when a trajectory is a complete learned safe-set member."""
+        return self.valid
 
     @property
     def solver_clean(self) -> bool:
@@ -47,6 +55,7 @@ class TrajectoryValidation:
         """Serialize validation metrics for run summaries."""
         return {
             "valid": self.valid,
+            "safe": self.safe,
             "solver_clean": self.solver_clean,
             "usable_for_learning": self.usable_for_learning,
             "all_goals_reached": self.all_goals_reached,
@@ -319,8 +328,12 @@ def run_manta_lmpc(
         if validation.usable_for_learning:
             safe_sets = {agent: history[agent] for agent in range(num_agents)}
             histories[-1] = _snapshot_safe_sets(safe_sets)
-            if verbose and not validation.valid:
-                print("  learned: safe trajectory kept for the next iteration.")
+            if verbose:
+                print("  learned: complete safe trajectory kept for the next iteration.")
+        elif validation.safe and verbose:
+            print(
+                "  skipped learning: trajectory was safe but did not reach all goals."
+            )
         if validation.valid:
             selected_iteration = len(histories) - 1
         elif verbose:

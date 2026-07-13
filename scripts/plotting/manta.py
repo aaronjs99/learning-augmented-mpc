@@ -41,7 +41,7 @@ def plot_learning_progression(
     g = np.asarray(goals, dtype=float)
     num_agents = g.shape[0]
 
-    fig, ax = plt.subplots(figsize=(8, 8))
+    fig, ax = plt.subplots(figsize=(10, 8))
     _set_workspace_limits(ax)
     ax.grid(True, linestyle="--", alpha=0.6)
     ax.set_title(f"{num_agents}-Agent Manta LMPC Learning Progression")
@@ -119,8 +119,8 @@ def plot_learning_progression(
         final_positions, obstacle, safety_distance, obstacle_padding
     )
     add_diagnostic_box(ax, diagnostics, safety_distance=safety_distance)
-    ax.legend(loc="upper right")
-    fig.tight_layout()
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), borderaxespad=0.0)
+    fig.tight_layout(rect=(0.0, 0.0, 0.78, 1.0))
     fig.savefig(path, dpi=200)
     plt.close(fig)
 

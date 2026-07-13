@@ -53,7 +53,7 @@ def plot_trajectories(
     positions = tensor_to_position_history(s)
     num_agents = s.shape[1]
 
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(8, 6))
     labels_used: set[str] = set()
     if obstacle is not None:
         if obstacle_padding > 0.0:
@@ -164,10 +164,12 @@ def plot_trajectories(
     ax.set_title(title)
     ax.set_xlabel("x")
     ax.set_ylabel("y")
-    ax.axis("equal")
+    ax.set_xlim(-1, 7)
+    ax.set_ylim(-1, 7)
+    ax.set_aspect("equal", adjustable="box")
     ax.grid(True, alpha=0.3)
-    ax.legend(loc="best")
-    fig.tight_layout()
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), borderaxespad=0.0)
+    fig.tight_layout(rect=(0.0, 0.0, 0.74, 1.0))
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
 

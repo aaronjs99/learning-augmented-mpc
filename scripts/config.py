@@ -185,6 +185,17 @@ def _coerce_config_value(value: Any, expected_type: Any, key: str) -> Any:
         except (TypeError, ValueError) as exc:
             raise TypeError(f"{key} must be an int, got {value!r}") from exc
 
+    if expected_type is bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"true", "yes", "1"}:
+                return True
+            if normalized in {"false", "no", "0"}:
+                return False
+        raise TypeError(f"{key} must be a bool, got {value!r}")
+
     return value
 
 

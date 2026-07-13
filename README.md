@@ -10,7 +10,8 @@ The default run is controlled by `config/manta.yaml`.
 1. Generate iteration-0 safe trajectories with a staged APF autopilot.
 2. Run decentralized CasADi/IPOPT LMPC with learned safe-set terminal hulls and time-to-go costs.
 3. Use SVM spatial hyperplanes plus soft slacks for inter-agent avoidance and a softened circular static-obstacle constraint.
-4. Select the latest iteration that reaches all goals without pairwise or obstacle violations.
+4. Add only complete, collision-free rollouts back into the learned safe set.
+5. Select the latest APF or LMPC iteration that reaches all goals without pairwise or obstacle violations.
 
 ## Layout
 - `run.py`: root command dispatcher.
@@ -44,7 +45,7 @@ Useful overrides:
 
 `python3 run.py --scenario lane_swap --iterations 2 --max-steps 240 --no-video --output-dir results/lmpc/test_lane_swap`
 
-`python3 run.py --scenario manta_crossover --output-dir results/lmpc/test_manta_crossover`
+`python3 run.py --scenario manta_crossover --iterations 2 --max-steps 230 --no-video --output-dir results/lmpc/test_manta_crossover`
 
 `python3 run.py --make-video`
 
@@ -55,6 +56,8 @@ Outputs are written under the output root set in `config/manta.yaml`.
 `selected_iteration` is the APF or LMPC iteration used for the final plots.
 `solver_clean: false` means IPOPT needed a safe-set fallback step, but the
 trajectory can still be valid if it is complete and collision-free.
+`safe: true` with `valid: false` means the rollout avoided collisions but did
+not reach every goal, so it is not reused as learned safe-set data.
 
 ## Tracked Results and Data
 Timestamped run folders are ignored by git. Keep only the current report-ready

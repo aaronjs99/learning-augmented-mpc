@@ -25,6 +25,7 @@ class MantaLMPCConfig:
     hyperplane_slack_bound: float = 2.0
     static_slack_bound: float = 2.0
     terminal_slack_bound: float = 4.0
+    terminal_position_only: bool = True
     terminal_slack_weight: float = 1000.0
     hyperplane_slack_weight: float = 10000.0
     static_slack_weight: float = 1000000.0
@@ -133,7 +134,8 @@ class MantaAgentOptimizer:
         p_safe_costs = opti.parameter(K, 1)
 
         lambdas = opti.variable(K, 1)
-        terminal_slack = opti.variable(7, 1)
+        terminal_dim = 2 if cfg.terminal_position_only else 7
+        terminal_slack = opti.variable(terminal_dim, 1)
         slack_hyper = opti.variable(self.num_obstacles, N)
         slack_static = opti.variable(1, N)
 
@@ -169,9 +171,13 @@ class MantaAgentOptimizer:
             )
 
         opti.subject_to(X_state[:, 0] == p_init)
-        opti.subject_to(
-            X_state[:, N] == ca.mtimes(p_safe_states, lambdas) + terminal_slack
-        )
+        terminal_safe_state = ca.mtimes(p_safe_states, lambdas)
+        if cfg.terminal_position_only:
+            opti.subject_to(
+                X_state[0:2, N] == terminal_safe_state[0:2] + terminal_slack
+            )
+        else:
+            opti.subject_to(X_state[:, N] == terminal_safe_state + terminal_slack)
 
         Q = ca.DM(np.diag(cfg.state_cost_weights))
         R = ca.DM(np.diag(cfg.control_cost_weights))

@@ -5,3 +5,8 @@
 It owns the scenario states/goals, obstacle, dynamics constants, APF initializer
 tuning, LMPC horizons/weights/slacks, and output defaults. CLI flags in
 `run.py` are intended for quick overrides only.
+
+The LMPC defaults are conservative: SVM hyperplanes use a margin larger than
+half the configured pairwise safety distance, and terminal safe-set matching is
+position-only by default so oscillator phase states do not over-constrain the
+short-horizon NLP.
