@@ -11,6 +11,7 @@ from .hyperplanes import get_symmetric_hyperplanes_spatial
 from scripts.metrics import cost_by_iteration
 
 from .policies import priority_margins, warm_start_from_safe_set
+from .recovery import RecoveryResult, repair_incomplete_with_apf, safe_fallback_apf_step
 from .runner import MantaLMPCRunResult, run_manta_lmpc
 from .safe_sets import (
     build_staggered_safe_sets,
@@ -30,7 +31,10 @@ __all__ = [
     "hold_trajectory",
     "MantaLMPCRunResult",
     "priority_margins",
+    "RecoveryResult",
+    "repair_incomplete_with_apf",
     "run_manta_lmpc",
+    "safe_fallback_apf_step",
     "sample_terminal_safe_set",
     "simulate_manta_autopilot",
     "simulate_manta_autopilot_with_controls",
