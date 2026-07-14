@@ -23,6 +23,7 @@ The default run is controlled by `config/manta.yaml`.
 - `scripts/learning/`: APF initialization, safe-set sampling, SVM hyperplanes, runner.
 - `scripts/mpc/`: CasADi LMPC agent builder.
 - `scripts/metrics/`, `scripts/plotting/`: diagnostics, plots, and GIFs.
+- `scripts/reporting/`: stable summary, CSV, plot, and animation artifact generation.
 - `tests/`: fast regression tests for evaluation, safe-set admission, priority, and warm starts.
 - `results/`: generated outputs.
 

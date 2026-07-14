@@ -28,5 +28,6 @@ Prefer the root dispatcher:
 - `mpc/`: CasADi/IPOPT LMPC optimizer.
 - `metrics/`: shared history conversion, rollout validation, costs, and metrics.
 - `plotting/`: trajectory, learning-progress, cost, and GIF outputs.
+- `reporting/`: reusable summary preparation and run artifact serialization.
 
 Runtime constants should live in YAML under `config/` unless they are structural code assumptions.
