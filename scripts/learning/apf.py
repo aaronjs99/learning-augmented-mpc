@@ -24,6 +24,7 @@ class APFConfig:
     base_mu_gain: float = 0.8
     base_mu_min: float = 0.5
     base_mu_max: float = 1.5
+    static_agent_radius_scales: tuple[float, ...] = (1.5, 1.2, 1.0, 0.85, 0.7)
 
     def __post_init__(self) -> None:
         """Validate APF tuning independently of a simulation run."""
@@ -41,6 +42,10 @@ class APFConfig:
             raise ValueError("apf.base_mu_gain must be positive")
         if not 0.0 <= self.base_mu_min <= self.base_mu_max:
             raise ValueError("apf base_mu bounds must satisfy 0 <= min <= max")
+        if not self.static_agent_radius_scales or any(
+            scale <= 0.0 for scale in self.static_agent_radius_scales
+        ):
+            raise ValueError("apf.static_agent_radius_scales must be positive")
 
 
 def compute_apf_control(

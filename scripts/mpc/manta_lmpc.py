@@ -40,6 +40,11 @@ class MantaLMPCConfig:
     repair_max_steps: int = 400
     repair_static_agent_scale: float = 1.2
     repair_waypoint_lookahead: int = 30
+    fallback_control_levels: tuple[float, ...] = (0.25, 0.75, 1.5)
+    fallback_diagonal_levels: tuple[float, ...] = (0.25, 0.75)
+    fallback_clearance_weight: float = 0.25
+    fallback_extra_clearance_weight: float = 0.25
+    fallback_control_weight: float = 0.01
     warm_start_control: float = 1.0
     warm_start_control_blend: float = 0.25
     ipopt_max_iter: int = 200
@@ -73,6 +78,9 @@ class MantaLMPCConfig:
             "hyperplane_slack_weight": self.hyperplane_slack_weight,
             "static_slack_weight": self.static_slack_weight,
             "safe_cost_weight": self.safe_cost_weight,
+            "fallback_clearance_weight": self.fallback_clearance_weight,
+            "fallback_extra_clearance_weight": self.fallback_extra_clearance_weight,
+            "fallback_control_weight": self.fallback_control_weight,
         }
         for name, value in nonnegative_values.items():
             if value < 0.0:
@@ -93,6 +101,12 @@ class MantaLMPCConfig:
             raise ValueError("lmpc.repair_static_agent_scale must be positive")
         if self.repair_waypoint_lookahead <= 0:
             raise ValueError("lmpc.repair_waypoint_lookahead must be positive")
+        if not self.fallback_control_levels or any(
+            level < 0.0 for level in self.fallback_control_levels
+        ):
+            raise ValueError("lmpc.fallback_control_levels must be nonnegative")
+        if any(level < 0.0 for level in self.fallback_diagonal_levels):
+            raise ValueError("lmpc.fallback_diagonal_levels must be nonnegative")
         if self.priority_metric not in {"goal_distance", "remaining_safe_time"}:
             raise ValueError(
                 "lmpc.priority_metric must be 'goal_distance' or "

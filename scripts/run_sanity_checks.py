@@ -19,7 +19,7 @@ from scripts.metrics import compute_rollout_metrics, pairwise_distances
 from scripts.plotting import plot_pairwise_distances, plot_trajectories
 from scripts.simulation import (
     MantaEnvConfig,
-    ThreeMantaRayEnv,
+    MultiMantaRayEnv,
     manta_rollout,
 )
 
@@ -68,7 +68,7 @@ def main() -> None:
         run_dir = root / name
         run_dir.mkdir(parents=True, exist_ok=True)
 
-        env = ThreeMantaRayEnv(
+        env = MultiMantaRayEnv(
             starts=scenario.starts,
             goals=scenario.goals,
             config=MantaEnvConfig(

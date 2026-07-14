@@ -15,6 +15,11 @@ short-horizon NLP.
 used in IPOPT initialization. `0.0` means constant nominal controls only, while
 `1.0` means raw stored controls only.
 
+`static_agent_radius_scales` controls the APF staging search. Recovery behavior
+is configured with `fallback_control_levels`, `fallback_diagonal_levels`, and
+the three `fallback_*_weight` values; these preserve the original candidate
+grid and scoring while making experiments reproducible from YAML.
+
 `priority_hyperplanes` enables asymmetric pairwise margins. The total
 separation budget for each pair is preserved, but the lower-priority agent gets
 the larger half-space margin. `priority_metric: goal_distance` gives

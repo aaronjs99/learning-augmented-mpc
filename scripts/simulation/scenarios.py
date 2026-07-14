@@ -20,7 +20,7 @@ class StaticObstacle:
 
 @dataclass(frozen=True)
 class Scenario:
-    """Reusable 3-agent manta scenario.
+    """Reusable multi-agent manta scenario.
 
     State rows are ``[x, y, theta, p_L, q_L, p_R, q_R]`` for starts and goals.
     """

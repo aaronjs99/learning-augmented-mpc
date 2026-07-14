@@ -13,9 +13,6 @@ from scripts.metrics import history_to_tensor, validate_trajectory
 from scripts.simulation import Scenario, StaticObstacle
 
 
-_STATIC_AGENT_RADIUS_SCALES = (1.5, 1.2, 1.0, 0.85, 0.7)
-
-
 @dataclass(frozen=True)
 class _SafeSetScore:
     """Validation metrics used to choose an APF staging order."""
@@ -71,7 +68,7 @@ def build_staggered_safe_sets(
         raise ValueError("manta LMPC requires at least two agents")
 
     candidates = []
-    for radius_scale in _STATIC_AGENT_RADIUS_SCALES:
+    for radius_scale in apf_config.static_agent_radius_scales:
         for order in permutations(range(num_agents)):
             safe_sets, safe_controls, staged_trajs = _build_ordered_safe_sets(
                 scenario,

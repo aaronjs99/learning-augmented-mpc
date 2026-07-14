@@ -1,4 +1,4 @@
-"""Decentralized MPC package for the 3-agent project."""
+"""Decentralized MPC package for multi-agent trajectory optimization."""
 
 from .manta_lmpc import MantaAgentOptimizer, MantaLMPCConfig
 

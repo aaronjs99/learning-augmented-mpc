@@ -73,6 +73,7 @@ def repair_incomplete_with_apf(
                         extra_obstacles=extra_obstacles,
                         apf_config=apf_config,
                         dt=config.dt,
+                        config=config,
                         dynamics_config=dynamics_config,
                     )
                     step_statuses[agent] = "repair_apf"
@@ -126,6 +127,7 @@ def safe_fallback_apf_step(
     extra_obstacles: list[StaticObstacle] | None = None,
     apf_config: APFConfig,
     dt: float,
+    config: MantaLMPCConfig,
     dynamics_config: MantaDynamicsConfig,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Choose a bounded, one-step APF fallback with maximum feasible clearance."""
@@ -137,7 +139,7 @@ def safe_fallback_apf_step(
         apf_config=apf_config,
         dynamics_config=dynamics_config,
     )
-    candidates = _fallback_control_candidates(apf_control, dynamics_config)
+    candidates = _fallback_control_candidates(apf_control, dynamics_config, config)
     scored_feasible: list[tuple[float, np.ndarray, np.ndarray]] = []
     best_any: tuple[float, np.ndarray, np.ndarray] | None = None
 
@@ -149,9 +151,9 @@ def safe_fallback_apf_step(
         goal_distance = float(np.linalg.norm(next_state[:2] - goal_state[:2]))
         score = (
             goal_distance
-            - 0.25 * clearance
-            - 0.25 * extra_bonus
-            + 0.01 * float(np.linalg.norm(control))
+            - config.fallback_clearance_weight * clearance
+            - config.fallback_extra_clearance_weight * extra_bonus
+            + config.fallback_control_weight * float(np.linalg.norm(control))
         )
         if clearance >= 0.0 and extra_clearance >= 0.0:
             scored_feasible.append((score, control, next_state))
@@ -222,11 +224,18 @@ def _repair_waypoint_target(
 def _fallback_control_candidates(
     apf_control: np.ndarray,
     dynamics_config: MantaDynamicsConfig,
+    config: MantaLMPCConfig,
 ) -> list[np.ndarray]:
     """Return unique bounded controls considered by the fallback selector."""
     mu_min = dynamics_config.mu_min
     mu_max = dynamics_config.mu_max
-    levels = [min(mu_max, max(mu_min, level)) for level in (0.25, 0.75, 1.5)]
+    levels = [
+        min(mu_max, max(mu_min, level)) for level in config.fallback_control_levels
+    ]
+    diagonal_levels = [
+        min(mu_max, max(mu_min, level))
+        for level in config.fallback_diagonal_levels
+    ]
     raw = [apf_control, np.zeros(2, dtype=float)]
     for level in levels:
         raw.extend(
@@ -235,7 +244,7 @@ def _fallback_control_candidates(
                 np.array([0.0, level]),
             )
         )
-    raw.extend(np.array([level, level]) for level in levels[:2])
+    raw.extend(np.array([level, level]) for level in diagonal_levels)
 
     candidates: list[np.ndarray] = []
     seen: set[tuple[float, float]] = set()

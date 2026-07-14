@@ -224,6 +224,7 @@ def run_manta_lmpc(
                         obstacle=scenario.obstacle,
                         apf_config=apf_config,
                         dt=config.dt,
+                        config=config,
                         dynamics_config=dynamics_config,
                     )
                     step_statuses[agent] = "fallback_apf"

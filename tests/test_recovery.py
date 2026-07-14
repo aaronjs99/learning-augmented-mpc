@@ -32,7 +32,9 @@ class RecoveryTests(unittest.TestCase):
 
     def test_fallback_candidates_preserve_original_unique_grid(self) -> None:
         dynamics = MantaDynamicsConfig()
-        candidates = _fallback_control_candidates(np.array([1.2, 1.3]), dynamics)
+        candidates = _fallback_control_candidates(
+            np.array([1.2, 1.3]), dynamics, MantaLMPCConfig()
+        )
 
         self.assertEqual(len(candidates), 10)
         self.assertEqual(len({tuple(control) for control in candidates}), 10)
@@ -53,6 +55,7 @@ class RecoveryTests(unittest.TestCase):
             obstacle=StaticObstacle(center=(10.0, 10.0), radius=0.5),
             apf_config=APFConfig(),
             dt=0.2,
+            config=MantaLMPCConfig(),
             dynamics_config=dynamics,
         )
 
