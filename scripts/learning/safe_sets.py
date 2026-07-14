@@ -23,6 +23,7 @@ class _SafeSetScore:
     usable_for_learning: bool
     pairwise_violation_count: int
     obstacle_violation_count: int
+    total_first_hit_steps: int
     final_goal_error: float
     min_pairwise_distance: float
     min_obstacle_clearance: float
@@ -211,8 +212,13 @@ def _score_safe_sets(
 
     pos = states[:, :, :2]
     goal_pos = np.asarray(goals, dtype=float)[agents, :2]
-    final_goal_errors = np.linalg.norm(pos[-1] - goal_pos, axis=1)
+    goal_errors = np.linalg.norm(pos - goal_pos[None, :, :], axis=2)
+    final_goal_errors = goal_errors[-1]
     all_goals_reached = bool(np.all(final_goal_errors <= goal_tolerance))
+    first_hit_steps = []
+    for agent_idx in range(len(agents)):
+        reached = np.where(goal_errors[:, agent_idx] <= goal_tolerance)[0]
+        first_hit_steps.append(int(reached[0]) if len(reached) else max_len)
 
     pairwise = []
     for i in range(pos.shape[1]):
@@ -235,6 +241,7 @@ def _score_safe_sets(
         ),
         pairwise_violation_count=pairwise_violation_count,
         obstacle_violation_count=obstacle_violation_count,
+        total_first_hit_steps=sum(first_hit_steps),
         final_goal_error=float(np.sum(final_goal_errors)),
         min_pairwise_distance=min_pairwise_distance,
         min_obstacle_clearance=min_obstacle_clearance,
@@ -248,7 +255,7 @@ def _score_key(
         dict[int, np.ndarray],
         dict[int, np.ndarray],
     ],
-) -> tuple[bool, bool, int, int, float, float, float]:
+) -> tuple[bool, bool, int, int, int, float, float, float]:
     """Prefer safe, complete, short-error APF seeds with larger margins."""
     score = candidate[0]
     return (
@@ -256,6 +263,7 @@ def _score_key(
         not score.all_goals_reached,
         score.pairwise_violation_count,
         score.obstacle_violation_count,
+        score.total_first_hit_steps,
         score.final_goal_error,
         -score.min_pairwise_distance,
         -score.min_obstacle_clearance,

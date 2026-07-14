@@ -46,9 +46,9 @@
       "solver_clean": false,
       "usable_for_learning": true,
       "all_goals_reached": true,
-      "min_pairwise_distance": 3.780630794993254,
+      "min_pairwise_distance": 3.7806307961519017,
       "pairwise_violation_count": 0,
-      "min_obstacle_clearance": 0.44609310274867253,
+      "min_obstacle_clearance": 0.44609310173288486,
       "obstacle_violation_count": 0,
       "fallback_count": 2
     },
@@ -58,9 +58,9 @@
       "solver_clean": true,
       "usable_for_learning": true,
       "all_goals_reached": true,
-      "min_pairwise_distance": 3.476451397589106,
+      "min_pairwise_distance": 3.4764514040464842,
       "pairwise_violation_count": 0,
-      "min_obstacle_clearance": 1.402571880859682e-07,
+      "min_obstacle_clearance": 1.4025718531041065e-07,
       "obstacle_violation_count": 0,
       "fallback_count": 0
     }
@@ -102,14 +102,14 @@
     ]
   },
   "final_goal_error_by_agent": {
-    "0": 0.6480395742792281,
-    "1": 0.6498161305139447
+    "0": 0.648039573924831,
+    "1": 0.6498161305098329
   },
   "metrics_final_iteration": {
-    "total_cost_proxy": 6112.814162015295,
-    "minimum_pairwise_distance": 3.476451397589106,
+    "total_cost_proxy": 6112.814166069341,
+    "minimum_pairwise_distance": 3.4764514040464842,
     "collision_count": 0,
     "time_to_goal": 36.2,
-    "control_effort": 478.60538864990633
+    "control_effort": 478.6053885952434
   }
 }

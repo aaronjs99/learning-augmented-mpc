@@ -10,7 +10,7 @@ The default run is controlled by `config/manta.yaml`.
 1. Generate iteration-0 safe trajectories with a staged APF autopilot.
 2. Run decentralized CasADi/IPOPT LMPC with learned safe-set terminal hulls and time-to-go costs.
 3. Warm-start IPOPT from a blend of nominal controls and stored safe-set controls.
-4. Use SVM spatial hyperplanes plus soft slacks for inter-agent avoidance and a softened circular static-obstacle constraint.
+4. Use priority-aware SVM spatial hyperplanes plus soft slacks for inter-agent avoidance and a softened circular static-obstacle constraint.
 5. Add only complete, collision-free rollouts back into the learned safe set.
 6. Select the latest APF or LMPC iteration that reaches all goals without pairwise or obstacle violations.
 

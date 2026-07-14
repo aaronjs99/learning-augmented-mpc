@@ -33,6 +33,13 @@ class MantaLMPCConfig:
     state_cost_weights: tuple[float, ...] = (1.0, 1.0, 0.1, 0.0, 0.0, 0.0, 0.0)
     control_cost_weights: tuple[float, ...] = (0.5, 0.5)
     hyperplane_ignore_distance: float = 4.0
+    priority_hyperplanes: bool = True
+    priority_metric: str = "goal_distance"
+    priority_margin_scale: float = 0.35
+    repair_incomplete_with_apf: bool = False
+    repair_max_steps: int = 400
+    repair_static_agent_scale: float = 1.2
+    repair_waypoint_lookahead: int = 30
     warm_start_control: float = 1.0
     warm_start_control_blend: float = 0.25
     ipopt_max_iter: int = 200

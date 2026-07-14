@@ -13,11 +13,15 @@ def get_symmetric_hyperplanes_spatial(
     traj_i: list[np.ndarray] | np.ndarray,
     traj_j: list[np.ndarray] | np.ndarray,
     safety_margin: float = 0.3,
+    safety_margin_i: float | None = None,
+    safety_margin_j: float | None = None,
     ignore_distance: float = 4.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Return symmetric linear half-spaces for two stored trajectories."""
+    """Return pairwise linear half-spaces for two stored trajectories."""
     path_i = np.asarray(traj_i, dtype=float)
     path_j = np.asarray(traj_j, dtype=float)
+    margin_i = safety_margin if safety_margin_i is None else safety_margin_i
+    margin_j = safety_margin if safety_margin_j is None else safety_margin_j
     h_i = np.zeros((horizon, 1), dtype=float)
     h_j = np.zeros((horizon, 1), dtype=float)
     H_i = np.zeros((horizon, 2), dtype=float)
@@ -47,8 +51,8 @@ def get_symmetric_hyperplanes_spatial(
         b_norm = b / norm_w
 
         H_i[k, :] = -w_norm
-        h_i[k, 0] = -b_norm + safety_margin
+        h_i[k, 0] = -b_norm + margin_i
         H_j[k, :] = w_norm
-        h_j[k, 0] = b_norm + safety_margin
+        h_j[k, 0] = b_norm + margin_j
 
     return H_i, h_i, H_j, h_j
