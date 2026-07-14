@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from typing import Any, get_args, get_origin, get_type_hints
 
@@ -107,6 +107,30 @@ def list_config_scenarios(config_path: str | Path = DEFAULT_CONFIG_PATH) -> list
     with path.open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
     return sorted((raw.get("scenario") or {}).keys())
+
+
+def override_project_config(
+    config: ProjectConfig,
+    *,
+    lmpc: dict[str, Any] | None = None,
+    apf: dict[str, Any] | None = None,
+    make_video: bool | None = None,
+    quiet: bool | None = None,
+) -> ProjectConfig:
+    """Return a config with non-``None`` command-line overrides applied."""
+    lmpc_updates = {
+        key: value for key, value in (lmpc or {}).items() if value is not None
+    }
+    apf_updates = {
+        key: value for key, value in (apf or {}).items() if value is not None
+    }
+    return replace(
+        config,
+        lmpc=replace(config.lmpc, **lmpc_updates),
+        apf=replace(config.apf, **apf_updates),
+        make_video=config.make_video if make_video is None else make_video,
+        quiet=config.quiet if quiet is None else quiet,
+    )
 
 
 def _scenario_from_config(raw: dict[str, Any], name: str) -> Scenario:

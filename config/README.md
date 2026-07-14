@@ -34,3 +34,5 @@ until it is more reliable.
 Configuration dataclasses validate dimensions, bounds, supported policy names,
 and positive step/horizon values as soon as YAML is loaded. Invalid experiments
 therefore fail before CasADi builds or starts solving an optimization problem.
+CLI entry points apply overrides through one shared helper, so omitted values
+retain YAML defaults consistently across full runs and benchmark sweeps.

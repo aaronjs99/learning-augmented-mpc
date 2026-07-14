@@ -5,14 +5,18 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from scripts.config import DEFAULT_CONFIG_PATH, list_config_scenarios, load_project_config
+from scripts.config import (
+    DEFAULT_CONFIG_PATH,
+    list_config_scenarios,
+    load_project_config,
+    override_project_config,
+)
 from scripts.learning import run_manta_lmpc
 from scripts.metrics import cost_by_iteration
 
@@ -55,15 +59,13 @@ def main() -> None:
     records = []
     for scenario_name in scenarios:
         config = load_project_config(args.config, scenario_name=scenario_name)
-        lmpc_updates = {"iterations": args.iterations}
-        if args.max_steps is not None:
-            lmpc_updates["max_steps"] = args.max_steps
-        apf_updates = {}
-        if args.apf_max_steps is not None:
-            apf_updates["max_steps"] = args.apf_max_steps
-
-        lmpc = replace(config.lmpc, **lmpc_updates)
-        apf = replace(config.apf, **apf_updates)
+        config = override_project_config(
+            config,
+            lmpc={"iterations": args.iterations, "max_steps": args.max_steps},
+            apf={"max_steps": args.apf_max_steps},
+        )
+        lmpc = config.lmpc
+        apf = config.apf
         if not args.quiet:
             print(
                 f"Running {scenario_name}: "

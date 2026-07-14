@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from scripts.config import DEFAULT_CONFIG_PATH, ProjectConfig, load_project_config
+from scripts.config import (
+    DEFAULT_CONFIG_PATH,
+    ProjectConfig,
+    load_project_config,
+    override_project_config,
+)
 from scripts.learning import run_manta_lmpc
 from scripts.reporting import save_manta_run_report
 
@@ -91,31 +95,19 @@ def main() -> None:
 def _load_effective_config(args: argparse.Namespace) -> ProjectConfig:
     """Load YAML config, then apply explicit CLI overrides."""
     config = load_project_config(args.config, scenario_name=args.scenario)
-    lmpc_updates = {
-        "iterations": args.iterations,
-        "max_steps": args.max_steps,
-        "dt": args.dt,
-        "prediction_horizon": args.mpc_horizon,
-        "k_hull": args.k_hull,
-        "goal_tolerance": args.goal_tolerance,
-    }
-    lmpc_updates = {
-        key: value for key, value in lmpc_updates.items() if value is not None
-    }
-    apf_updates = {"max_steps": args.apf_max_steps}
-    apf_updates = {
-        key: value for key, value in apf_updates.items() if value is not None
-    }
-
-    make_video = config.make_video if args.make_video is None else args.make_video
-    quiet = config.quiet if args.quiet is None else args.quiet
-
-    return replace(
+    return override_project_config(
         config,
-        lmpc=replace(config.lmpc, **lmpc_updates),
-        apf=replace(config.apf, **apf_updates),
-        make_video=make_video,
-        quiet=quiet,
+        lmpc={
+            "iterations": args.iterations,
+            "max_steps": args.max_steps,
+            "dt": args.dt,
+            "prediction_horizon": args.mpc_horizon,
+            "k_hull": args.k_hull,
+            "goal_tolerance": args.goal_tolerance,
+        },
+        apf={"max_steps": args.apf_max_steps},
+        make_video=args.make_video,
+        quiet=args.quiet,
     )
 
 
