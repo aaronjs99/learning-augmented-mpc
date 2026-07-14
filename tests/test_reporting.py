@@ -9,6 +9,7 @@ import tempfile
 import unittest
 
 import numpy as np
+from PIL import Image
 
 from scripts.config import load_project_config
 from scripts.learning import MantaLMPCRunResult
@@ -86,6 +87,14 @@ class ReportingTests(unittest.TestCase):
                 "pairwise_distances.png",
             }
             self.assertEqual({path.name for path in output.iterdir()}, expected)
+            for filename in expected:
+                if not filename.endswith(".png"):
+                    continue
+                with Image.open(output / filename) as image:
+                    self.assertGreater(image.width, 100)
+                    self.assertGreater(image.height, 100)
+                    extrema = image.convert("RGB").getextrema()
+                    self.assertTrue(any(low < high for low, high in extrema))
             with (output / "summary.json").open(encoding="utf-8") as file:
                 self.assertEqual(json.load(file)["selected_iteration"], 1)
 

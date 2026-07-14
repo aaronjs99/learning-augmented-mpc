@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from ._backend import configure_matplotlib
 
 configure_matplotlib()
 import numpy as np
-from matplotlib import animation, patches, pyplot as plt
+from matplotlib import animation, pyplot as plt
 
 from scripts.metrics import cost_by_iteration
 from scripts.simulation import StaticObstacle
@@ -21,7 +19,13 @@ from .diagnostics import (
     legend_label,
     to_position_history,
 )
-from .trajectories import agent_color
+from .primitives import (
+    add_obstacle_layers,
+    agent_color,
+    goal_tolerance_patch,
+    prepare_output_path,
+    set_workspace_limits,
+)
 
 
 def plot_learning_progression(
@@ -36,16 +40,15 @@ def plot_learning_progression(
     statuses_by_iteration: list[list[dict[int, str]]] | None = None,
 ) -> None:
     """Save the APF and LMPC trajectory progression plot."""
-    path = Path(out_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path = prepare_output_path(out_path)
     g = np.asarray(goals, dtype=float)
     num_agents = g.shape[0]
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    _set_workspace_limits(ax)
+    set_workspace_limits(ax)
     ax.grid(True, linestyle="--", alpha=0.6)
     ax.set_title(f"{num_agents}-Agent Manta LMPC Learning Progression")
-    _add_obstacle_layers(ax, obstacle, obstacle_padding)
+    add_obstacle_layers(ax, obstacle, obstacle_padding)
 
     labels_used: set[str] = set()
     final_idx = len(histories) - 1
@@ -112,7 +115,11 @@ def plot_learning_progression(
         )
         ax.plot(g[agent, 0], g[agent, 1], marker="*", color=color, markersize=15)
         if goal_tolerance is not None:
-            ax.add_patch(_goal_tolerance_patch(g[agent], goal_tolerance, color))
+            ax.add_patch(
+                goal_tolerance_patch(
+                    g[agent], goal_tolerance, color, linewidth=1.2
+                )
+            )
 
     final_positions = to_position_history(histories[-1])
     diagnostics = compute_diagnostics(
@@ -133,8 +140,7 @@ def plot_cost_decrease(
     goal_tolerance: float = 0.5,
 ) -> None:
     """Save cost-vs-iteration plot using first-hit time as cost."""
-    path = Path(out_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path = prepare_output_path(out_path)
     costs = cost_by_iteration(histories, goals, goal_tolerance=goal_tolerance)
     iterations = np.arange(len(histories), dtype=float)
     num_agents = len(costs)
@@ -190,8 +196,7 @@ def save_manta_animation(
     statuses: list[dict[int, str]] | None = None,
 ) -> None:
     """Save the final-iteration trajectory and wing-motion GIF."""
-    path = Path(out_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path = prepare_output_path(out_path)
     g = np.asarray(goals, dtype=float)
     num_agents = g.shape[0]
     histories = {
@@ -206,10 +211,10 @@ def save_manta_animation(
     )
 
     ax_top = fig.add_subplot(gs[0, :])
-    _set_workspace_limits(ax_top)
+    set_workspace_limits(ax_top)
     ax_top.grid(True, linestyle="--", alpha=0.6)
     ax_top.set_title("LMPC Final Iteration: Dynamic Avoidance")
-    _add_obstacle_layers(ax_top, obstacle, obstacle_padding)
+    add_obstacle_layers(ax_top, obstacle, obstacle_padding)
     labels_used: set[str] = set()
 
     lines = []
@@ -234,7 +239,11 @@ def save_manta_animation(
         )
         ax_top.plot(g[agent, 0], g[agent, 1], marker="*", color=color, markersize=15)
         if goal_tolerance is not None:
-            ax_top.add_patch(_goal_tolerance_patch(g[agent], goal_tolerance, color))
+            ax_top.add_patch(
+                goal_tolerance_patch(
+                    g[agent], goal_tolerance, color, linewidth=1.2
+                )
+            )
         lines.append(line)
         dots.append(dot)
     diagnostics = compute_diagnostics(
@@ -301,53 +310,6 @@ def save_manta_animation(
     plt.close(fig)
 
 
-def _add_obstacle_layers(
-    ax: plt.Axes, obstacle: StaticObstacle, obstacle_padding: float
-) -> None:
-    if obstacle_padding > 0.0:
-        ax.add_patch(_obstacle_padding_patch(obstacle, obstacle_padding))
-    ax.add_patch(_inflated_obstacle_patch(obstacle))
-    if obstacle.physical_radius is not None and obstacle.physical_radius < obstacle.radius:
-        ax.add_patch(_physical_obstacle_patch(obstacle))
-
-
-def _inflated_obstacle_patch(obstacle: StaticObstacle) -> patches.Circle:
-    return patches.Circle(
-        obstacle.center,
-        obstacle.radius,
-        facecolor="gray",
-        edgecolor="black",
-        linewidth=1.0,
-        alpha=0.25,
-        label="Inflated obstacle constraint",
-        zorder=1,
-    )
-
-
-def _physical_obstacle_patch(obstacle: StaticObstacle) -> patches.Circle:
-    return patches.Circle(
-        obstacle.center,
-        obstacle.physical_radius,
-        color="dimgray",
-        alpha=0.75,
-        label="Physical obstacle",
-        zorder=2,
-    )
-
-
-def _obstacle_padding_patch(
-    obstacle: StaticObstacle, obstacle_padding: float
-) -> patches.Circle:
-    return patches.Circle(
-        obstacle.center,
-        obstacle.radius + obstacle_padding,
-        color="lightgray",
-        alpha=0.25,
-        label="APF Padding",
-        zorder=0,
-    )
-
-
 def _add_safe_set_points(
     ax: plt.Axes,
     traj: np.ndarray,
@@ -407,23 +369,3 @@ def _statuses_for_history(
     if status_idx >= len(statuses_by_iteration):
         return None
     return statuses_by_iteration[status_idx]
-
-
-def _goal_tolerance_patch(
-    goal: np.ndarray, goal_tolerance: float, color: str
-) -> patches.Circle:
-    return patches.Circle(
-        goal[:2],
-        goal_tolerance,
-        fill=False,
-        edgecolor=color,
-        linestyle=":",
-        linewidth=1.2,
-        alpha=0.8,
-    )
-
-
-def _set_workspace_limits(ax: plt.Axes) -> None:
-    ax.set_xlim(-1, 7)
-    ax.set_ylim(-1, 7)
-    ax.set_aspect("equal", adjustable="box")

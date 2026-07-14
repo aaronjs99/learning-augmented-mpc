@@ -19,13 +19,13 @@ from .diagnostics import (
     legend_label,
     tensor_to_position_history,
 )
-
-AGENT_COLORS = ("tab:blue", "tab:red", "tab:green", "magenta", "cyan", "tab:purple")
-
-
-def agent_color(agent: int) -> str:
-    """Return a stable plotting color for an agent index."""
-    return AGENT_COLORS[agent % len(AGENT_COLORS)]
+from .primitives import (
+    add_obstacle_layers,
+    agent_color,
+    goal_tolerance_patch,
+    prepare_output_path,
+    set_workspace_limits,
+)
 
 
 def plot_trajectories(
@@ -55,44 +55,7 @@ def plot_trajectories(
 
     fig, ax = plt.subplots(figsize=(8, 6))
     labels_used: set[str] = set()
-    if obstacle is not None:
-        if obstacle_padding > 0.0:
-            ax.add_patch(
-                plt.Circle(
-                    obstacle.center,
-                    obstacle.radius + obstacle_padding,
-                    color="lightgray",
-                    alpha=0.25,
-                    label="APF padding",
-                    zorder=0,
-                )
-            )
-        ax.add_patch(
-            plt.Circle(
-                obstacle.center,
-                obstacle.radius,
-                facecolor="gray",
-                edgecolor="black",
-                linewidth=1.0,
-                alpha=0.25,
-                label="inflated obstacle constraint",
-                zorder=1,
-            )
-        )
-        if (
-            obstacle.physical_radius is not None
-            and obstacle.physical_radius < obstacle.radius
-        ):
-            ax.add_patch(
-                plt.Circle(
-                    obstacle.center,
-                    obstacle.physical_radius,
-                    color="dimgray",
-                    alpha=0.75,
-                    label="physical obstacle",
-                    zorder=2,
-                )
-            )
+    add_obstacle_layers(ax, obstacle, obstacle_padding)
     for i in range(num_agents):
         color = agent_color(i)
         stride = max(1, len(pos[:, i]) // 45)
@@ -144,17 +107,7 @@ def plot_trajectories(
             zorder=6,
         )
         if goal_tolerance is not None:
-            ax.add_patch(
-                plt.Circle(
-                    goal_pos[i],
-                    goal_tolerance,
-                    fill=False,
-                    edgecolor=color,
-                    linestyle=":",
-                    linewidth=1.0,
-                    alpha=0.8,
-                )
-            )
+            ax.add_patch(goal_tolerance_patch(goal_pos[i], goal_tolerance, color))
 
     add_status_markers(ax, positions, statuses, labels_used=labels_used)
     diagnostics = compute_diagnostics(
@@ -164,13 +117,11 @@ def plot_trajectories(
     ax.set_title(title)
     ax.set_xlabel("x")
     ax.set_ylabel("y")
-    ax.set_xlim(-1, 7)
-    ax.set_ylim(-1, 7)
-    ax.set_aspect("equal", adjustable="box")
+    set_workspace_limits(ax)
     ax.grid(True, alpha=0.3)
     ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), borderaxespad=0.0)
     fig.tight_layout(rect=(0.0, 0.0, 0.74, 1.0))
-    fig.savefig(out_path, dpi=150)
+    fig.savefig(prepare_output_path(out_path), dpi=150)
     plt.close(fig)
 
 
@@ -199,7 +150,7 @@ def plot_pairwise_distances(
     ax.grid(True, alpha=0.3)
     ax.legend(loc="best")
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150)
+    fig.savefig(prepare_output_path(out_path), dpi=150)
     plt.close(fig)
 
 
