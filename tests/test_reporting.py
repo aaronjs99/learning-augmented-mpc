@@ -44,6 +44,9 @@ class ReportingTests(unittest.TestCase):
             scenario_name=scenario.name,
             histories=[history, history],
             controls_by_iteration=[np.zeros((1, 2, 2))],
+            slack_by_iteration=[
+                np.array([[[0.01, 0.0], [0.0, 0.02]]], dtype=float)
+            ],
             statuses_by_iteration=[[{0: "ok", 1: "fallback_apf"}]],
             success_by_iteration=[True, validation.valid],
             goal_reached_by_iteration=[True, validation.all_goals_reached],
@@ -64,6 +67,16 @@ class ReportingTests(unittest.TestCase):
         self.assertEqual(
             report.summary["status_counts_by_iteration"],
             [{}, {"fallback_apf": 1, "ok": 1}],
+        )
+        self.assertEqual(
+            report.summary["optimizer_slack_by_iteration"][1],
+            {
+                "solved_agent_steps": 2,
+                "max_static_slack": 0.01,
+                "nonzero_static_slack_steps": 1,
+                "max_hyperplane_slack": 0.02,
+                "nonzero_hyperplane_slack_steps": 1,
+            },
         )
         self.assertEqual(report.summary["cost_by_iteration"], {"0": [1, 1], "1": [1, 1]})
         self.assertEqual(report.final_states.shape, (2, 2, 7))

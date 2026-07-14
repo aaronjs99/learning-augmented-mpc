@@ -59,6 +59,13 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
      zero-translation holds; every intervention is recorded separately from
      solver failure.
 
+10. **Constraint-slack telemetry**
+    - Every successful MPC solve exposes its maximum static-obstacle and
+      pairwise-hyperplane slack instead of reducing solver behavior to `ok`.
+    - Reports preserve maxima and nonzero-use counts per learning iteration,
+      enabling safety interventions and performance changes to be tied back to
+      the optimizer's actual relaxation usage.
+
 ## Current Evidence
 
 The strongest current success case is `manta_crossover`:
@@ -72,7 +79,10 @@ and improves first-hit step proxies from `84/223` to `49/182`. It uses no IPOPT
 fallbacks and one recorded execution-time safety intervention near the inflated
 obstacle boundary. The selected rollout retains `0.018` minimum swept obstacle
 clearance, and the intervention is visible rather than being silently admitted
-as a safe optimization result.
+as a safe optimization result. Slack telemetry reports zero static and
+hyperplane relaxation throughout that selected iteration, isolating the
+remaining intervention to finite intersample collocation rather than soft-slack
+use.
 
 A short `manta_triangle` probe remains safe but incomplete:
 

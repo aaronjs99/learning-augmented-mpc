@@ -122,6 +122,16 @@ class MantaLMPCConfig:
             raise ValueError("lmpc.warm_start_control_blend must be in [0, 1]")
 
 
+@dataclass(frozen=True)
+class MantaStepSolution:
+    """One optimizer step with observable maximum slack values."""
+
+    control: np.ndarray
+    next_state: np.ndarray
+    max_static_slack: float
+    max_hyperplane_slack: float
+
+
 class MantaAgentOptimizer:
     """Single-agent manta LMPC NLP reused for each decentralized agent."""
 
@@ -159,8 +169,8 @@ class MantaAgentOptimizer:
         safe_costs: np.ndarray,
         warm_states: np.ndarray,
         warm_controls: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Solve one receding-horizon step and return ``(control, next_state)``."""
+    ) -> MantaStepSolution:
+        """Solve one step and return its control, state, and slack telemetry."""
         opti = self.opti
         opti.set_value(self.p_init, current_state)
         opti.set_value(self.p_goal, goal_state)
@@ -182,9 +192,17 @@ class MantaAgentOptimizer:
         return_status = str(opti.stats().get("return_status", ""))
         if _is_interrupted_status(return_status):
             raise KeyboardInterrupt
-        return (
-            np.asarray(sol.value(self.U[:, 0]), dtype=float).reshape(2),
-            np.asarray(sol.value(self.X_state[:, 1]), dtype=float).reshape(7),
+        return MantaStepSolution(
+            control=np.asarray(sol.value(self.U[:, 0]), dtype=float).reshape(2),
+            next_state=np.asarray(
+                sol.value(self.X_state[:, 1]), dtype=float
+            ).reshape(7),
+            max_static_slack=max(
+                0.0, float(np.max(sol.value(self.slack_static)))
+            ),
+            max_hyperplane_slack=max(
+                0.0, float(np.max(sol.value(self.slack_hyper)))
+            ),
         )
 
     def _build_problem(self) -> None:

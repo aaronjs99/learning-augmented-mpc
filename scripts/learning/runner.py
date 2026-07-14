@@ -28,6 +28,7 @@ class MantaLMPCRunResult:
     scenario_name: str
     histories: list[dict[int, np.ndarray]]
     controls_by_iteration: list[np.ndarray]
+    slack_by_iteration: list[np.ndarray]
     statuses_by_iteration: list[list[dict[int, str]]]
     success_by_iteration: list[bool]
     goal_reached_by_iteration: list[bool]
@@ -100,6 +101,7 @@ def run_manta_lmpc(
 
     histories = [_snapshot_safe_sets(safe_sets)]
     controls_by_iteration: list[np.ndarray] = []
+    slack_by_iteration: list[np.ndarray] = []
     statuses_by_iteration: list[list[dict[int, str]]] = []
     initial_validation = validate_trajectory(
         safe_sets,
@@ -121,6 +123,7 @@ def run_manta_lmpc(
             scenario_name=scenario.name,
             histories=histories,
             controls_by_iteration=controls_by_iteration,
+            slack_by_iteration=slack_by_iteration,
             statuses_by_iteration=statuses_by_iteration,
             success_by_iteration=success_by_iteration,
             goal_reached_by_iteration=goal_reached_by_iteration,
@@ -150,6 +153,7 @@ def run_manta_lmpc(
         }
         iteration_controls = np.zeros((config.max_steps, num_agents, 2), dtype=float)
         iteration_statuses: list[dict[int, str]] = []
+        iteration_slacks: list[np.ndarray] = []
         all_reached = False
         reached_agents: set[int] = set()
 
@@ -185,6 +189,7 @@ def run_manta_lmpc(
             next_states: dict[int, np.ndarray] = {}
             step_controls: dict[int, np.ndarray] = {}
             step_statuses: dict[int, str] = {}
+            step_slacks = np.full((num_agents, 2), np.nan, dtype=float)
 
             for agent in range(num_agents):
                 _raise_if_stop_requested(should_stop)
@@ -208,7 +213,7 @@ def run_manta_lmpc(
                 ]
 
                 try:
-                    control, next_state = agents[agent].solve_step(
+                    solution = agents[agent].solve_step(
                         current_state=current_states[agent],
                         goal_state=goals[agent],
                         hyperplanes=agent_hyperplanes,
@@ -216,6 +221,12 @@ def run_manta_lmpc(
                         safe_costs=safe_costs,
                         warm_states=warm_states,
                         warm_controls=warm_controls,
+                    )
+                    control = solution.control
+                    next_state = solution.next_state
+                    step_slacks[agent] = (
+                        solution.max_static_slack,
+                        solution.max_hyperplane_slack,
                     )
                     step_statuses[agent] = "ok"
                 except RuntimeError as exc:
@@ -257,6 +268,7 @@ def run_manta_lmpc(
                 history[agent].append(current_states[agent].copy())
 
             iteration_statuses.append(step_statuses)
+            iteration_slacks.append(step_slacks)
             for agent in range(num_agents):
                 if (
                     np.linalg.norm(current_states[agent][:2] - goals[agent][:2])
@@ -307,11 +319,18 @@ def run_manta_lmpc(
             )
             if recovery.statuses:
                 iteration_statuses.extend(recovery.statuses)
+                iteration_slacks.extend(
+                    np.full((num_agents, 2), np.nan, dtype=float)
+                    for _ in recovery.statuses
+                )
                 stored_controls = np.vstack((main_controls, recovery.controls))
                 all_reached = len(reached_agents) == num_agents
 
         histories.append(_snapshot_safe_sets(history))
         controls_by_iteration.append(stored_controls)
+        slack_by_iteration.append(
+            np.asarray(iteration_slacks, dtype=float).reshape(-1, num_agents, 2)
+        )
         statuses_by_iteration.append(iteration_statuses)
         validation = validate_trajectory(
             history,
@@ -351,6 +370,7 @@ def run_manta_lmpc(
         scenario_name=scenario.name,
         histories=histories,
         controls_by_iteration=controls_by_iteration,
+        slack_by_iteration=slack_by_iteration,
         statuses_by_iteration=statuses_by_iteration,
         success_by_iteration=success_by_iteration,
         goal_reached_by_iteration=goal_reached_by_iteration,
@@ -358,6 +378,29 @@ def run_manta_lmpc(
         validation_by_iteration=validation_by_iteration,
         selected_iteration=selected_iteration,
     )
+
+
+def summarize_optimizer_slack(values: np.ndarray) -> dict[str, float | int | None]:
+    """Summarize per-step ``(static, hyperplane)`` optimizer slack telemetry."""
+    telemetry = np.asarray(values, dtype=float)
+    if telemetry.ndim != 3 or telemetry.shape[2] != 2:
+        raise ValueError(
+            f"slack telemetry must have shape (steps, agents, 2), got {telemetry.shape}"
+        )
+
+    finite = np.isfinite(telemetry)
+    solved_agent_steps = int(np.sum(np.all(finite, axis=2)))
+    summary: dict[str, float | int | None] = {
+        "solved_agent_steps": solved_agent_steps,
+    }
+    for index, name in enumerate(("static", "hyperplane")):
+        channel = telemetry[:, :, index]
+        valid = channel[np.isfinite(channel)]
+        summary[f"max_{name}_slack"] = (
+            float(np.max(valid)) if len(valid) else None
+        )
+        summary[f"nonzero_{name}_slack_steps"] = int(np.sum(valid > 1e-8))
+    return summary
 
 
 def _snapshot_safe_sets(

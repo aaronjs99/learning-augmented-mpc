@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 import sys
 
+import numpy as np
+
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from scripts.config import (
@@ -17,7 +19,7 @@ from scripts.config import (
     load_project_config,
     override_project_config,
 )
-from scripts.learning import run_manta_lmpc
+from scripts.learning import run_manta_lmpc, summarize_optimizer_slack
 from scripts.metrics import cost_by_iteration
 
 
@@ -103,6 +105,16 @@ def _record_for_result(goals, lmpc, result) -> dict[str, object]:
         str(agent): values[selected] if selected is not None else values[-1]
         for agent, values in costs.items()
     }
+    selected_slack = (
+        summarize_optimizer_slack(result.slack_by_iteration[selected - 1])
+        if selected is not None and selected > 0
+        else summarize_optimizer_slack(np.zeros((0, len(goals), 2)))
+    )
+    latest_slack = (
+        summarize_optimizer_slack(result.slack_by_iteration[-1])
+        if result.slack_by_iteration
+        else summarize_optimizer_slack(np.zeros((0, len(goals), 2)))
+    )
 
     return {
         "scenario": result.scenario_name,
@@ -130,6 +142,22 @@ def _record_for_result(goals, lmpc, result) -> dict[str, object]:
             if selected_validation
             else None
         ),
+        "selected_max_static_slack": selected_slack["max_static_slack"],
+        "selected_max_hyperplane_slack": selected_slack["max_hyperplane_slack"],
+        "selected_nonzero_static_slack_steps": selected_slack[
+            "nonzero_static_slack_steps"
+        ],
+        "selected_nonzero_hyperplane_slack_steps": selected_slack[
+            "nonzero_hyperplane_slack_steps"
+        ],
+        "latest_max_static_slack": latest_slack["max_static_slack"],
+        "latest_max_hyperplane_slack": latest_slack["max_hyperplane_slack"],
+        "latest_nonzero_static_slack_steps": latest_slack[
+            "nonzero_static_slack_steps"
+        ],
+        "latest_nonzero_hyperplane_slack_steps": latest_slack[
+            "nonzero_hyperplane_slack_steps"
+        ],
         "latest_valid": latest_validation.valid,
         "latest_safe": latest_validation.safe,
         "latest_fallback_count": latest_validation.fallback_count,
@@ -152,6 +180,14 @@ def _write_csv(path: Path, records: list[dict[str, object]]) -> None:
         "selected_min_obstacle_clearance",
         "selected_fallback_count",
         "selected_safety_interventions",
+        "selected_max_static_slack",
+        "selected_max_hyperplane_slack",
+        "selected_nonzero_static_slack_steps",
+        "selected_nonzero_hyperplane_slack_steps",
+        "latest_max_static_slack",
+        "latest_max_hyperplane_slack",
+        "latest_nonzero_static_slack_steps",
+        "latest_nonzero_hyperplane_slack_steps",
         "latest_valid",
         "latest_safe",
         "latest_fallback_count",
@@ -169,7 +205,8 @@ def _write_csv(path: Path, records: list[dict[str, object]]) -> None:
 
 def _print_table(records: list[dict[str, object]]) -> None:
     print(
-        "scenario, selected, valid, safe, clean, safety_interventions, min_pairwise, "
+        "scenario, selected, valid, safe, clean, safety_interventions, "
+        "selected_static_slack, latest_static_slack, min_pairwise, "
         "min_obs_clearance, selected_costs"
     )
     for record in records:
@@ -178,6 +215,8 @@ def _print_table(records: list[dict[str, object]]) -> None:
             f"{record['selected_valid']}, {record['selected_safe']}, "
             f"{record['selected_solver_clean']}, "
             f"{record['selected_safety_interventions']}, "
+            f"{_fmt(record['selected_max_static_slack'])}, "
+            f"{_fmt(record['latest_max_static_slack'])}, "
             f"{_fmt(record['selected_min_pairwise'])}, "
             f"{_fmt(record['selected_min_obstacle_clearance'])}, "
             f"{record['selected_costs']}"

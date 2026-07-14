@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 
 from scripts.config import ProjectConfig
-from scripts.learning import MantaLMPCRunResult
+from scripts.learning import MantaLMPCRunResult, summarize_optimizer_slack
 from scripts.metrics import (
     compute_rollout_metrics,
     cost_by_iteration,
@@ -91,6 +91,10 @@ def prepare_manta_report(
         "status_counts_by_iteration": _status_counts_by_iteration(
             result.statuses_by_iteration
         ),
+        "optimizer_slack_by_iteration": [
+            summarize_optimizer_slack(np.zeros((0, len(scenario.starts), 2)))
+        ]
+        + [summarize_optimizer_slack(values) for values in result.slack_by_iteration],
         "cost_by_iteration": {
             str(agent): values for agent, values in costs.items()
         },
