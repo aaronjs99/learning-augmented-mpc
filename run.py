@@ -6,7 +6,7 @@ import sys
 
 
 def main() -> None:
-    """Run manta LMPC by default, with baseline and sanity shortcuts."""
+    """Dispatch manta runs, benchmarks, sanity checks, and tests."""
     command = sys.argv[1] if len(sys.argv) > 1 else "manta"
     if command in {"manta", "lmpc"}:
         sys.argv = [sys.argv[0], *sys.argv[2:]]
@@ -28,6 +28,11 @@ def main() -> None:
         from scripts.run_sweep import main as run_sweep
 
         run_sweep()
+    elif command == "test":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_tests import main as run_tests
+
+        run_tests()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

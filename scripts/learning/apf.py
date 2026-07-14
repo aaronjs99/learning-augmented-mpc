@@ -25,6 +25,23 @@ class APFConfig:
     base_mu_min: float = 0.5
     base_mu_max: float = 1.5
 
+    def __post_init__(self) -> None:
+        """Validate APF tuning independently of a simulation run."""
+        if self.max_steps <= 0:
+            raise ValueError("apf.max_steps must be positive")
+        if self.influence_radius <= 0.0:
+            raise ValueError("apf.influence_radius must be positive")
+        if self.goal_tolerance <= 0.0:
+            raise ValueError("apf.goal_tolerance must be positive")
+        if self.heading_gain < 0.0 or self.repulsion_gain < 0.0:
+            raise ValueError("apf heading and repulsion gains must be nonnegative")
+        if self.obstacle_padding < 0.0:
+            raise ValueError("apf.obstacle_padding must be nonnegative")
+        if self.base_mu_gain <= 0.0:
+            raise ValueError("apf.base_mu_gain must be positive")
+        if not 0.0 <= self.base_mu_min <= self.base_mu_max:
+            raise ValueError("apf base_mu bounds must satisfy 0 <= min <= max")
+
 
 def compute_apf_control(
     current_state: np.ndarray,

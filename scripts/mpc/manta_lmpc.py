@@ -46,6 +46,63 @@ class MantaLMPCConfig:
     ipopt_print_level: int = 0
     log_interval: int = 5
 
+    def __post_init__(self) -> None:
+        """Reject invalid settings before building a CasADi problem."""
+        positive_integers = {
+            "prediction_horizon": self.prediction_horizon,
+            "k_hull": self.k_hull,
+            "max_steps": self.max_steps,
+            "ipopt_max_iter": self.ipopt_max_iter,
+            "log_interval": self.log_interval,
+        }
+        for name, value in positive_integers.items():
+            if value <= 0:
+                raise ValueError(f"lmpc.{name} must be positive")
+        if self.iterations < 0:
+            raise ValueError("lmpc.iterations must be nonnegative")
+        if self.dt <= 0.0:
+            raise ValueError("lmpc.dt must be positive")
+        if self.goal_tolerance <= 0.0:
+            raise ValueError("lmpc.goal_tolerance must be positive")
+        nonnegative_values = {
+            "hyperplane_safety_margin": self.hyperplane_safety_margin,
+            "hyperplane_slack_bound": self.hyperplane_slack_bound,
+            "static_slack_bound": self.static_slack_bound,
+            "terminal_slack_bound": self.terminal_slack_bound,
+            "terminal_slack_weight": self.terminal_slack_weight,
+            "hyperplane_slack_weight": self.hyperplane_slack_weight,
+            "static_slack_weight": self.static_slack_weight,
+            "safe_cost_weight": self.safe_cost_weight,
+        }
+        for name, value in nonnegative_values.items():
+            if value < 0.0:
+                raise ValueError(f"lmpc.{name} must be nonnegative")
+        if len(self.state_cost_weights) != 7:
+            raise ValueError("lmpc.state_cost_weights must contain 7 values")
+        if len(self.control_cost_weights) != 2:
+            raise ValueError("lmpc.control_cost_weights must contain 2 values")
+        if any(weight < 0.0 for weight in self.state_cost_weights):
+            raise ValueError("lmpc.state_cost_weights must be nonnegative")
+        if any(weight < 0.0 for weight in self.control_cost_weights):
+            raise ValueError("lmpc.control_cost_weights must be nonnegative")
+        if self.hyperplane_ignore_distance <= 0.0:
+            raise ValueError("lmpc.hyperplane_ignore_distance must be positive")
+        if self.repair_max_steps <= 0:
+            raise ValueError("lmpc.repair_max_steps must be positive")
+        if self.repair_static_agent_scale <= 0.0:
+            raise ValueError("lmpc.repair_static_agent_scale must be positive")
+        if self.repair_waypoint_lookahead <= 0:
+            raise ValueError("lmpc.repair_waypoint_lookahead must be positive")
+        if self.priority_metric not in {"goal_distance", "remaining_safe_time"}:
+            raise ValueError(
+                "lmpc.priority_metric must be 'goal_distance' or "
+                "'remaining_safe_time'"
+            )
+        if not 0.0 <= self.priority_margin_scale < 1.0:
+            raise ValueError("lmpc.priority_margin_scale must be in [0, 1)")
+        if not 0.0 <= self.warm_start_control_blend <= 1.0:
+            raise ValueError("lmpc.warm_start_control_blend must be in [0, 1]")
+
 
 class MantaAgentOptimizer:
     """Single-agent manta LMPC NLP reused for each decentralized agent."""
@@ -118,13 +175,6 @@ class MantaAgentOptimizer:
         dyn = self.dynamics_config
         N = cfg.prediction_horizon
         K = cfg.k_hull
-        if len(cfg.state_cost_weights) != 7:
-            raise ValueError("lmpc.state_cost_weights must contain 7 values")
-        if len(cfg.control_cost_weights) != 2:
-            raise ValueError("lmpc.control_cost_weights must contain 2 values")
-        if cfg.terminal_slack_bound < 0.0:
-            raise ValueError("lmpc.terminal_slack_bound must be nonnegative")
-
         opti = ca.Opti()
         X_state = opti.variable(7, N + 1)
         U = opti.variable(2, N)

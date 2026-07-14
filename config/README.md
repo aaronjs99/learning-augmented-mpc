@@ -25,3 +25,7 @@ for experiments that favor agents with longer stored routes.
 for safe but incomplete LMPC attempts. The repair follows stored safe-set
 waypoints instead of aiming directly at the final goal, but it is off by default
 until it is more reliable.
+
+Configuration dataclasses validate dimensions, bounds, supported policy names,
+and positive step/horizon values as soon as YAML is loaded. Invalid experiments
+therefore fail before CasADi builds or starts solving an optimization problem.

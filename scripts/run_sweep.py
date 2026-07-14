@@ -13,7 +13,8 @@ import sys
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from scripts.config import DEFAULT_CONFIG_PATH, list_config_scenarios, load_project_config
-from scripts.learning import cost_by_iteration, run_manta_lmpc
+from scripts.learning import run_manta_lmpc
+from scripts.metrics import cost_by_iteration
 
 
 def parse_args() -> argparse.Namespace:

@@ -8,7 +8,10 @@ from .apf import (
     simulate_manta_autopilot_with_controls,
 )
 from .hyperplanes import get_symmetric_hyperplanes_spatial
-from .runner import MantaLMPCRunResult, cost_by_iteration, run_manta_lmpc
+from scripts.metrics import cost_by_iteration
+
+from .policies import priority_margins, warm_start_from_safe_set
+from .runner import MantaLMPCRunResult, run_manta_lmpc
 from .safe_sets import (
     build_staggered_safe_sets,
     hold_controls,
@@ -26,8 +29,10 @@ __all__ = [
     "hold_controls",
     "hold_trajectory",
     "MantaLMPCRunResult",
+    "priority_margins",
     "run_manta_lmpc",
     "sample_terminal_safe_set",
     "simulate_manta_autopilot",
     "simulate_manta_autopilot_with_controls",
+    "warm_start_from_safe_set",
 ]

@@ -23,6 +23,7 @@ The default run is controlled by `config/manta.yaml`.
 - `scripts/learning/`: APF initialization, safe-set sampling, SVM hyperplanes, runner.
 - `scripts/mpc/`: CasADi LMPC agent builder.
 - `scripts/metrics/`, `scripts/plotting/`: diagnostics, plots, and GIFs.
+- `tests/`: fast regression tests for evaluation, safe-set admission, priority, and warm starts.
 - `results/`: generated outputs.
 
 ## Setup
@@ -44,6 +45,10 @@ Zero-control manta sanity check:
 Compact benchmark sweep, APF-only by default:
 
 `python3 run.py sweep`
+
+Fast regression tests (no IPOPT solve):
+
+`python3 run.py test`
 
 Useful overrides:
 

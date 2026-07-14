@@ -9,62 +9,14 @@ import time
 import numpy as np
 
 from scripts.dynamics import MantaDynamicsConfig, rk4_step_np
+from scripts.metrics import TrajectoryValidation, validate_trajectory
 from scripts.mpc.manta_lmpc import MantaAgentOptimizer, MantaLMPCConfig
 from scripts.simulation import Scenario, StaticObstacle
 
 from .apf import APFConfig, compute_apf_control
 from .hyperplanes import get_symmetric_hyperplanes_spatial
+from .policies import priority_margins, warm_start_from_safe_set
 from .safe_sets import build_staggered_safe_sets, sample_terminal_safe_set
-
-
-@dataclass
-class TrajectoryValidation:
-    """Safety and completion checks for one APF or LMPC trajectory."""
-
-    all_goals_reached: bool
-    min_pairwise_distance: float
-    pairwise_violation_count: int
-    min_obstacle_clearance: float
-    obstacle_violation_count: int
-    fallback_count: int
-
-    @property
-    def safe(self) -> bool:
-        """Return true when pairwise and obstacle constraints are satisfied."""
-        return (
-            self.pairwise_violation_count == 0
-            and self.obstacle_violation_count == 0
-        )
-
-    @property
-    def valid(self) -> bool:
-        """Return true when the trajectory is complete and safe."""
-        return self.all_goals_reached and self.safe
-
-    @property
-    def usable_for_learning(self) -> bool:
-        """Return true when a trajectory is a complete learned safe-set member."""
-        return self.valid
-
-    @property
-    def solver_clean(self) -> bool:
-        """Return true when no safe-set fallback was needed."""
-        return self.fallback_count == 0
-
-    def to_dict(self) -> dict[str, bool | float | int]:
-        """Serialize validation metrics for run summaries."""
-        return {
-            "valid": self.valid,
-            "safe": self.safe,
-            "solver_clean": self.solver_clean,
-            "usable_for_learning": self.usable_for_learning,
-            "all_goals_reached": self.all_goals_reached,
-            "min_pairwise_distance": self.min_pairwise_distance,
-            "pairwise_violation_count": self.pairwise_violation_count,
-            "min_obstacle_clearance": self.min_obstacle_clearance,
-            "obstacle_violation_count": self.obstacle_violation_count,
-            "fallback_count": self.fallback_count,
-        }
 
 
 @dataclass
@@ -242,7 +194,7 @@ def run_manta_lmpc(
                 safe_states, safe_costs = sample_terminal_safe_set(
                     safe_sets[agent], target_idx, config.k_hull
                 )
-                warm_states, warm_controls = _warm_start_from_safe_set(
+                warm_states, warm_controls = warm_start_from_safe_set(
                     safe_sets[agent], safe_controls[agent], step, config
                 )
                 agent_hyperplanes = [
@@ -385,95 +337,6 @@ def run_manta_lmpc(
         validation_by_iteration=validation_by_iteration,
         selected_iteration=selected_iteration,
     )
-
-
-def validate_trajectory(
-    history: dict[int, list[np.ndarray] | np.ndarray],
-    goals: np.ndarray,
-    safety_distance: float,
-    obstacle_center: tuple[float, float],
-    obstacle_radius: float,
-    goal_tolerance: float,
-    *,
-    statuses: list[dict[int, str]] | None,
-) -> TrajectoryValidation:
-    """Validate goal completion, pairwise separation, and obstacle clearance."""
-    agents, states = _history_to_tensor(history)
-    goal_pos = np.asarray(goals, dtype=float)[agents, :2]
-    pos = states[:, :, :2]
-
-    goal_error = np.linalg.norm(pos - goal_pos[None, :, :], axis=2)
-    all_goals_reached = bool(np.all(goal_error[-1] <= goal_tolerance))
-
-    pairwise_distances = []
-    for i in range(pos.shape[1]):
-        for j in range(i + 1, pos.shape[1]):
-            pairwise_distances.append(np.linalg.norm(pos[:, i] - pos[:, j], axis=1))
-    pairwise = (
-        np.vstack(pairwise_distances).T
-        if pairwise_distances
-        else np.full((pos.shape[0], 0), np.inf)
-    )
-    min_pairwise = float(np.min(pairwise)) if pairwise.size else float("inf")
-    pairwise_violations = int(np.sum(pairwise < safety_distance))
-
-    center = np.asarray(obstacle_center, dtype=float)
-    clearance = np.linalg.norm(pos - center[None, None, :], axis=2) - obstacle_radius
-    min_clearance = float(np.min(clearance))
-    obstacle_violations = int(np.sum(clearance < 0.0))
-
-    fallback_count = 0
-    if statuses is not None:
-        fallback_count = sum(
-            1
-            for step_statuses in statuses
-            for status in step_statuses.values()
-            if status.startswith("fallback")
-        )
-
-    return TrajectoryValidation(
-        all_goals_reached=all_goals_reached,
-        min_pairwise_distance=min_pairwise,
-        pairwise_violation_count=pairwise_violations,
-        min_obstacle_clearance=min_clearance,
-        obstacle_violation_count=obstacle_violations,
-        fallback_count=fallback_count,
-    )
-
-
-def _history_to_tensor(
-    history: dict[int, list[np.ndarray] | np.ndarray],
-) -> tuple[list[int], np.ndarray]:
-    """Convert ragged per-agent histories to a padded state tensor."""
-    agents = sorted(history)
-    max_len = max(len(history[agent]) for agent in agents)
-    state_dim = np.asarray(history[agents[0]], dtype=float).shape[1]
-    states = np.zeros((max_len, len(agents), state_dim), dtype=float)
-    for out_agent, agent in enumerate(agents):
-        traj = np.asarray(history[agent], dtype=float)
-        states[: len(traj), out_agent] = traj
-        if len(traj) < max_len:
-            states[len(traj) :, out_agent] = traj[-1]
-    return agents, states
-
-
-def cost_by_iteration(
-    histories: list[dict[int, np.ndarray]],
-    goals: np.ndarray,
-    *,
-    goal_tolerance: float = 0.5,
-) -> dict[int, list[int]]:
-    """Return each agent's first goal-tolerance hit step per iteration."""
-    g = np.asarray(goals, dtype=float)
-    num_agents = g.shape[0]
-    costs: dict[int, list[int]] = {agent: [] for agent in range(num_agents)}
-    for run in histories:
-        for agent in range(num_agents):
-            traj = np.asarray(run[agent], dtype=float)
-            distances = np.linalg.norm(traj[:, :2] - g[agent, :2], axis=1)
-            reached = np.where(distances <= goal_tolerance)[0]
-            costs[agent].append(int(reached[0]) if len(reached) else len(traj))
-    return costs
 
 
 def _repair_incomplete_with_apf(
@@ -677,7 +540,7 @@ def _build_pairwise_hyperplanes(
     }
     for index, i in enumerate(agents):
         for j in agents[index + 1 :]:
-            margin_i, margin_j = _priority_margins(
+            margin_i, margin_j = priority_margins(
                 i, j, safe_sets, step, current_states, goals, config
             )
             H_i, h_i, H_j, h_j = get_symmetric_hyperplanes_spatial(
@@ -694,107 +557,6 @@ def _build_pairwise_hyperplanes(
             hyperplanes[i][j] = (H_i, h_i)
             hyperplanes[j][i] = (H_j, h_j)
     return hyperplanes
-
-
-def _priority_margins(
-    agent_i: int,
-    agent_j: int,
-    safe_sets: dict[int, list[np.ndarray] | np.ndarray],
-    step: int,
-    current_states: dict[int, np.ndarray],
-    goals: np.ndarray,
-    config: MantaLMPCConfig,
-) -> tuple[float, float]:
-    """Shift pairwise margin burden toward the lower-priority agent."""
-    base_margin = config.hyperplane_safety_margin
-    if not config.priority_hyperplanes:
-        return base_margin, base_margin
-
-    scale = config.priority_margin_scale
-    if not 0.0 <= scale < 1.0:
-        raise ValueError("lmpc.priority_margin_scale must be in [0, 1)")
-
-    score_i = _priority_score(
-        agent_i, safe_sets, step, current_states, goals, config
-    )
-    score_j = _priority_score(
-        agent_j, safe_sets, step, current_states, goals, config
-    )
-    priority_delta = (score_i - score_j) / (abs(score_i) + abs(score_j) + 1e-9)
-
-    margin_i = base_margin * (1.0 - scale * priority_delta)
-    margin_j = base_margin * (1.0 + scale * priority_delta)
-    return margin_i, margin_j
-
-
-def _priority_score(
-    agent: int,
-    safe_sets: dict[int, list[np.ndarray] | np.ndarray],
-    step: int,
-    current_states: dict[int, np.ndarray],
-    goals: np.ndarray,
-    config: MantaLMPCConfig,
-) -> float:
-    """Return a larger score for agents that should get right-of-way."""
-    current_distance = float(
-        np.linalg.norm(current_states[agent][:2] - goals[agent, :2])
-    )
-    if current_distance <= config.goal_tolerance:
-        return 1e6
-
-    if config.priority_metric == "goal_distance":
-        return 1.0 / (current_distance + 1e-3)
-    if config.priority_metric == "remaining_safe_time":
-        return _remaining_safe_time_score(
-            safe_sets[agent], goals[agent], step, config.goal_tolerance
-        )
-    raise ValueError(
-        "lmpc.priority_metric must be 'goal_distance' or 'remaining_safe_time'"
-    )
-
-
-def _remaining_safe_time_score(
-    safe_set: list[np.ndarray] | np.ndarray,
-    goal: np.ndarray,
-    step: int,
-    goal_tolerance: float,
-) -> float:
-    """Return remaining first-hit steps along the current safe-set trajectory."""
-    states = np.asarray(safe_set, dtype=float)
-    distances = np.linalg.norm(states[:, :2] - goal[:2], axis=1)
-    reached = np.where(distances <= goal_tolerance)[0]
-    first_hit = int(reached[0]) if len(reached) else len(states) - 1
-    return float(max(first_hit - step, 0))
-
-
-def _warm_start_from_safe_set(
-    safe_set: list[np.ndarray] | np.ndarray,
-    safe_controls: list[np.ndarray] | np.ndarray,
-    step: int,
-    config: MantaLMPCConfig,
-) -> tuple[np.ndarray, np.ndarray]:
-    states = np.asarray(safe_set, dtype=float)
-    controls = np.asarray(safe_controls, dtype=float)
-    control_blend = config.warm_start_control_blend
-    if not 0.0 <= control_blend <= 1.0:
-        raise ValueError("lmpc.warm_start_control_blend must be in [0, 1]")
-    warm_states = np.zeros((7, config.prediction_horizon + 1), dtype=float)
-    warm_controls = np.full(
-        (2, config.prediction_horizon),
-        config.warm_start_control,
-        dtype=float,
-    )
-    for k in range(config.prediction_horizon + 1):
-        idx = min(step + k, len(states) - 1)
-        warm_states[:, k] = states[idx]
-    if len(controls) > 0:
-        for k in range(config.prediction_horizon):
-            idx = min(step + k, len(controls) - 1)
-            warm_controls[:, k] = (
-                (1.0 - control_blend) * warm_controls[:, k]
-                + control_blend * controls[idx]
-            )
-    return warm_states, warm_controls
 
 
 def _safe_fallback_apf_step(

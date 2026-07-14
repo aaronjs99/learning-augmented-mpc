@@ -10,7 +10,7 @@ configure_matplotlib()
 import numpy as np
 from matplotlib import animation, patches, pyplot as plt
 
-from scripts.learning.runner import cost_by_iteration
+from scripts.metrics import cost_by_iteration
 from scripts.simulation import StaticObstacle
 
 from .diagnostics import (

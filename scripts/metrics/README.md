@@ -11,3 +11,6 @@ Current metrics:
 - collision count
 - time-to-goal
 - control effort when controls are provided
+- rollout completion and safe-set admission validation
+- first goal-tolerance hit step per agent and learning iteration
+- shared padding of ragged per-agent histories

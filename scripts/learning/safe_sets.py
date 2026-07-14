@@ -9,6 +9,7 @@ import numpy as np
 
 from .apf import APFConfig, simulate_manta_autopilot_with_controls
 from scripts.dynamics import MantaDynamicsConfig, rk4_step_np
+from scripts.metrics import history_to_tensor, validate_trajectory
 from scripts.simulation import Scenario, StaticObstacle
 
 
@@ -199,52 +200,36 @@ def _score_safe_sets(
     obstacle_radius: float,
     goal_tolerance: float,
 ) -> _SafeSetScore:
-    """Score a staged APF candidate without importing the LMPC runner."""
-    agents = sorted(safe_sets)
-    max_len = max(len(safe_sets[agent]) for agent in agents)
-    state_dim = np.asarray(safe_sets[agents[0]], dtype=float).shape[1]
-    states = np.zeros((max_len, len(agents), state_dim), dtype=float)
-    for out_agent, agent in enumerate(agents):
-        traj = np.asarray(safe_sets[agent], dtype=float)
-        states[: len(traj), out_agent] = traj
-        if len(traj) < max_len:
-            states[len(traj) :, out_agent] = traj[-1]
-
+    """Score a staged APF candidate with the shared admission validator."""
+    agents, states = history_to_tensor(safe_sets)
     pos = states[:, :, :2]
     goal_pos = np.asarray(goals, dtype=float)[agents, :2]
     goal_errors = np.linalg.norm(pos - goal_pos[None, :, :], axis=2)
     final_goal_errors = goal_errors[-1]
-    all_goals_reached = bool(np.all(final_goal_errors <= goal_tolerance))
     first_hit_steps = []
     for agent_idx in range(len(agents)):
         reached = np.where(goal_errors[:, agent_idx] <= goal_tolerance)[0]
-        first_hit_steps.append(int(reached[0]) if len(reached) else max_len)
+        first_hit_steps.append(int(reached[0]) if len(reached) else len(states))
 
-    pairwise = []
-    for i in range(pos.shape[1]):
-        for j in range(i + 1, pos.shape[1]):
-            pairwise.append(np.linalg.norm(pos[:, i] - pos[:, j], axis=1))
-    pairwise_distances = np.vstack(pairwise).T
-    pairwise_violation_count = int(np.sum(pairwise_distances < safety_distance))
-    min_pairwise_distance = float(np.min(pairwise_distances))
-
-    center = np.asarray(obstacle_center, dtype=float)
-    obstacle_clearance = np.linalg.norm(pos - center[None, None, :], axis=2)
-    obstacle_clearance -= obstacle_radius
-    obstacle_violation_count = int(np.sum(obstacle_clearance < 0.0))
-    min_obstacle_clearance = float(np.min(obstacle_clearance))
+    validation = validate_trajectory(
+        safe_sets,
+        goals,
+        safety_distance,
+        obstacle_center,
+        obstacle_radius,
+        goal_tolerance,
+        statuses=None,
+    )
 
     return _SafeSetScore(
-        all_goals_reached=all_goals_reached,
-        usable_for_learning=(
-            pairwise_violation_count == 0 and obstacle_violation_count == 0
-        ),
-        pairwise_violation_count=pairwise_violation_count,
-        obstacle_violation_count=obstacle_violation_count,
+        all_goals_reached=validation.all_goals_reached,
+        usable_for_learning=validation.usable_for_learning,
+        pairwise_violation_count=validation.pairwise_violation_count,
+        obstacle_violation_count=validation.obstacle_violation_count,
         total_first_hit_steps=sum(first_hit_steps),
         final_goal_error=float(np.sum(final_goal_errors)),
-        min_pairwise_distance=min_pairwise_distance,
-        min_obstacle_clearance=min_obstacle_clearance,
+        min_pairwise_distance=validation.min_pairwise_distance,
+        min_obstacle_clearance=validation.min_obstacle_clearance,
     )
 
 

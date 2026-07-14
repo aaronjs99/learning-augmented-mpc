@@ -16,8 +16,13 @@ import numpy as np
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from scripts.config import DEFAULT_CONFIG_PATH, ProjectConfig, load_project_config
-from scripts.learning import cost_by_iteration, run_manta_lmpc
-from scripts.metrics import compute_rollout_metrics, pairwise_distances
+from scripts.learning import run_manta_lmpc
+from scripts.metrics import (
+    compute_rollout_metrics,
+    cost_by_iteration,
+    history_to_tensor,
+    pairwise_distances,
+)
 from scripts.plotting import (
     plot_cost_decrease,
     plot_learning_progression,
@@ -91,7 +96,7 @@ def main() -> None:
         print("Stopped manta LMPC run.")
         raise SystemExit(130) from None
 
-    final_states = _history_to_tensor(result.final_history)
+    _, final_states = history_to_tensor(result.final_history)
     final_controls = result.final_controls
     metrics = compute_rollout_metrics(
         states=final_states,
@@ -232,19 +237,6 @@ def _load_effective_config(args: argparse.Namespace) -> ProjectConfig:
         make_video=make_video,
         quiet=quiet,
     )
-
-
-def _history_to_tensor(history: dict[int, np.ndarray]) -> np.ndarray:
-    agents = sorted(history)
-    max_len = max(len(history[agent]) for agent in agents)
-    state_dim = np.asarray(history[agents[0]], dtype=float).shape[1]
-    states = np.zeros((max_len, len(agents), state_dim), dtype=float)
-    for out_agent, agent in enumerate(agents):
-        traj = np.asarray(history[agent], dtype=float)
-        states[: len(traj), out_agent] = traj
-        if len(traj) < max_len:
-            states[len(traj) :, out_agent] = traj[-1]
-    return states
 
 
 def _resolve_stop_file(path: str | Path) -> Path:
