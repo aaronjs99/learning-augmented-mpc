@@ -103,6 +103,8 @@ lmpc:
   prediction_horizon: 20
   k_hull: 10
   dt: 0.2
+  safety_constraint_substeps: 2
+  safety_filter_buffer: 0.01
   max_steps: 200
   iterations: 3
   goal_tolerance: 0.65

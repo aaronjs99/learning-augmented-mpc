@@ -11,6 +11,15 @@ half the configured pairwise safety distance, and terminal safe-set matching is
 position-only by default so oscillator phase states do not over-constrain the
 short-horizon NLP.
 
+`safety_constraint_substeps` applies obstacle and pairwise half-space
+constraints at evenly spaced points inside every MPC interval. A value of `2`
+checks the midpoint and endpoint, preventing inter-sample crossings that an
+endpoint-only nonlinear program can miss.
+
+`safety_filter_buffer` adds a small execution-time clearance beyond the nominal
+obstacle and pairwise limits. This keeps certified trajectories away from
+floating-point tangency without changing the obstacle drawn in reports.
+
 `warm_start_control_blend` controls how much stored safe-set control history is
 used in IPOPT initialization. `0.0` means constant nominal controls only, while
 `1.0` means raw stored controls only.

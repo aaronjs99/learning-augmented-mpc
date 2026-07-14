@@ -18,6 +18,8 @@ class MantaLMPCConfig:
     prediction_horizon: int = 20
     k_hull: int = 10
     dt: float = 0.2
+    safety_constraint_substeps: int = 2
+    safety_filter_buffer: float = 0.01
     max_steps: int = 300
     iterations: int = 4
     goal_tolerance: float = 0.65
@@ -56,6 +58,7 @@ class MantaLMPCConfig:
         positive_integers = {
             "prediction_horizon": self.prediction_horizon,
             "k_hull": self.k_hull,
+            "safety_constraint_substeps": self.safety_constraint_substeps,
             "max_steps": self.max_steps,
             "ipopt_max_iter": self.ipopt_max_iter,
             "log_interval": self.log_interval,
@@ -73,6 +76,7 @@ class MantaLMPCConfig:
             "hyperplane_safety_margin": self.hyperplane_safety_margin,
             "hyperplane_slack_bound": self.hyperplane_slack_bound,
             "static_slack_bound": self.static_slack_bound,
+            "safety_filter_buffer": self.safety_filter_buffer,
             "terminal_slack_bound": self.terminal_slack_bound,
             "terminal_slack_weight": self.terminal_slack_weight,
             "hyperplane_slack_weight": self.hyperplane_slack_weight,
@@ -227,20 +231,28 @@ class MantaAgentOptimizer:
             x_next = rk4_step_ca(X_state[:, k], U[:, k], cfg.dt, dyn)
             opti.subject_to(X_state[:, k + 1] == x_next)
 
-            pos_k = ca.vertcat(X_state[0, k + 1], X_state[1, k + 1])
-            for obs_idx in range(self.num_obstacles):
-                opti.subject_to(
-                    ca.mtimes(pH_list[obs_idx][k, :], pos_k) + ph_list[obs_idx][k]
-                    <= slack_hyper[obs_idx, k]
+            for check_idx in range(1, cfg.safety_constraint_substeps + 1):
+                check_dt = cfg.dt * check_idx / cfg.safety_constraint_substeps
+                check_state = (
+                    X_state[:, k + 1]
+                    if check_idx == cfg.safety_constraint_substeps
+                    else rk4_step_ca(X_state[:, k], U[:, k], check_dt, dyn)
                 )
+                check_pos = ca.vertcat(check_state[0], check_state[1])
+                for obs_idx in range(self.num_obstacles):
+                    opti.subject_to(
+                        ca.mtimes(pH_list[obs_idx][k, :], check_pos)
+                        + ph_list[obs_idx][k]
+                        <= slack_hyper[obs_idx, k]
+                    )
 
-            obs_x, obs_y = self.obstacle.center
-            dist_sq = (X_state[0, k + 1] - obs_x) ** 2 + (
-                X_state[1, k + 1] - obs_y
-            ) ** 2
-            opti.subject_to(
-                dist_sq + slack_static[0, k] >= self.obstacle.radius**2
-            )
+                obs_x, obs_y = self.obstacle.center
+                dist_sq = (check_state[0] - obs_x) ** 2 + (
+                    check_state[1] - obs_y
+                ) ** 2
+                opti.subject_to(
+                    dist_sq + slack_static[0, k] >= self.obstacle.radius**2
+                )
 
         opti.subject_to(X_state[:, 0] == p_init)
         terminal_safe_state = ca.mtimes(p_safe_states, lambdas)

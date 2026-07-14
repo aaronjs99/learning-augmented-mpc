@@ -41,7 +41,28 @@ class EvaluationTests(unittest.TestCase):
         self.assertTrue(validation.safe)
         self.assertFalse(validation.solver_clean)
         self.assertEqual(validation.fallback_count, 1)
+        self.assertEqual(validation.safety_intervention_count, 0)
         self.assertEqual(validation.to_dict()["usable_for_learning"], True)
+
+    def test_safety_intervention_is_reported_separately(self) -> None:
+        history = {
+            0: np.array([[0.0, 0.0], [1.0, 0.0]]),
+            1: np.array([[0.0, 2.0], [1.0, 2.0]]),
+        }
+        validation = validate_trajectory(
+            history,
+            goals=np.array([[1.0, 0.0], [1.0, 2.0]]),
+            safety_distance=0.5,
+            obstacle_center=(10.0, 10.0),
+            obstacle_radius=1.0,
+            goal_tolerance=0.1,
+            statuses=[{0: "safety_filter_apf", 1: "ok"}],
+        )
+
+        self.assertTrue(validation.valid)
+        self.assertEqual(validation.fallback_count, 0)
+        self.assertEqual(validation.safety_intervention_count, 1)
+        self.assertFalse(validation.solver_clean)
 
     def test_collision_prevents_safe_set_admission(self) -> None:
         history = {
@@ -60,7 +81,45 @@ class EvaluationTests(unittest.TestCase):
 
         self.assertFalse(validation.safe)
         self.assertFalse(validation.usable_for_learning)
-        self.assertEqual(validation.pairwise_violation_count, 2)
+        self.assertEqual(validation.pairwise_violation_count, 1)
+
+    def test_crossing_between_samples_is_not_admitted(self) -> None:
+        history = {
+            0: np.array([[-1.0, 0.0], [1.0, 0.0]]),
+            1: np.array([[1.0, 0.0], [-1.0, 0.0]]),
+        }
+        validation = validate_trajectory(
+            history,
+            goals=np.array([[1.0, 0.0], [-1.0, 0.0]]),
+            safety_distance=0.5,
+            obstacle_center=(10.0, 10.0),
+            obstacle_radius=1.0,
+            goal_tolerance=0.1,
+            statuses=None,
+        )
+
+        self.assertAlmostEqual(validation.min_pairwise_distance, 0.0)
+        self.assertEqual(validation.pairwise_violation_count, 1)
+        self.assertFalse(validation.usable_for_learning)
+
+    def test_obstacle_crossing_between_samples_is_not_admitted(self) -> None:
+        history = {
+            0: np.array([[-2.0, 0.0], [2.0, 0.0]]),
+            1: np.array([[-2.0, 3.0], [2.0, 3.0]]),
+        }
+        validation = validate_trajectory(
+            history,
+            goals=np.array([[2.0, 0.0], [2.0, 3.0]]),
+            safety_distance=0.5,
+            obstacle_center=(0.0, 0.0),
+            obstacle_radius=1.0,
+            goal_tolerance=0.1,
+            statuses=None,
+        )
+
+        self.assertAlmostEqual(validation.min_obstacle_clearance, -1.0)
+        self.assertEqual(validation.obstacle_violation_count, 1)
+        self.assertFalse(validation.usable_for_learning)
 
     def test_cost_uses_first_goal_hit_and_length_when_unreached(self) -> None:
         histories = [{

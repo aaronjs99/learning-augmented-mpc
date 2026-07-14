@@ -37,9 +37,27 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
 
 6. **Priority-aware decentralized hyperplanes**
    - Pairwise SVM margins can be asymmetric while preserving the total pairwise
-     separation budget.
+   separation budget.
    - This provides a configurable right-of-way mechanism for decentralized
      traffic-jam experiments.
+
+7. **Swept-segment safety validation**
+   - Safe-set admission evaluates the minimum synchronous agent separation and
+     obstacle clearance along every interval between saved states.
+   - This prevents endpoint-only sampling from accepting trajectories that
+     cross another agent or obstacle between controller updates.
+
+8. **Intersample safety collocation**
+   - The nonlinear MPC enforces static-obstacle and separating-hyperplane
+     constraints at configurable interior points within every control interval.
+   - Validation remains independent and swept, so collocation density can be
+     studied against measured intersample clearance rather than assumed safe.
+
+9. **Independent execution-time safety filter**
+   - Proposed joint transitions are swept-validated before they are executed.
+   - Unsafe proposals are replaced by bounded APF actions and, if necessary,
+     zero-translation holds; every intervention is recorded separately from
+     solver failure.
 
 ## Current Evidence
 
@@ -49,8 +67,12 @@ The strongest current success case is `manta_crossover`:
 python run.py sweep --scenario manta_crossover --iterations 2 --max-steps 230
 ```
 
-The latest curated run selects LMPC iteration 2, stays collision-free, and
-improves first-hit step proxies from `84/223` to `52/181`.
+The latest curated run selects LMPC iteration 2, stays swept-collision-free,
+and improves first-hit step proxies from `84/223` to `49/182`. It uses no IPOPT
+fallbacks and one recorded execution-time safety intervention near the inflated
+obstacle boundary. The selected rollout retains `0.018` minimum swept obstacle
+clearance, and the intervention is visible rather than being silently admitted
+as a safe optimization result.
 
 A short `manta_triangle` probe remains safe but incomplete:
 

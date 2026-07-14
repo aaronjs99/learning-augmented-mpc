@@ -6,6 +6,8 @@ from dataclasses import dataclass, asdict
 
 import numpy as np
 
+from .geometry import swept_pairwise_distances
+
 
 @dataclass(frozen=True)
 class RolloutMetrics:
@@ -62,7 +64,7 @@ def compute_rollout_metrics(
     pos = s[:, :, :2]
     goal_pos = g[:, :2]
 
-    dist_pairs = pairwise_distances(s)
+    dist_pairs = swept_pairwise_distances(s)
     min_pair = float(np.min(dist_pairs))
     collisions = int(np.sum(dist_pairs < safety_distance))
 

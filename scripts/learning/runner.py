@@ -17,6 +17,7 @@ from .apf import APFConfig
 from .hyperplanes import get_symmetric_hyperplanes_spatial
 from .policies import priority_margins, warm_start_from_safe_set
 from .recovery import repair_incomplete_with_apf, safe_fallback_apf_step
+from .safety import filter_unsafe_transitions
 from .safe_sets import build_staggered_safe_sets, sample_terminal_safe_set
 
 
@@ -182,11 +183,13 @@ def run_manta_lmpc(
                 goals=goals,
             )
             next_states: dict[int, np.ndarray] = {}
+            step_controls: dict[int, np.ndarray] = {}
             step_statuses: dict[int, str] = {}
 
             for agent in range(num_agents):
                 _raise_if_stop_requested(should_stop)
                 if agent in reached_agents:
+                    step_controls[agent] = np.zeros(2, dtype=float)
                     next_states[agent] = current_states[agent].copy()
                     step_statuses[agent] = "hold"
                     continue
@@ -229,8 +232,25 @@ def run_manta_lmpc(
                     )
                     step_statuses[agent] = "fallback_apf"
 
-                iteration_controls[step, agent] = control
+                step_controls[agent] = control
                 next_states[agent] = next_state
+
+            filtered = filter_unsafe_transitions(
+                current_states=current_states,
+                proposed_controls=step_controls,
+                proposed_next_states=next_states,
+                goals=goals,
+                scenario=scenario,
+                config=config,
+                apf_config=apf_config,
+                dynamics_config=dynamics_config,
+                protected_agents=reached_agents,
+            )
+            step_controls = filtered.controls
+            next_states = filtered.next_states
+            step_statuses.update(filtered.statuses)
+            for agent in range(num_agents):
+                iteration_controls[step, agent] = step_controls[agent]
 
             for agent in range(num_agents):
                 current_states[agent] = next_states[agent]
@@ -323,7 +343,8 @@ def run_manta_lmpc(
                 "  invalid: keeping previous safe set "
                 f"(pair violations={validation.pairwise_violation_count}, "
                 f"obstacle violations={validation.obstacle_violation_count}, "
-                f"fallbacks={validation.fallback_count})."
+                f"fallbacks={validation.fallback_count}, "
+                f"safety interventions={validation.safety_intervention_count})."
             )
 
     return MantaLMPCRunResult(

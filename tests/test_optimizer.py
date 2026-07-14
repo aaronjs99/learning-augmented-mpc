@@ -10,6 +10,14 @@ from scripts.simulation import StaticObstacle
 
 
 class OptimizerTests(unittest.TestCase):
+    def test_config_rejects_nonpositive_safety_collocation(self) -> None:
+        with self.assertRaisesRegex(ValueError, "safety_constraint_substeps"):
+            MantaLMPCConfig(safety_constraint_substeps=0)
+
+    def test_config_rejects_negative_safety_filter_buffer(self) -> None:
+        with self.assertRaisesRegex(ValueError, "safety_filter_buffer"):
+            MantaLMPCConfig(safety_filter_buffer=-0.01)
+
     def test_optimizer_dimensions_follow_horizon_hull_and_agent_count(self) -> None:
         config = replace(MantaLMPCConfig(), prediction_horizon=3, k_hull=4)
         optimizer = MantaAgentOptimizer(

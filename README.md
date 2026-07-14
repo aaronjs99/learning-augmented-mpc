@@ -72,8 +72,9 @@ Equivalent sweep summary:
 Outputs are written under the output root set in `config/manta.yaml`.
 `summary.json` records every candidate iteration in `validation_by_iteration`.
 `selected_iteration` is the APF or LMPC iteration used for the final plots.
-`solver_clean: false` means IPOPT needed a safe-set fallback step, but the
-trajectory can still be valid if it is complete and collision-free.
+`solver_clean: false` means the run used a solver fallback or an execution-time
+safety intervention. The trajectory can still be valid if the recorded states
+are complete and swept-collision-free; inspect both counts in `summary.json`.
 `safe: true` with `valid: false` means the rollout avoided collisions but did
 not reach every goal, so it is not reused as learned safe-set data.
 

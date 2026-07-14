@@ -125,9 +125,15 @@ def _record_for_result(goals, lmpc, result) -> dict[str, object]:
         "selected_fallback_count": (
             selected_validation.fallback_count if selected_validation else None
         ),
+        "selected_safety_interventions": (
+            selected_validation.safety_intervention_count
+            if selected_validation
+            else None
+        ),
         "latest_valid": latest_validation.valid,
         "latest_safe": latest_validation.safe,
         "latest_fallback_count": latest_validation.fallback_count,
+        "latest_safety_interventions": latest_validation.safety_intervention_count,
         "cost_by_iteration": {str(agent): values for agent, values in costs.items()},
         "selected_costs": selected_costs,
     }
@@ -145,9 +151,11 @@ def _write_csv(path: Path, records: list[dict[str, object]]) -> None:
         "selected_min_pairwise",
         "selected_min_obstacle_clearance",
         "selected_fallback_count",
+        "selected_safety_interventions",
         "latest_valid",
         "latest_safe",
         "latest_fallback_count",
+        "latest_safety_interventions",
         "selected_costs",
     ]
     with path.open("w", encoding="utf-8", newline="") as f:
@@ -161,7 +169,7 @@ def _write_csv(path: Path, records: list[dict[str, object]]) -> None:
 
 def _print_table(records: list[dict[str, object]]) -> None:
     print(
-        "scenario, selected, valid, safe, clean, min_pairwise, "
+        "scenario, selected, valid, safe, clean, safety_interventions, min_pairwise, "
         "min_obs_clearance, selected_costs"
     )
     for record in records:
@@ -169,6 +177,7 @@ def _print_table(records: list[dict[str, object]]) -> None:
             f"{record['scenario']}, {record['selected_iteration']}, "
             f"{record['selected_valid']}, {record['selected_safe']}, "
             f"{record['selected_solver_clean']}, "
+            f"{record['selected_safety_interventions']}, "
             f"{_fmt(record['selected_min_pairwise'])}, "
             f"{_fmt(record['selected_min_obstacle_clearance'])}, "
             f"{record['selected_costs']}"

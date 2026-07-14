@@ -8,6 +8,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.collections import LineCollection
 
+from scripts.metrics import segment_pairwise_distances, segment_point_distances
 from scripts.simulation import StaticObstacle
 
 OBSTACLE_VIOLATION_COLOR = "crimson"
@@ -58,7 +59,9 @@ def compute_diagnostics(
                 count = min(len(pos_i), len(pos_j))
                 if count == 0:
                     continue
-                distances = np.linalg.norm(pos_i[:count] - pos_j[:count], axis=1)
+                distances = segment_pairwise_distances(
+                    pos_i[:count], pos_j[:count]
+                )
                 min_pairwise = min(min_pairwise, float(np.min(distances)))
                 pairwise_violations += int(np.sum(distances < safety_distance))
 
@@ -70,7 +73,7 @@ def compute_diagnostics(
         for pos in positions.values():
             if len(pos) == 0:
                 continue
-            clearances = np.linalg.norm(pos - center, axis=1) - obstacle.radius
+            clearances = segment_point_distances(pos, center) - obstacle.radius
             min_clearance = min(min_clearance, float(np.min(clearances)))
             obstacle_violations += int(np.sum(clearances < 0.0))
             if obstacle_padding > 0.0:
@@ -187,7 +190,7 @@ def add_status_markers(
     *,
     labels_used: set[str],
 ) -> None:
-    """Mark first hold and solver fallback locations from one LMPC iteration."""
+    """Mark hold, solver fallback, and safety-filter locations."""
     if not statuses:
         return
 
@@ -228,6 +231,18 @@ def add_status_markers(
                     labels_used=labels_used,
                 )
                 fallback_count += 1
+            elif status.startswith("safety_filter"):
+                _scatter_once(
+                    ax,
+                    x_val,
+                    y_val,
+                    marker="P",
+                    color="darkorange",
+                    edgecolor="black",
+                    size=44,
+                    label="Safety filter",
+                    labels_used=labels_used,
+                )
 
 
 def legend_label(label: str, labels_used: set[str]) -> str:
@@ -246,8 +261,7 @@ def _obstacle_segment_masks(
         return np.zeros(count, dtype=bool), np.zeros(count, dtype=bool)
 
     center = np.asarray(obstacle.center, dtype=float)
-    clearances = np.linalg.norm(traj - center, axis=1) - obstacle.radius
-    segment_clearance = np.minimum(clearances[:-1], clearances[1:])
+    segment_clearance = segment_point_distances(traj, center) - obstacle.radius
     obstacle_mask = segment_clearance < 0.0
     padding_mask = np.zeros(count, dtype=bool)
     if obstacle_padding > 0.0:
@@ -264,7 +278,7 @@ def _pairwise_segment_mask(
 ) -> np.ndarray:
     traj = np.asarray(positions[agent], dtype=float)
     count = max(0, len(traj) - 1)
-    point_mask = np.zeros(len(traj), dtype=bool)
+    segment_mask = np.zeros(count, dtype=bool)
     if safety_distance is None:
         return np.zeros(count, dtype=bool)
 
@@ -274,9 +288,13 @@ def _pairwise_segment_mask(
         shared = min(len(traj), len(other_traj))
         if shared == 0:
             continue
-        distances = np.linalg.norm(traj[:shared] - other_traj[:shared], axis=1)
-        point_mask[:shared] |= distances < safety_distance
-    return point_mask[:-1] | point_mask[1:]
+        if shared < 2:
+            continue
+        distances = segment_pairwise_distances(
+            traj[:shared], np.asarray(other_traj, dtype=float)[:shared]
+        )
+        segment_mask[: len(distances)] |= distances < safety_distance
+    return segment_mask
 
 
 def _add_segment_collection(

@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass
 
 import numpy as np
 
+from .geometry import segment_point_distances, swept_pairwise_distances
+
 
 History = dict[int, list[np.ndarray] | np.ndarray]
 
@@ -20,6 +22,7 @@ class TrajectoryValidation:
     min_obstacle_clearance: float
     obstacle_violation_count: int
     fallback_count: int
+    safety_intervention_count: int
 
     @property
     def safe(self) -> bool:
@@ -41,8 +44,8 @@ class TrajectoryValidation:
 
     @property
     def solver_clean(self) -> bool:
-        """Return whether no fallback controller was used."""
-        return self.fallback_count == 0
+        """Return whether no fallback or safety intervention was used."""
+        return self.fallback_count == 0 and self.safety_intervention_count == 0
 
     def to_dict(self) -> dict[str, bool | float | int]:
         """Serialize validation metrics for run summaries."""
@@ -102,25 +105,26 @@ def validate_trajectory(
     goal_error = np.linalg.norm(positions - goal_positions[None, :, :], axis=2)
     all_goals_reached = bool(np.all(goal_error[-1] <= goal_tolerance))
 
-    pairwise_distances = [
-        np.linalg.norm(positions[:, i] - positions[:, j], axis=1)
-        for i in range(positions.shape[1])
-        for j in range(i + 1, positions.shape[1])
-    ]
-    if pairwise_distances:
-        pairwise = np.stack(pairwise_distances, axis=1)
-        min_pairwise = float(np.min(pairwise))
-        pairwise_violations = int(np.sum(pairwise < safety_distance))
-    else:
-        min_pairwise = float("inf")
-        pairwise_violations = 0
+    pairwise = swept_pairwise_distances(states)
+    min_pairwise = float(np.min(pairwise))
+    pairwise_violations = int(np.sum(pairwise < safety_distance))
 
     center = np.asarray(obstacle_center, dtype=float)
-    clearance = np.linalg.norm(positions - center[None, None, :], axis=2)
-    clearance -= obstacle_radius
+    clearance = np.stack(
+        [
+            segment_point_distances(positions[:, agent], center) - obstacle_radius
+            for agent in range(positions.shape[1])
+        ],
+        axis=1,
+    )
 
     fallback_count = sum(
         status.startswith("fallback")
+        for step_statuses in statuses or []
+        for status in step_statuses.values()
+    )
+    safety_intervention_count = sum(
+        status.startswith("safety_filter")
         for step_statuses in statuses or []
         for status in step_statuses.values()
     )
@@ -131,6 +135,7 @@ def validate_trajectory(
         min_obstacle_clearance=float(np.min(clearance)),
         obstacle_violation_count=int(np.sum(clearance < 0.0)),
         fallback_count=fallback_count,
+        safety_intervention_count=safety_intervention_count,
     )
 
 

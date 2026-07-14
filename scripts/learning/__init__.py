@@ -13,6 +13,7 @@ from scripts.metrics import cost_by_iteration
 from .policies import priority_margins, warm_start_from_safe_set
 from .recovery import RecoveryResult, repair_incomplete_with_apf, safe_fallback_apf_step
 from .runner import MantaLMPCRunResult, run_manta_lmpc
+from .safety import SafetyFilterResult, filter_unsafe_transitions
 from .safe_sets import (
     build_staggered_safe_sets,
     hold_controls,
@@ -30,6 +31,8 @@ __all__ = [
     "hold_controls",
     "hold_trajectory",
     "MantaLMPCRunResult",
+    "SafetyFilterResult",
+    "filter_unsafe_transitions",
     "priority_margins",
     "RecoveryResult",
     "repair_incomplete_with_apf",

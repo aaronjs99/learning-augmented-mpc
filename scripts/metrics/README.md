@@ -7,8 +7,8 @@ active 7-state manta state and other position-leading state representations.
 
 Current metrics:
 - total position-error cost proxy
-- minimum pairwise distance
-- collision count
+- swept minimum pairwise and obstacle distances between saved states
+- collision interval count, including crossings missed by endpoint-only checks
 - time-to-goal
 - control effort when controls are provided
 - rollout completion and safe-set admission validation

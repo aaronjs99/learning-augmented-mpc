@@ -7,6 +7,11 @@ from .evaluation import (
     history_to_tensor,
     validate_trajectory,
 )
+from .geometry import (
+    segment_pairwise_distances,
+    segment_point_distances,
+    swept_pairwise_distances,
+)
 
 __all__ = [
     "RolloutMetrics",
@@ -15,5 +20,8 @@ __all__ = [
     "cost_by_iteration",
     "history_to_tensor",
     "pairwise_distances",
+    "segment_pairwise_distances",
+    "segment_point_distances",
+    "swept_pairwise_distances",
     "validate_trajectory",
 ]

@@ -17,6 +17,7 @@ configure_matplotlib()
 from matplotlib import pyplot as plt
 
 from scripts.plotting.primitives import add_obstacle_layers, agent_color
+from scripts.plotting.diagnostics import compute_diagnostics
 
 
 class PlottingTests(unittest.TestCase):
@@ -39,6 +40,19 @@ class PlottingTests(unittest.TestCase):
         self.assertEqual(agent_color(0), agent_color(6))
         with self.assertRaisesRegex(ValueError, "nonnegative"):
             agent_color(-1)
+
+    def test_diagnostics_detect_between_sample_crossing(self) -> None:
+        diagnostics = compute_diagnostics(
+            {
+                0: np.array([[-1.0, 0.0], [1.0, 0.0]]),
+                1: np.array([[1.0, 0.0], [-1.0, 0.0]]),
+            },
+            obstacle=None,
+            safety_distance=0.5,
+        )
+
+        self.assertAlmostEqual(diagnostics.min_pairwise_distance, 0.0)
+        self.assertEqual(diagnostics.pairwise_violation_count, 1)
 
     def test_manta_animation_writes_nonblank_multiframe_gif(self) -> None:
         project = load_project_config(scenario_name="manta_crossover")

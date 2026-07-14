@@ -7,6 +7,7 @@ Learning and initialization modules for manta LMPC.
 - `hyperplanes.py`: SVM spatial hyperplanes for pairwise avoidance, including asymmetric margins for priority-aware coordination.
 - `policies.py`: reusable priority allocation and safe-memory warm-start policies.
 - `recovery.py`: bounded APF fallback selection and optional staged terminal repair.
+- `safety.py`: synchronous swept-transition filtering before controls execute.
 - `runner.py`: APF baseline plus repeated decentralized LMPC orchestration and safe-set updates.
 
 Trajectory validation and learning-cost evaluation live in `scripts/metrics/` so
@@ -17,6 +18,10 @@ Tuning values for these modules are loaded from `config/manta.yaml`.
 Only rollouts that are both collision-free and complete are added back into the
 learned safe set. Safe-but-incomplete LMPC attempts are still reported in
 `summary.json`, but they are not used as terminal safe-set data.
+
+Safety is checked independently of the optimizer. Unsafe proposed transitions
+are replaced by bounded APF actions or zero-translation holds, and the report
+separates these interventions from IPOPT fallback events.
 
 LMPC warm starts use stored safe-set controls blended with a nominal constant
 control, which keeps IPOPT close to dynamically plausible prior motion without

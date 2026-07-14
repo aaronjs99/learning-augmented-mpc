@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from scripts.dynamics import MantaDynamicsConfig, rk4_step_np
+from scripts.metrics import segment_point_distances
 from scripts.mpc import MantaLMPCConfig
 from scripts.simulation import Scenario, StaticObstacle
 
@@ -145,8 +146,9 @@ def safe_fallback_apf_step(
 
     for control in candidates:
         next_state = rk4_step_np(current_state, control, dt, dynamics_config)
-        clearance = _obstacle_clearance(next_state, obstacle)
-        extra_clearance = _minimum_extra_clearance(next_state, extra_obstacles)
+        transition = np.vstack((current_state, next_state))
+        clearance = _obstacle_clearance(transition, obstacle)
+        extra_clearance = _minimum_extra_clearance(transition, extra_obstacles)
         extra_bonus = extra_clearance if np.isfinite(extra_clearance) else 0.0
         goal_distance = float(np.linalg.norm(next_state[:2] - goal_state[:2]))
         score = (
@@ -257,19 +259,25 @@ def _fallback_control_candidates(
     return candidates
 
 
-def _obstacle_clearance(state: np.ndarray, obstacle: StaticObstacle) -> float:
-    position = np.asarray(state, dtype=float)[:2]
-    center = np.asarray(obstacle.center, dtype=float)
-    return float(np.linalg.norm(position - center) - obstacle.radius)
+def _obstacle_clearance(
+    trajectory: np.ndarray, obstacle: StaticObstacle
+) -> float:
+    return float(
+        np.min(segment_point_distances(trajectory, obstacle.center))
+        - obstacle.radius
+    )
 
 
 def _minimum_extra_clearance(
-    state: np.ndarray,
+    trajectory: np.ndarray,
     extra_obstacles: list[StaticObstacle] | None,
 ) -> float:
     if not extra_obstacles:
         return float("inf")
-    return min(_obstacle_clearance(state, obstacle) for obstacle in extra_obstacles)
+    return min(
+        _obstacle_clearance(trajectory, obstacle)
+        for obstacle in extra_obstacles
+    )
 
 
 def _raise_if_stop_requested(should_stop: Callable[[], bool] | None) -> None:
