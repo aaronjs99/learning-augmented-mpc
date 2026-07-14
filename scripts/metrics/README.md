@@ -3,7 +3,7 @@
 Run-level metrics for manta trajectory rollouts.
 
 Metrics use the first two state dimensions as position, so they work with the
-active 7-state manta state and with legacy 2D states.
+active 7-state manta state and other position-leading state representations.
 
 Current metrics:
 - total position-error cost proxy

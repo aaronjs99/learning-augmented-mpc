@@ -1,7 +1,5 @@
 numpy
 matplotlib
-cvxpy
-osqp
 casadi
 scikit-learn
 pillow
