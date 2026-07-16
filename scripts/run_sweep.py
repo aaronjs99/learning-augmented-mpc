@@ -8,6 +8,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 import sys
+from time import perf_counter
 
 import numpy as np
 
@@ -73,6 +74,7 @@ def main() -> None:
                 f"Running {scenario_name}: "
                 f"iterations={lmpc.iterations}, max_steps={lmpc.max_steps}"
             )
+        started_at = perf_counter()
         result = run_manta_lmpc(
             config.scenario,
             config=lmpc,
@@ -80,7 +82,15 @@ def main() -> None:
             dynamics_config=config.dynamics,
             verbose=False,
         )
-        records.append(_record_for_result(config.scenario.goals, lmpc, result))
+        elapsed_seconds = perf_counter() - started_at
+        records.append(
+            _record_for_result(
+                config.scenario.goals,
+                lmpc,
+                result,
+                elapsed_seconds=elapsed_seconds,
+            )
+        )
 
     _write_csv(output_dir / "benchmark_summary.csv", records)
     with (output_dir / "benchmark_summary.json").open("w", encoding="utf-8") as f:
@@ -90,7 +100,13 @@ def main() -> None:
     print(f"Saved benchmark sweep to: {output_dir}")
 
 
-def _record_for_result(goals, lmpc, result) -> dict[str, object]:
+def _record_for_result(
+    goals,
+    lmpc,
+    result,
+    *,
+    elapsed_seconds: float,
+) -> dict[str, object]:
     selected = result.selected_iteration
     selected_validation = (
         result.validation_by_iteration[selected] if selected is not None else None
@@ -120,6 +136,7 @@ def _record_for_result(goals, lmpc, result) -> dict[str, object]:
         "scenario": result.scenario_name,
         "iterations": lmpc.iterations,
         "max_steps": lmpc.max_steps,
+        "elapsed_seconds": elapsed_seconds,
         "selected_iteration": selected,
         "selected_valid": selected_validation.valid if selected_validation else False,
         "selected_safe": selected_validation.safe if selected_validation else False,
@@ -160,6 +177,7 @@ def _record_for_result(goals, lmpc, result) -> dict[str, object]:
         ],
         "latest_valid": latest_validation.valid,
         "latest_safe": latest_validation.safe,
+        "latest_solver_clean": latest_validation.solver_clean,
         "latest_fallback_count": latest_validation.fallback_count,
         "latest_safety_interventions": latest_validation.safety_intervention_count,
         "cost_by_iteration": {str(agent): values for agent, values in costs.items()},
@@ -172,6 +190,7 @@ def _write_csv(path: Path, records: list[dict[str, object]]) -> None:
         "scenario",
         "iterations",
         "max_steps",
+        "elapsed_seconds",
         "selected_iteration",
         "selected_valid",
         "selected_safe",
@@ -190,6 +209,7 @@ def _write_csv(path: Path, records: list[dict[str, object]]) -> None:
         "latest_nonzero_hyperplane_slack_steps",
         "latest_valid",
         "latest_safe",
+        "latest_solver_clean",
         "latest_fallback_count",
         "latest_safety_interventions",
         "selected_costs",
@@ -205,15 +225,18 @@ def _write_csv(path: Path, records: list[dict[str, object]]) -> None:
 
 def _print_table(records: list[dict[str, object]]) -> None:
     print(
-        "scenario, selected, valid, safe, clean, safety_interventions, "
+        "scenario, seconds, selected, valid, safe, selected_clean, latest_clean, "
+        "safety_interventions, "
         "selected_static_slack, latest_static_slack, min_pairwise, "
         "min_obs_clearance, selected_costs"
     )
     for record in records:
         print(
-            f"{record['scenario']}, {record['selected_iteration']}, "
+            f"{record['scenario']}, {_fmt(record['elapsed_seconds'])}, "
+            f"{record['selected_iteration']}, "
             f"{record['selected_valid']}, {record['selected_safe']}, "
             f"{record['selected_solver_clean']}, "
+            f"{record['latest_solver_clean']}, "
             f"{record['selected_safety_interventions']}, "
             f"{_fmt(record['selected_max_static_slack'])}, "
             f"{_fmt(record['latest_max_static_slack'])}, "

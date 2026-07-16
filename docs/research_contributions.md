@@ -26,8 +26,9 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
      become terminal data.
 
 4. **Benchmark sweep surface**
-   - `python run.py sweep` produces compact scenario-level validity, safety,
-     fallback, clearance, and first-hit cost summaries.
+   - `python run.py sweep` produces compact scenario-level runtime, selected
+     and latest solver status, validity, safety, fallback, clearance, and
+     first-hit cost summaries.
    - This makes scenario tuning and method comparisons reproducible.
 
 5. **Performance-aware APF safe-set selection**
