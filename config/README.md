@@ -1,8 +1,9 @@
 # Config
 
 `manta.yaml` is the default runtime configuration for manta LMPC.
-`harbor.yaml` independently configures heterogeneous UGV/USV/ROV dynamics,
+`harbor.yaml` independently configures the physical UGV/USV/ROV dynamics,
 operating domains, coordination, and delayed communication experiments.
+`harbor_reduced.yaml` preserves the former reduced models and benchmark.
 UGV and USV goals are planar `[x, y, yaw]` poses. ROV goals and waypoints are
 `[x, y, z, roll, pitch, yaw]` poses for its 12-state, 6-DOF model. Position and
 orientation tolerances are configured separately.
@@ -26,6 +27,15 @@ safe set. `terminal_position_only` avoids invalid Euclidean convex combinations
 of wrapped angles while full pose tracking and final orientation tolerances
 remain active. A rollout is learned only when it is complete, swept-safe,
 solver-clean, and uses no collision slack.
+`seed_learning_from_mpc` chooses whether a clean, lower-cost plain MPC rollout
+replaces guidance as the first learned safe trajectory. It is enabled for the
+physical experiment and disabled only in the frozen reduced benchmark.
+
+Physical model mass/inertia, damping, buoyancy, body centers, wheelbase,
+steering, force, moment, and speed limits are all YAML values. They are
+illustrative until identified for a specific vehicle. Control costs are
+normalized by each platform's actuator limits so steering angles, newtons, and
+newton-meters remain comparable in the shared objective.
 
 It owns the scenario states/goals, obstacle, dynamics constants, APF initializer
 tuning, LMPC horizons/weights/slacks, and output defaults. CLI flags in

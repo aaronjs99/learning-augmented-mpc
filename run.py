@@ -48,6 +48,11 @@ def main() -> None:
         from scripts.run_harbor_lmpc import main as run_harbor_lmpc
 
         run_harbor_lmpc()
+    elif command == "harbor-horizon-study":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_horizon_study import main as run_horizon_study
+
+        run_horizon_study()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

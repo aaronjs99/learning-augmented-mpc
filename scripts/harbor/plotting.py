@@ -305,7 +305,8 @@ def save_harbor_learning_progress(
         )
         axis.set_title(
             f"{label}\nsteps={iteration.completion_step_sum}, "
-            f"min={iteration.result.min_pairwise_distance:.3f} m"
+            f"min={iteration.result.min_pairwise_distance:.3f} m, "
+            f"{'admitted' if iteration.admitted else 'rejected'}"
         )
         if index == count - 1:
             axis.legend(loc="upper left", fontsize=7, framealpha=0.92)
@@ -320,12 +321,27 @@ def save_harbor_learning_progress(
     x = np.arange(count)
     cost_axis = fig.add_subplot(grid[1, : max(1, count // 2)])
     costs = [item.completion_step_sum for item in iterations]
-    bars = cost_axis.bar(x, costs, color="#377eb8")
+    bars = cost_axis.bar(
+        x,
+        costs,
+        color=["#377eb8" if item.admitted else "#999999" for item in iterations],
+        hatch=[None if item.admitted else "//" for item in iterations],
+    )
     cost_axis.bar_label(bars, padding=3)
     baseline = costs[0]
     for index, cost in enumerate(costs[1:], start=1):
-        improvement = 100.0 * (baseline - cost) / baseline
-        cost_axis.text(index, cost * 0.55, f"{improvement:.1f}% faster", ha="center", color="white")
+        if iterations[index].admitted:
+            improvement = 100.0 * (baseline - cost) / baseline
+            annotation = f"{improvement:.1f}% faster"
+        else:
+            annotation = "rejected"
+        cost_axis.text(
+            index,
+            cost * 0.55,
+            annotation,
+            ha="center",
+            color="white",
+        )
     cost_axis.set_xticks(x, labels=labels, rotation=12, ha="right")
     cost_axis.set_ylabel("sum of first-goal steps")
     cost_axis.set_title("Task Completion Cost (lower is better)")
@@ -333,7 +349,13 @@ def save_harbor_learning_progress(
 
     health_axis = fig.add_subplot(grid[1, max(1, count // 2) :])
     separations = [item.result.min_pairwise_distance for item in iterations]
-    health_bars = health_axis.bar(x - 0.18, separations, width=0.36, color="#4daf4a")
+    health_bars = health_axis.bar(
+        x - 0.18,
+        separations,
+        width=0.36,
+        color=["#4daf4a" if item.admitted else "#999999" for item in iterations],
+        hatch=[None if item.admitted else "//" for item in iterations],
+    )
     health_axis.bar_label(health_bars, fmt="%.3f", padding=3)
     health_axis.set_ylabel("minimum swept separation [m]")
     health_axis.set_xticks(x, labels=labels, rotation=12, ha="right")
@@ -425,6 +447,71 @@ def save_network_robustness_heatmap(
                 )
         fig.colorbar(image, ax=axis, shrink=0.82)
     fig.suptitle("ETA-Priority Harbor Communication Robustness", fontsize=15)
+    fig.tight_layout()
+    fig.savefig(output, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+    return output
+
+
+def save_horizon_efficiency(
+    records: list[dict[str, float | int | str | bool]], path: str | Path
+) -> Path:
+    """Save task-performance and solve-time curves for matched horizons."""
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    horizons = sorted({int(record["prediction_horizon"]) for record in records})
+    fig, axes = plt.subplots(1, 2, figsize=(12.8, 4.8))
+    styles = {
+        "MPC": ("#377eb8", "o"),
+        "LMPC": ("#e41a1c", "s"),
+    }
+    for controller, (color, marker) in styles.items():
+        selected = {
+            int(record["prediction_horizon"]): record
+            for record in records
+            if record["controller"] == controller
+        }
+        costs = [float(selected[horizon]["completion_step_sum"]) for horizon in horizons]
+        times = [float(selected[horizon]["mean_solve_time_ms"]) for horizon in horizons]
+        axes[0].plot(
+            horizons,
+            costs,
+            color=color,
+            marker=marker,
+            linewidth=2.2,
+            label=controller,
+        )
+        axes[1].plot(
+            horizons,
+            times,
+            color=color,
+            marker=marker,
+            linewidth=2.2,
+            label=controller,
+        )
+        for horizon, cost in zip(horizons, costs, strict=True):
+            record = selected[horizon]
+            suffix = "" if record["complete"] else "\nincomplete"
+            axes[0].annotate(
+                f"{cost:.0f}{suffix}",
+                (horizon, cost),
+                xytext=(0, 8 if controller == "MPC" else -16),
+                textcoords="offset points",
+                ha="center",
+                color=color,
+                fontsize=8,
+            )
+    axes[0].set_title("Completion Cost and Liveness")
+    axes[0].set_ylabel("sum of first-goal steps")
+    axes[1].set_title("Mean Per-Agent NLP Solve Latency")
+    axes[1].set_ylabel("milliseconds per solve")
+    for axis in axes:
+        axis.set_xlabel("prediction horizon N")
+        axis.set_xticks(horizons)
+        axis.margins(y=0.12)
+        axis.grid(True, alpha=0.28)
+        axis.legend()
+    fig.suptitle("Learning Terminal Sets Compress the Required Horizon", fontsize=15)
     fig.tight_layout()
     fig.savefig(output, dpi=180, bbox_inches="tight")
     plt.close(fig)

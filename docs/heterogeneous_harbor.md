@@ -22,13 +22,13 @@ dynamics, control bounds, position/velocity extraction, and operating domain.
 Shared coordination sees only world-frame position, velocity, and desired
 velocity.
 
-- UGV: planar acceleration-controlled unicycle with a 3-DOF `[x, y, yaw]`
-  pose goal on its ground domain.
-- USV: planar surge/yaw dynamics with drag and a 3-DOF `[x, y, yaw]` pose
-  goal at the water surface.
-- ROV: untethered damped 6-DOF motion with a 12-state pose/velocity model,
-  six wrench controls, and `[x, y, z, roll, pitch, yaw]` goals inside the
-  underwater volume.
+- UGV: low-speed kinematic bicycle with acceleration/steering controls and a
+  3-DOF `[x, y, yaw]` pose goal on its ground domain.
+- USV: underactuated body-frame surge/sway/yaw marine dynamics, thrust/yaw-
+  moment controls, and a 3-DOF pose goal at the water surface.
+- ROV: body-frame 6-DOF marine dynamics with inertia, Coriolis, linear and
+  quadratic damping, hydrostatic restoring forces, six wrench controls, and
+  `[x, y, z, roll, pitch, yaw]` goals inside the underwater volume.
 
 The configured shoreline separates the operating media. The UGV remains on the
 quay/ground above the shoreline, the USV remains in harbor water at `z=0`, and
@@ -55,17 +55,21 @@ The default deterministic benchmark is complete, swept-safe, and solver-clean:
 
 | Controller | Step sum | Min distance | Fallbacks | Collision slack |
 | --- | ---: | ---: | ---: | ---: |
-| Guidance seed | 205 | 1.568 m | 0 | 0 |
-| Distributed MPC | 171 | 0.874 m | 0 | 0 |
-| Distributed LMPC 1 | 171 | 1.078 m | 0 | 0 |
-| Distributed LMPC 2 | 169 | 0.921 m | 0 | 0 |
+| Guidance seed | 242 | 1.501 m | 0 | 0 |
+| Distributed MPC (`N=12`) | 173 | 0.909 m | 0 | 0 |
+| Distributed LMPC 1 (`N=12`) | **163** | 0.908 m | 0 | 0 |
+| Distributed LMPC 2 (`N=12`, rejected) | 171 | 0.908 m | 0 | 0 |
 
-Plain MPC reduces completion cost by `16.6%` versus guidance. The second LMPC
-iteration reaches `17.6%`, with terminal slack falling from `0.258` in LMPC 1
-to `0.099` in LMPC 2. This is controlled evidence for the configured scenario,
-not a general guarantee. The simulator and optimizer use matching reduced-order
-equations; `harbor_dynamics.md` documents their limitations and the
-higher-fidelity migration.
+At the same horizon, admitted LMPC improves completion cost by `5.8%` over MPC
+and `32.6%` over guidance. The next iteration is safe and solver-clean but is
+rejected because it regresses the best learned cost. This is controlled
+evidence for the configured scenario, not a general guarantee.
+
+The matched horizon study provides the stronger research result. At `N=8`, MPC
+is safe but incomplete while LMPC is complete with cost `181`. At `N=12`, LMPC
+costs `163` versus MPC's `173`. The `N=12` LMPC even beats the longer `N=15`
+MPC cost of `165` with a smaller nonlinear program. Every study rollout has
+zero swept violations, zero collision slack, and zero solver fallback.
 
 ## Initial Evidence
 
@@ -79,9 +83,9 @@ The default scenario produces:
 
 | Policy | Goals | Violations | Min distance | Step sum |
 | --- | ---: | ---: | ---: | ---: |
-| Independent | 4/4 | 4 | 0.650 m | 180 |
-| Reciprocal communication | 2/4 | 0 | 1.520 m | 462* |
-| ETA-priority communication | 4/4 | 0 | 1.568 m | 205 |
+| Independent | 4/4 | 4 | 0.650 m | 194 |
+| Reciprocal communication | 2/4 | 0 | 1.003 m | 496* |
+| ETA-priority communication | 4/4 | 0 | 1.501 m | 242 |
 
 `*` assigns `horizon + 1` to each incomplete platform. Communication removes all
 swept violations. Reciprocal response remains safe but loses liveness;
@@ -106,6 +110,12 @@ Generate the curated MPC/LMPC telemetry, dashboard, and GIF:
 python run.py harbor-lmpc
 ```
 
+Generate the matched-horizon evidence:
+
+```text
+python run.py harbor-horizon-study
+```
+
 Sweep delay and dropout over five deterministic seeds and generate a robustness
 heatmap:
 
@@ -113,16 +123,16 @@ heatmap:
 python run.py harbor-sweep
 ```
 
-The default 150-trial sweep separates safety from liveness. All tested trials
-remain collision-free, including eight delay steps and `50%` dropout, but final
-completion falls under several delayed or sparse-message conditions. This is
-evidence for safety robustness in the configured scenario, not a general
-guarantee.
+The network sweep separates safety from liveness. Physical dynamics invalidate
+the previous reduced-model claim of universal safety through `50%` dropout:
+some sparse-message trials fail safety or completion. The sweep now maps that
+boundary rather than assuming it away.
 
-The two-step block guidance default retains zero violations, completion, and
-the same `205` step sum as per-step guidance while reducing guidance updates
-from `218` to `119` (`45.4%`). Four-step guidance loses final completion, so
-block size remains an explicit experimental variable.
+The two-step block guidance default is complete and safe at cost `242`; per-step
+guidance is safe but incomplete under inertial command smoothing. Three-step
+guidance is also complete at cost `241` with fewer updates, while four steps
+causes both liveness and safety failures. Block size remains an explicit
+closed-loop design variable rather than a pure compute optimization.
 
 ## Next Research Ablations
 

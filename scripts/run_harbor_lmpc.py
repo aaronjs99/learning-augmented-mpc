@@ -53,6 +53,7 @@ def main() -> None:
             "max_terminal_slack": item.max_terminal_slack,
             "solve_count_by_agent": item.solve_count_by_agent,
             "fallback_count_by_agent": item.fallback_count_by_agent,
+            "failure_steps_by_agent": item.failure_steps_by_agent,
             "failure_status_counts": item.failure_status_counts,
         }
         for item in iterations
@@ -69,12 +70,21 @@ def main() -> None:
         artifact_dir / "research_progress.png",
     )
     if not args.no_gif:
+        best = min(
+            (item for item in iterations if item.admitted),
+            key=lambda item: item.completion_step_sum,
+        )
+        animation_label = (
+            "Distributed MPC"
+            if best.label == "distributed_mpc"
+            else best.label.replace("distributed_lmpc_", "Distributed LMPC ")
+        )
         save_harbor_animation(
-            iterations[-1].result,
+            best.result,
             agents,
             simulation,
             artifact_dir / "harbor_lmpc.gif",
-            label="Distributed LMPC",
+            label=animation_label,
         )
 
 

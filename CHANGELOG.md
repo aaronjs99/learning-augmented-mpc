@@ -20,7 +20,10 @@ All notable repository-level changes are tracked here.
 - Per-agent distributed harbor MPC and LMPC with hard communicated collision
   constraints, safe-trajectory terminal hulls, time-to-go costs, strict clean
   rollout admission, and curated progress PNG/GIF telemetry.
-- Explicit current-versus-target UGV/USV/ROV dynamics documentation.
+- Configurable kinematic-bicycle UGV, 3-DOF marine USV, and 6-DOF marine ROV
+  dynamics with matching NumPy/CasADi transitions and a frozen reduced baseline.
+- Matched-horizon MPC/LMPC study and horizon-efficiency plot demonstrating
+  learned-terminal-set liveness and completion-cost gains.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.
@@ -28,6 +31,10 @@ All notable repository-level changes are tracked here.
 - Baseline solver diagnostics with per-timestep, per-agent statuses.
 
 ### Changed
+- Physical harbor models are now the default; all masses, damping, hydrostatics,
+  steering geometry, and actuator limits live in `config/harbor.yaml`.
+- Harbor learning seeds from the best clean MPC rollout and rejects later safe
+  iterations that regress completion cost.
 - Triangle APF initialization now compares compact concurrent schedules against
   the original sequential fallback using the shared admission validator.
 - The root CLI now supports `python run.py harbor` without writing artifacts by

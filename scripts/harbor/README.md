@@ -4,8 +4,8 @@ The harbor package is independent from the manta-specific seven-state LMPC
 stack. It contains guidance, per-agent distributed MPC, and safe-set LMPC
 controllers behind the same simulation and communication boundary.
 
-- `models.py`: 3-DOF-pose UGV/USV models and a 6-DOF-pose, 12-state untethered
-  ROV behind one guidance contract.
+- `models.py`: kinematic-bicycle UGV, 3-DOF marine USV, and 6-DOF marine ROV,
+  each owning matching numerical and symbolic transitions.
 - `communication.py`: range-, rate-, delay-, TTL-, and dropout-aware message
   delivery with deterministic random seeds.
 - `simulation.py`: operating-domain projection, decentralized coordination,
@@ -13,7 +13,7 @@ controllers behind the same simulation and communication boundary.
 - `config.py`: strict `config/harbor.yaml` loading and model construction.
 - `plotting.py`: safety envelopes, successful-rollout samples, pose-goal
   headings, ROV depth/attitude diagnostics, and a coordinated GIF.
-- `experiments.py`: seeded communication delay/dropout robustness sweeps.
+- `experiments.py`: communication robustness and matched-horizon MPC/LMPC sweeps.
 - `mpc.py`: platform-specific per-agent CasADi optimizers using local state and
   received messages, with hard collision constraints.
 - `learning.py`: verified guidance seed, plain MPC baseline, clean-rollout
@@ -43,8 +43,9 @@ Only complete, swept-safe, zero-fallback, zero-collision-slack rollouts can
 replace the learned trajectory. The terminal hull uses position coordinates;
 full 3-DOF/6-DOF orientation remains in tracking and final acceptance.
 
-The current platform equations are reduced-order and are listed alongside the
-target bicycle and marine-craft equations in `docs/harbor_dynamics.md`.
+The default equations are physically structured but use illustrative YAML
+coefficients. `config/harbor_reduced.yaml` preserves the previous reduced
+models. Exact equations and fidelity limits are in `docs/harbor_dynamics.md`.
 
 The ROV guidance loop uses finite velocity/attitude response gains and
 configurable command smoothing instead of one-step saturated pose correction.

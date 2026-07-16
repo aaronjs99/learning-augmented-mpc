@@ -85,20 +85,25 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       configuration, and communication changes information without introducing
       any physical relative-pose constraint.
     - In the shoreline-constrained harbor, coordination removes four swept UGV
-      violations and raises minimum 3D separation from `0.650 m` to `1.568 m`
+      violations and raises minimum 3D separation from `0.650 m` to `1.501 m`
       while all four platforms satisfy position and attitude tolerances.
     - Reciprocal response is safe but leaves two platforms incomplete;
       ETA-priority is the tested policy that restores both safety and liveness.
-    - A 150-trial seeded delay/dropout sweep remains safe throughout the tested
-      grid but exposes a separate final-completion boundary. This is scoped
-      empirical evidence, not a safety guarantee.
+    - Delay/dropout sweeps now expose both safety and completion boundaries
+      under inertial dynamics; the former universal reduced-model safety claim
+      is intentionally retired.
     - Per-agent distributed MPC and LMPC now use local state plus received
       messages. A prior clean rollout supplies a position-safe terminal hull
       and learned time-to-go; full platform pose remains part of task success.
-    - In the default deterministic case, MPC reduces completion-step sum from
-      `205` to `171`, and LMPC iteration 2 reaches `169` (`17.6%`), with zero
-      swept violations, collision slack, or solver fallbacks. Learned terminal
-      slack falls from `0.258` in iteration 1 to `0.099` in iteration 2.
+    - The default physical-model case reduces completion-step sum from guidance
+      `242` to MPC `173` and admitted LMPC `163`. At the matched `N=12`
+      horizon, LMPC is `5.8%` faster than MPC and has zero swept violations,
+      collision slack, or solver fallbacks.
+    - Horizon compression is the strongest controller result: `N=8` MPC is
+      incomplete while `N=8` LMPC completes at `181`; `N=12` LMPC at `163`
+      also beats the longer `N=15` MPC at `165`.
+    - Numerical and CasADi transitions for the bicycle, 3-DOF marine, and 6-DOF
+      marine models are regression-checked for machine-precision agreement.
 
 13. **Configurable block guidance execution**
     - The useful block-replanning concept from the legacy `distmpc` prototype is
@@ -106,13 +111,23 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       control hold and explicit update-count telemetry.
     - Unlike the legacy centralized GEKKO script, the experiment remains
       heterogeneous, communication-aware, swept-validated, and YAML-backed.
-    - A two-step block cuts guidance updates from `218` to `119` (`45.4%`)
-      while preserving completion, zero violations, and the same `205` step
-      sum; four-step guidance loses completion.
+    - Two- and three-step blocks remain complete and safe under physical
+      dynamics; per-step guidance loses liveness and four-step guidance loses
+      both liveness and safety, making update interval a control variable.
 
 ## Current Evidence
 
-The strongest current success case is `manta_crossover`:
+The strongest heterogeneous result is the physical-model horizon study:
+
+```text
+python run.py harbor-horizon-study
+```
+
+At `N=12`, distributed LMPC improves completion cost from MPC's `173` to
+`163`; at `N=8`, it restores completion where plain MPC is incomplete. All
+reported horizon-study runs remain swept-safe and solver-clean.
+
+The strongest manta-specific case remains `manta_crossover`:
 
 ```text
 python run.py sweep --scenario manta_crossover --iterations 2 --max-steps 230

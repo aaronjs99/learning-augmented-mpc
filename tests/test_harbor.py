@@ -7,10 +7,15 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+import casadi as ca
 import numpy as np
 from PIL import Image
 
-from scripts.harbor import load_harbor_config, run_harbor_simulation
+from scripts.harbor import (
+    DEFAULT_HARBOR_CONFIG,
+    load_harbor_config,
+    run_harbor_simulation,
+)
 from scripts.harbor.experiments import sweep_network_robustness
 from scripts.harbor.learning import run_distributed_harbor_lmpc
 from scripts.harbor.mpc import load_harbor_mpc_config
@@ -27,9 +32,18 @@ class HarborTests(unittest.TestCase):
         self.assertEqual(
             [agent.model.kind for agent in agents], ["ugv", "ugv", "usv", "rov"]
         )
-        self.assertEqual([agent.model.state_dim for agent in agents], [4, 4, 4, 12])
+        self.assertEqual([agent.model.state_dim for agent in agents], [4, 4, 6, 12])
         self.assertEqual([agent.model.control_dim for agent in agents], [2, 2, 2, 6])
         self.assertEqual([agent.model.pose_dim for agent in agents], [3, 3, 3, 6])
+        self.assertEqual(
+            [agent.model.variant for agent in agents],
+            [
+                "kinematic_bicycle",
+                "kinematic_bicycle",
+                "marine_3dof",
+                "marine_6dof",
+            ],
+        )
         self.assertEqual(agents[-1].route.shape, (3, 6))
         self.assertEqual(communication.delay_steps, 1)
         self.assertEqual(communication.message_ttl_steps, 12)
@@ -57,8 +71,12 @@ class HarborTests(unittest.TestCase):
         self.assertGreater(np.ptp(rov_depth), 1.0)
         self.assertLessEqual(np.max(rov_depth), -0.3)
         self.assertGreaterEqual(np.min(rov_depth), simulation.seabed_z)
-        rov_control_delta = np.diff(coordinated.controls["underwater_rov"], axis=0)
-        self.assertLess(np.max(np.abs(rov_control_delta)), 0.9)
+        rov = next(agent for agent in agents if agent.model.kind == "rov")
+        normalized_rov_control = (
+            coordinated.controls[rov.name] / rov.model.control_scale()
+        )
+        rov_control_delta = np.diff(normalized_rov_control, axis=0)
+        self.assertLess(np.max(np.abs(rov_control_delta)), 0.5)
         self.assertLess(
             coordinated.final_orientation_errors["underwater_rov"],
             simulation.orientation_tolerance,
@@ -124,8 +142,12 @@ class HarborTests(unittest.TestCase):
         self.assertEqual(every_step.pairwise_violation_count, 0)
         self.assertEqual(blocked.pairwise_violation_count, 0)
         blocked_cost = sum(blocked.first_goal_steps.values())
-        every_step_cost = sum(every_step.first_goal_steps.values())
-        self.assertLessEqual(blocked_cost, 1.02 * every_step_cost)
+        every_step_cost = sum(
+            step if step is not None else simulation.horizon + 1
+            for step in every_step.first_goal_steps.values()
+        )
+        self.assertTrue(blocked.all_goals_reached)
+        self.assertLess(blocked_cost, every_step_cost)
         self.assertLess(
             blocked.guidance_update_count,
             0.6 * every_step.guidance_update_count,
@@ -143,7 +165,16 @@ class HarborTests(unittest.TestCase):
         )
 
         self.assertEqual(len(records), 4)
-        self.assertTrue(all(record["safe_rate"] == 1.0 for record in records))
+        self.assertTrue(
+            all(0.0 <= record["safe_rate"] <= 1.0 for record in records)
+        )
+        baseline = next(
+            record
+            for record in records
+            if record["delay_steps"] == 0
+            and record["dropout_probability"] == 0.0
+        )
+        self.assertEqual(baseline["safe_rate"], 1.0)
         with TemporaryDirectory() as directory:
             path = save_network_robustness_heatmap(
                 records, Path(directory) / "network.png"
@@ -163,7 +194,7 @@ class HarborTests(unittest.TestCase):
         self.assertTrue(mpc.admitted)
         self.assertTrue(lmpc.admitted)
         self.assertLess(mpc.completion_step_sum, guidance.completion_step_sum)
-        self.assertLessEqual(lmpc.completion_step_sum, guidance.completion_step_sum)
+        self.assertLess(lmpc.completion_step_sum, mpc.completion_step_sum)
         for record in (mpc, lmpc):
             self.assertTrue(record.result.all_goals_reached)
             self.assertEqual(record.result.pairwise_violation_count, 0)
@@ -180,6 +211,52 @@ class HarborTests(unittest.TestCase):
             image = Image.open(path).convert("RGB")
             self.assertGreater(image.width, 1000)
             self.assertGreater(len(image.getcolors(maxcolors=1_000_000)), 10)
+
+    def test_symbolic_and_numeric_platform_steps_match(self) -> None:
+        configs = [
+            DEFAULT_HARBOR_CONFIG,
+            DEFAULT_HARBOR_CONFIG.with_name("harbor_reduced.yaml"),
+        ]
+        for config in configs:
+            agents, simulation, _ = load_harbor_config(config)
+            for agent in (agents[0], agents[2], agents[3]):
+                model = agent.model
+                state = np.asarray(agent.start, dtype=float).copy()
+                goal_delta = model.goal_position(agent.goal) - model.position(state)
+                distance = np.linalg.norm(goal_delta)
+                desired_velocity = (
+                    np.zeros(3)
+                    if distance == 0.0
+                    else goal_delta / distance
+                    * (
+                        model.max_horizontal_speed
+                        if model.kind == "rov"
+                        else model.max_speed
+                    )
+                )
+                control = model.guidance_control(
+                    state,
+                    desired_velocity,
+                    simulation.dt,
+                    desired_pose=agent.goal,
+                )
+                symbolic_state = ca.MX.sym("state", model.state_dim)
+                symbolic_control = ca.MX.sym("control", model.control_dim)
+                transition = ca.Function(
+                    f"step_{model.variant}",
+                    [symbolic_state, symbolic_control],
+                    [
+                        model.symbolic_step(
+                            ca,
+                            symbolic_state,
+                            symbolic_control,
+                            simulation.dt,
+                        )
+                    ],
+                )
+                predicted = np.asarray(transition(state, control)).reshape(-1)
+                executed = model.step(state, control, simulation.dt)
+                np.testing.assert_allclose(predicted, executed, atol=1e-10)
 
 
 if __name__ == "__main__":

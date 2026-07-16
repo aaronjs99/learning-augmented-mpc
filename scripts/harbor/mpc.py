@@ -25,6 +25,7 @@ class HarborMPCConfig:
     learning_iterations: int = 2
     terminal_samples: int = 8
     terminal_position_only: bool = True
+    seed_learning_from_mpc: bool = True
     position_weight: float = 4.0
     orientation_weight: float = 0.8
     velocity_weight: float = 0.15
@@ -200,14 +201,20 @@ class HarborAgentOptimizer:
 
         cost = 0
         previous = p_previous_control
+        control_scale = ca.DM(model.control_scale())
         for index in range(horizon):
             opti.subject_to(
                 states[:, index + 1]
                 == _symbolic_step(ca, model, states[:, index], controls[:, index], self.dt)
             )
             cost += self._tracking_cost(states[:, index + 1], p_goal)
-            cost += cfg.control_weight * ca.dot(controls[:, index], controls[:, index])
-            delta_control = controls[:, index] - previous
+            normalized_control = ca.rdivide(controls[:, index], control_scale)
+            cost += cfg.control_weight * ca.dot(
+                normalized_control, normalized_control
+            )
+            delta_control = ca.rdivide(
+                controls[:, index] - previous, control_scale
+            )
             cost += cfg.control_rate_weight * ca.dot(delta_control, delta_control)
             previous = controls[:, index]
             own_position = _symbolic_position(ca, model, states[:, index + 1])
@@ -311,20 +318,52 @@ class HarborAgentOptimizer:
             opti.bounded(domain.y_bounds[0], states[1, :], domain.y_bounds[1])
         )
         if model.kind == "ugv":
-            opti.subject_to(opti.bounded(0.0, states[3, :], model.max_speed))
+            minimum_speed = (
+                -model.max_reverse_speed
+                if model.variant == "kinematic_bicycle"
+                else 0.0
+            )
+            opti.subject_to(
+                opti.bounded(minimum_speed, states[3, :], model.max_speed)
+            )
             opti.subject_to(
                 opti.bounded(-model.max_acceleration, controls[0, :], model.max_acceleration)
             )
+            steering_bound = (
+                model.max_steering_angle
+                if model.variant == "kinematic_bicycle"
+                else model.max_yaw_rate
+            )
             opti.subject_to(
-                opti.bounded(-model.max_yaw_rate, controls[1, :], model.max_yaw_rate)
+                opti.bounded(-steering_bound, controls[1, :], steering_bound)
             )
         elif model.kind == "usv":
             opti.subject_to(opti.bounded(0.0, states[3, :], model.max_speed))
+            if model.variant == "marine_3dof":
+                opti.subject_to(
+                    opti.bounded(
+                        -model.max_sway_speed,
+                        states[4, :],
+                        model.max_sway_speed,
+                    )
+                )
+                opti.subject_to(
+                    opti.bounded(
+                        -model.max_yaw_rate, states[5, :], model.max_yaw_rate
+                    )
+                )
             opti.subject_to(
                 opti.bounded(-model.max_thrust, controls[0, :], model.max_thrust)
             )
+            yaw_control_bound = (
+                model.max_yaw_moment
+                if model.variant == "marine_3dof"
+                else model.max_yaw_rate
+            )
             opti.subject_to(
-                opti.bounded(-model.max_yaw_rate, controls[1, :], model.max_yaw_rate)
+                opti.bounded(
+                    -yaw_control_bound, controls[1, :], yaw_control_bound
+                )
             )
         else:
             opti.subject_to(
@@ -404,6 +443,9 @@ class DistributedHarborMPC:
         self.max_terminal_slack = 0.0
         self.solve_count_by_agent = {agent.name: 0 for agent in agents}
         self.fallback_count_by_agent = {agent.name: 0 for agent in agents}
+        self.failure_steps_by_agent: dict[str, list[int]] = {
+            agent.name: [] for agent in agents
+        }
         self.failure_status_counts: dict[str, int] = {}
 
     def control(
@@ -448,6 +490,7 @@ class DistributedHarborMPC:
         except RuntimeError:
             self.fallback_count += 1
             self.fallback_count_by_agent[agent.name] += 1
+            self.failure_steps_by_agent[agent.name].append(step)
             status = self.optimizers[agent.name].last_status
             self.failure_status_counts[status] = (
                 self.failure_status_counts.get(status, 0) + 1
@@ -528,34 +571,7 @@ def _warm_reference(
 
 
 def _symbolic_step(ca, model: PlatformModel, state, control, dt: float):
-    if model.kind == "ugv":
-        speed = state[3] + dt * control[0]
-        heading = state[2] + dt * control[1]
-        return ca.vertcat(
-            state[0] + dt * speed * ca.cos(heading),
-            state[1] + dt * speed * ca.sin(heading),
-            heading,
-            speed,
-        )
-    if model.kind == "usv":
-        speed = state[3] + dt * (control[0] - model.drag * state[3])
-        heading = state[2] + dt * control[1]
-        return ca.vertcat(
-            state[0] + dt * speed * ca.cos(heading),
-            state[1] + dt * speed * ca.sin(heading),
-            heading,
-            speed,
-        )
-    velocity = state[6:9] + dt * (control[:3] - model.linear_drag * state[6:9])
-    angular_rate = state[9:12] + dt * (
-        control[3:6] - model.angular_drag * state[9:12]
-    )
-    return ca.vertcat(
-        state[:3] + dt * velocity,
-        state[3:6] + dt * angular_rate,
-        velocity,
-        angular_rate,
-    )
+    return model.symbolic_step(ca, state, control, dt)
 
 
 def _symbolic_position(ca, model: PlatformModel, state):
@@ -575,9 +591,7 @@ def _symbolic_goal_position(ca, model: PlatformModel, goal):
 
 
 def _symbolic_velocity(model: PlatformModel, state):
-    if model.kind in {"ugv", "usv"}:
-        return state[3]
-    return state[6:9]
+    return model.symbolic_velocity(None, state)
 
 
 def _symbolic_orientation_cost(ca, model: PlatformModel, state, goal):

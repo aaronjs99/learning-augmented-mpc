@@ -1,113 +1,96 @@
 # Harbor Dynamics
 
-The harbor optimizer and simulator currently use the same discrete equations.
-This avoids model mismatch inside the experiment, but the models are intentionally
-reduced order. They should not be described as hydrodynamically or mechanically
-high fidelity.
+The default harbor experiment uses physically structured platform models. Each
+model owns both its NumPy transition and its CasADi symbolic transition; a
+regression test evaluates both from the same state and control and requires
+machine-precision agreement. Angles remain continuous internally and are
+wrapped only when pose errors are evaluated.
 
-## Equations used now
+The YAML coefficients are plausible research parameters, not values identified
+for a particular vehicle. The correct claim is therefore *mechanistically
+structured simulation*, not hardware-validated high fidelity.
 
-All models use a semi-implicit Euler step of duration `dt`: velocity is updated
-first, then pose is advanced with the new velocity.
+## UGV: kinematic bicycle
 
-### UGV
-
-State `q = [x, y, psi, v]` and control `u = [a, omega]`:
-
-```text
-v+   = clip(v + dt a, 0, v_max)
-psi+ = wrap(psi + dt omega)
-x+   = x + dt v+ cos(psi+)
-y+   = y + dt v+ sin(psi+)
-```
-
-This is an acceleration-controlled unicycle. It enforces planar motion, speed,
-acceleration, yaw-rate, and quay-domain bounds. It has no wheelbase, steering
-angle, tire force, slip, or motor dynamics.
-
-### USV
-
-State `q = [x, y, psi, v]` and control `u = [T, omega]`:
+State `q = [x, y, psi, v]` and input `u = [a, delta]`, where `delta` is steering
+angle and `L` is wheelbase:
 
 ```text
-v+   = clip(v + dt (T - d v), 0, v_max)
-psi+ = wrap(psi + dt omega)
-x+   = x + dt v+ cos(psi+)
-y+   = y + dt v+ sin(psi+)
+x_dot   = v cos(psi)
+y_dot   = v sin(psi)
+psi_dot = (v / L) tan(delta)
+v_dot   = a
 ```
 
-This is a surge-and-yaw surface model with scalar linear drag. It has no sway
-velocity, yaw inertia, Coriolis force, current, wind, wave, or thruster allocation.
+The discrete transition updates bounded forward/reverse speed first and then
+advances yaw and position. Acceleration, steering angle, wheelbase, forward
+speed, reverse speed, and the quay domain are independently bounded. Guidance
+uses a signed-speed nonlinear pose controller, so the UGV can converge to
+`[x, y, yaw]` without an unphysical ability to rotate in place.
 
-### ROV
+This model omits steering actuator state, wheel slip, tire forces, suspension,
+and motor dynamics. Those effects are unnecessary at the configured low speed
+but would matter in high-speed or low-friction studies.
 
-Pose `eta = [x, y, z, phi, theta, psi]`, world-frame velocity
-`nu = [vx, vy, vz, p, q, r]`, and world-frame wrench
-`tau = [Fx, Fy, Fz, K, M, N]`:
+## USV: underactuated 3-DOF marine craft
 
-```text
-nu_linear+  = nu_linear  + dt (F - d_linear nu_linear)
-nu_angular+ = nu_angular + dt (T - d_angular nu_angular)
-eta_pos+     = eta_pos     + dt nu_linear+
-eta_angle+   = wrap(eta_angle + dt nu_angular+)
-```
-
-This gives the ROV a real 6-DOF pose goal, 12-state trajectory, six controls,
-depth limits, and attitude tracking. It assumes unit mass and inertia and omits
-body-frame kinematics, added mass, Coriolis/centripetal terms, buoyancy, gravity,
-hydrodynamic cross-coupling, currents, and actuator allocation.
-
-## Target platform models
-
-### UGV target: steering bicycle
-
-Use `q = [x, y, psi, v, delta]` and `u = [a, delta_rate]`, with wheelbase `L`:
-
-```text
-x_dot     = v cos(psi)
-y_dot     = v sin(psi)
-psi_dot   = (v / L) tan(delta)
-v_dot     = a
-delta_dot = delta_rate
-```
-
-This preserves a compact nonlinear MPC while replacing direct yaw-rate command
-with physically meaningful steering position and rate constraints. Tire-force
-dynamics are only warranted for higher-speed or low-friction experiments.
-
-### USV target: underactuated 3-DOF marine craft
-
-Use earth-fixed pose `eta = [x, y, psi]`, body velocity `nu = [u, v, r]`, and
-surge/yaw input `tau = [T, 0, N]`:
+Earth-fixed pose `eta = [x, y, psi]`, body velocity `nu = [u, v, r]`, and
+underactuated input `tau = [T, 0, N]` satisfy:
 
 ```text
 eta_dot = R(psi) nu
-M nu_dot + C(nu) nu + D(nu) nu = tau + tau_environment
+M nu_dot + C(nu) nu + D(nu) nu = tau
+D(nu)nu = D_linear nu + D_quadratic |nu| nu
 ```
 
-This adds sway, mass and yaw inertia, added mass, nonlinear coupling, calibrated
-damping, and optional wind/current disturbance while retaining a 3-DOF goal.
+`M = diag(m_u, m_v, I_z)` includes effective surge/sway mass and yaw inertia.
+The Coriolis product used by both simulator and optimizer is:
 
-### ROV target: 6-DOF marine rigid-body dynamics
+```text
+C(nu)nu = [-m_v v r,
+             m_u u r,
+            (m_v - m_u) u v]
+```
 
-Use earth-fixed pose `eta = [x, y, z, phi, theta, psi]`, body velocity
-`nu = [u, v, w, p, q, r]`, and generalized wrench `tau`:
+Unlike the former scalar-surge model, this state includes sway and yaw-rate
+dynamics. It remains a calm-water model: current, wind, waves, explicit added-
+mass matrices, and individual propeller allocation are future disturbances and
+identification targets.
+
+## ROV: 6-DOF marine craft
+
+Earth-fixed pose `eta = [x, y, z, phi, theta, psi]`, body velocity
+`nu = [u, v, w, p, q, r]`, and body wrench
+`tau = [X, Y, Z, K, M, N]` satisfy:
 
 ```text
 eta_dot = J(eta) nu
-M nu_dot + C(nu) nu + D(nu) nu + g(eta) = tau + tau_environment
-tau = B f_thruster
+M nu_dot + C(nu) nu + D(nu) nu + g(eta) = tau
 ```
 
-`M` contains rigid-body inertia and added mass, `C` contains Coriolis and
-centripetal terms, `D` is hydrodynamic damping, `g` contains weight/buoyancy
-restoring forces, and `B` maps individual thrusters to body wrench. This is the
-appropriate next ROV model, but its coefficients must be YAML-configured and
-identified or sourced for a particular vehicle; inventing them would only make
-the simulation look more complicated, not more accurate.
+`J` contains the full ZYX body-to-world rotation and Euler-rate transform.
+`M` is a configurable positive diagonal effective inertia. `C(nu)nu` is built
+from linear and angular momentum cross products, `D` contains linear and
+quadratic damping, and `g` contains gravity/buoyancy forces plus moments from
+the configured centers of gravity and buoyancy. The default vehicle is neutrally
+buoyant with its center of buoyancy above its center of gravity, producing
+roll/pitch restoring moments.
+
+The ROV has a real 12-state trajectory, six bounded wrench inputs, 6-DOF pose
+goal, body-frame velocity, depth limits, and attitude dynamics. It does not yet
+model off-diagonal added mass, Euler-angle singularity avoidance, current/wave
+disturbances, or a thruster allocation `tau = B f_thruster`. Those require a
+specific vehicle geometry and identified coefficients.
+
+## Reduced reproducibility models
+
+`config/harbor_reduced.yaml` preserves the earlier unicycle, scalar surge/yaw,
+and world-frame damped ROV equations. It also preserves the original LMPC seed
+policy and the published `205 -> 171 -> 169` completion-cost sequence. This
+baseline exists for controlled model-fidelity comparisons; it is not the
+default.
 
 The marine equations follow the standard compact model summarized by
 [Fossen's Marine Craft Model](https://www.fossen.biz/html/marineCraftModel.html).
-A 3-DOF surge-sway-yaw reduction is standard for surface vessels; one practical
-derivation and experimental model appears in
+A practical 3-DOF USV derivation and experimental model appears in
 [Wang et al.](https://pmc.ncbi.nlm.nih.gov/articles/PMC6539673/).

@@ -8,8 +8,8 @@ heterogeneous harbor research testbed. The manta state is:
 The default run is controlled by `config/manta.yaml`.
 
 The harbor testbed supplies guidance, distributed MPC, and distributed LMPC
-controllers over heterogeneous reduced-order dynamics. UGV/USV goals are
-3-DOF planar poses and ROV goals are 6-DOF poses. See
+controllers over bicycle, 3-DOF surface-marine, and 6-DOF underwater-marine
+dynamics. UGV/USV goals are 3-DOF planar poses and ROV goals are 6-DOF poses. See
 `docs/harbor_dynamics.md` for the exact equations and fidelity boundary.
 
 ## Workflow
@@ -55,7 +55,7 @@ Compact benchmark sweep, APF-only by default:
 
 `python3 run.py sweep`
 
-Fast regression tests (no IPOPT solve):
+Regression suite, including one clean physical harbor MPC/LMPC solve:
 
 `python3 run.py test`
 
@@ -75,9 +75,13 @@ Distributed harbor MPC/LMPC with a rolling research dashboard and GIF:
 
 `python3 run.py harbor-lmpc`
 
-This overwrites only `results/latest/harbor/metrics.json`,
-`research_progress.png`, and `harbor_lmpc.gif`. Add `--no-gif` for a faster
-metrics-and-PNG iteration.
+Matched-horizon MPC/LMPC efficiency study:
+
+`python3 run.py harbor-horizon-study`
+
+These commands overwrite five curated artifacts in `results/latest/harbor/`:
+the main metrics/dashboard/GIF plus the horizon-study JSON/PNG. Add `--no-gif`
+to `harbor-lmpc` for a faster metrics-and-PNG iteration.
 
 Useful overrides:
 

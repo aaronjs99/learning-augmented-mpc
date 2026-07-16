@@ -106,6 +106,7 @@ class HarborSimulationConfig:
     guidance_update_interval_steps: int = 1
     goal_tolerance: float = 0.25
     orientation_tolerance: float = 0.15
+    approach_speed_gain: float = 1.0
     coordination_distance: float = 2.0
     avoidance_gain: float = 1.5
     yielding_speed_scale: float = 0.15
@@ -127,6 +128,7 @@ class HarborSimulationConfig:
         if (
             self.goal_tolerance <= 0.0
             or self.orientation_tolerance <= 0.0
+            or self.approach_speed_gain <= 0.0
             or self.coordination_distance <= 0.0
         ):
             raise ValueError("harbor goal and coordination distances must be positive")
@@ -254,7 +256,10 @@ def run_harbor_simulation(
                 desired_velocity = np.zeros(3)
                 if goal_distance > config.goal_tolerance:
                     desired_velocity = goal_delta / max(goal_distance, 1e-9)
-                    desired_velocity *= _platform_speed(agent.model)
+                    desired_velocity *= min(
+                        _platform_speed(agent.model),
+                        config.approach_speed_gain * goal_distance,
+                    )
                     desired_velocity = _coordinate_velocity(
                         name,
                         position,
@@ -269,9 +274,15 @@ def run_harbor_simulation(
             left_goal = name in stopped_at_goal and not at_goal
             if left_goal:
                 stopped_at_goal.remove(name)
+            continuous_station_keeping = agent.model.variant in {
+                "marine_3dof",
+                "marine_6dof",
+            }
             update_guidance = name not in last_controls or (
                 at_goal and name not in stopped_at_goal
             )
+            if at_goal and continuous_station_keeping:
+                update_guidance = True
             if left_goal:
                 update_guidance = True
             if not at_goal and step % config.guidance_update_interval_steps == 0:

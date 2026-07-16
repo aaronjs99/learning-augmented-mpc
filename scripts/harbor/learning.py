@@ -24,6 +24,7 @@ class HarborLearningIteration:
     max_terminal_slack: float
     solve_count_by_agent: dict[str, int]
     fallback_count_by_agent: dict[str, int]
+    failure_steps_by_agent: dict[str, list[int]]
     failure_status_counts: dict[str, int]
 
 
@@ -67,15 +68,21 @@ def run_distributed_harbor_lmpc(
         communication,
         control_provider=mpc_controller,
     )
+    mpc_admitted = _controller_admissible(mpc_result, mpc_controller)
+    mpc_cost = _completion_cost(mpc_result, simulation.horizon)
     iterations.append(
         _controller_record(
             "distributed_mpc",
             mpc_result,
             mpc_controller,
-            admitted=_controller_admissible(mpc_result, mpc_controller),
+            admitted=mpc_admitted,
             simulation=simulation,
         )
     )
+    if mpc_config.seed_learning_from_mpc and mpc_admitted and mpc_cost <= best_cost:
+        safe_states = mpc_result.states
+        safe_controls = mpc_result.controls
+        best_cost = mpc_cost
 
     for iteration in range(1, mpc_config.learning_iterations + 1):
         controller = DistributedHarborMPC(
@@ -130,6 +137,7 @@ def _controller_record(
         max_terminal_slack=controller.max_terminal_slack,
         solve_count_by_agent=controller.solve_count_by_agent,
         fallback_count_by_agent=controller.fallback_count_by_agent,
+        failure_steps_by_agent=controller.failure_steps_by_agent,
         failure_status_counts=controller.failure_status_counts,
     )
 
@@ -147,6 +155,7 @@ def _record(
     max_terminal_slack=0.0,
     solve_count_by_agent=None,
     fallback_count_by_agent=None,
+    failure_steps_by_agent=None,
     failure_status_counts=None,
 ) -> HarborLearningIteration:
     return HarborLearningIteration(
@@ -161,6 +170,7 @@ def _record(
         max_terminal_slack=max_terminal_slack,
         solve_count_by_agent=solve_count_by_agent or {},
         fallback_count_by_agent=fallback_count_by_agent or {},
+        failure_steps_by_agent=failure_steps_by_agent or {},
         failure_status_counts=failure_status_counts or {},
     )
 
