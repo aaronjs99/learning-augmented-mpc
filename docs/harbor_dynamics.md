@@ -116,7 +116,8 @@ The horizontal vectored thrusters provide surge, sway, and yaw; the four Heavy
 vertical thrusters provide heave, roll, and pitch. The coefficient signs follow
 [ArduSub's `VECTORED_6DOF` motor matrix](https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_Motors/AP_Motors6DOF.cpp),
 while row magnitudes are calibrated to the configured BlueROV2 Heavy bollard-
-force and moment limits. Guidance uses a
+force and moment limits. The complete matrix is YAML-owned and rank-validated
+when the platform profile loads. Guidance uses a
 pseudoinverse allocation followed by uniform desaturation, and MPC optimizes
 the eight bounded forces directly. The model does not yet include asymmetric
 forward/reverse T200 curves, off-diagonal added mass, Euler-angle singularity
@@ -174,10 +175,12 @@ alpha_hat_next = (1-gamma) alpha_hat
 Only locally measured state and the platform's prior command enter this update.
 An unexcited or dynamically indistinguishable channel remains at its prior;
 this is an observability result, not evidence that the actuator is healthy.
-The model identifies generalized force/moment effectiveness. It does not yet
-identify individual RobEn/Inspector-Gadget wheel motors, Heron waterjets, or
-BlueROV2 thrusters; that requires an explicit allocation matrix and sufficiently
-exciting maneuvers.
+The model identifies physical left/right UGV drives, Heron port/starboard
+waterjets, and all eight BlueROV2 Heavy thrusters. RobEn's four wheels are
+grouped into the two drive-side commands exposed by its base controller rather
+than treated as independently commandable motors. An unidentifiable actuator
+combination therefore reflects insufficient excitation, not a missing
+allocation model.
 
 Optional active identification makes missing excitation explicit. For channel
 `j`, the controller accumulates normalized command energy
@@ -200,6 +203,28 @@ variables. If the pulse-constrained NLP is infeasible, the agent immediately
 re-solves the ordinary NLP. Thus a rejected information request is telemetry,
 not an executed guidance fallback. A later LMPC iteration can initialize from
 that same agent's prior local gain estimate and admitted control/state rollout.
+
+The information-aware scheduler instead maintains a local linearized Fisher
+information proxy over the actuator-effectiveness vector. For each measured
+transition, with normalized sensitivity matrix `J_k`, it updates
+
+```text
+I_k = I_(k-1) + J_k^T J_k
+Sigma_k = (Sigma_0^-1 + I_k / sigma_y^2)^-1
+```
+
+For every admissible channel pulse, it predicts `Delta I_j` and chooses the
+channel with the largest uncertainty-weighted log-determinant gain
+
+```text
+j* = argmax_j log det(Sigma_k^-1 + Delta I_j / sigma_y^2)
+                   - log det(Sigma_k^-1)
+```
+
+subject to the same direct-probe quotas, rejection limits, domain checks, and
+communicated clearance guard. The reported diagonal of `Sigma_k` is a
+linearized scheduling proxy: model mismatch and correlated finite-difference
+errors mean it is not a calibrated statistical confidence interval.
 
 Updates below a normalized command-excitation threshold are skipped. Using the
 effectiveness-adjusted transition, the same agent then computes

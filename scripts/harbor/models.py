@@ -866,6 +866,7 @@ class ROVModel(PlatformModel):
     force_limits: tuple[float, float, float] | None = None
     torque_limits: tuple[float, float, float] | None = None
     thruster_limits: tuple[float, ...] | None = None
+    thruster_allocation: tuple[tuple[float, ...], ...] | None = None
     mass_diagonal: tuple[float, ...] = (18.0, 18.0, 22.0, 1.2, 1.4, 1.5)
     linear_damping: tuple[float, ...] = (8.0, 10.0, 12.0, 1.2, 1.4, 1.5)
     quadratic_damping: tuple[float, ...] = (12.0, 16.0, 18.0, 0.6, 0.8, 0.8)
@@ -898,6 +899,15 @@ class ROVModel(PlatformModel):
             _freeze_vectors(self, "torque_limits")
         if self.thruster_limits is not None:
             _freeze_vectors(self, "thruster_limits")
+        if self.thruster_allocation is not None:
+            object.__setattr__(
+                self,
+                "thruster_allocation",
+                tuple(
+                    tuple(float(value) for value in row)
+                    for row in self.thruster_allocation
+                ),
+            )
         if not (
             len(self.mass_diagonal)
             == len(self.linear_damping)
@@ -911,6 +921,10 @@ class ROVModel(PlatformModel):
             raise ValueError("ROV force and torque limits must have three entries")
         if len(self.thruster_limit_vector) != 8:
             raise ValueError("ROV thruster_limits must have eight entries")
+        if self.allocation_matrix.shape != (6, self.control_dim):
+            raise ValueError("ROV thruster_allocation must have shape 6 x 8")
+        if np.linalg.matrix_rank(self.allocation_matrix) != 6:
+            raise ValueError("ROV thruster_allocation must have full row rank")
         positive = (
             self.max_horizontal_speed,
             self.max_vertical_speed,
@@ -970,6 +984,8 @@ class ROVModel(PlatformModel):
     @property
     def allocation_matrix(self) -> np.ndarray:
         """Return the calibrated BlueROV2 Heavy 6x8 thruster allocation."""
+        if self.thruster_allocation is not None:
+            return np.asarray(self.thruster_allocation, dtype=float)
         horizontal_total = float(np.sum(self.thruster_limit_vector[:4]))
         vertical_total = float(np.sum(self.thruster_limit_vector[4:]))
         x_gain = self.force_limit_vector[0] / horizontal_total

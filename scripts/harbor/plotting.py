@@ -688,7 +688,7 @@ def save_actuator_fault_diagnostics(
     """Show asymmetric-fault paths, cost, convergence, and channel estimates."""
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    fig = plt.figure(figsize=(20.5, 8.4))
+    fig = plt.figure(figsize=(23.0, 8.4))
     grid = fig.add_gridspec(
         2, 3, width_ratios=(1.05, 0.86, 1.20), hspace=0.34, wspace=0.42
     )
@@ -704,11 +704,14 @@ def save_actuator_fault_diagnostics(
     active_diagonal = next(
         trial for trial in trials if trial.label == "Active diagonal MPC"
     )
+    information_aware = next(
+        trial for trial in trials if trial.label == "Information-aware MPC"
+    )
     _draw_harbor_map(map_axis, simulation_config)
     for agent in agents:
         for trial, style, alpha in (
             (diagonal, "--", 0.55),
-            (active_diagonal, "-", 1.0),
+            (information_aware, "-", 1.0),
         ):
             positions = trial.result.positions[agent.name]
             map_axis.plot(
@@ -739,7 +742,7 @@ def save_actuator_fault_diagnostics(
     ]
     style_handles = [
         Line2D([0], [0], color="#333333", linestyle="--", label="passive diagonal"),
-        Line2D([0], [0], color="#333333", linestyle="-", label="active diagonal"),
+        Line2D([0], [0], color="#333333", linestyle="-", label="information-aware"),
     ]
     map_axis.legend(
         handles=[*platform_handles, *style_handles],
@@ -754,8 +757,11 @@ def save_actuator_fault_diagnostics(
             "Scalar-adaptive MPC": "Scalar",
             "Diagonal-adaptive MPC": "Passive diag.",
             "Active diagonal MPC": "Active diag.",
+            "One-pass active MPC": "One-pass",
+            "Information-aware MPC": "Info-aware",
             "Retained diagonal LMPC": "Passive LMPC",
             "Retained active-ID LMPC": "Active-ID LMPC",
+            "Retained information-ID LMPC": "Info-ID LMPC",
         }[trial.label]
         for trial in trials
     ]
@@ -767,8 +773,11 @@ def save_actuator_fault_diagnostics(
             "#d8a02b",
             "#58a66f",
             "#167a53",
+            "#2f9c95",
+            "#7048a8",
             "#6598c4",
             "#205f9c",
+            "#463080",
         ],
     )
     for trial, bar in zip(trials, bars, strict=True):
@@ -791,7 +800,16 @@ def save_actuator_fault_diagnostics(
     adaptive_trials = [trial for trial in trials if trial.label != "Nominal MPC"]
     for trial, color in zip(
         adaptive_trials,
-        ("#d8a02b", "#58a66f", "#167a53", "#6598c4", "#205f9c"),
+        (
+            "#d8a02b",
+            "#58a66f",
+            "#167a53",
+            "#2f9c95",
+            "#7048a8",
+            "#6598c4",
+            "#205f9c",
+            "#463080",
+        ),
         strict=True,
     ):
         errors = _effectiveness_rmse_history(trial, agents, disturbance)
@@ -800,7 +818,19 @@ def save_actuator_fault_diagnostics(
     rmse_axis.set_xlabel("control update")
     rmse_axis.set_ylabel("channel RMSE")
     rmse_axis.grid(True, alpha=0.25)
-    rmse_axis.legend(fontsize=8)
+    uncertainty = _maximum_information_std_history(information_aware, agents)
+    uncertainty_axis = rmse_axis.twinx()
+    uncertainty_axis.plot(
+        uncertainty,
+        color="#111111",
+        linewidth=1.5,
+        linestyle=":",
+        label="info-aware max posterior std",
+    )
+    uncertainty_axis.set_ylabel("max posterior std")
+    handles, legends = rmse_axis.get_legend_handles_labels()
+    extra_handles, extra_legends = uncertainty_axis.get_legend_handles_labels()
+    rmse_axis.legend(handles + extra_handles, legends + extra_legends, fontsize=7)
 
     row_labels = []
     truth_values = []
@@ -828,6 +858,23 @@ def save_actuator_fault_diagnostics(
             ),
         ),
         (
+            "one-pass MPC",
+            _flatten_effectiveness(
+                next(
+                    trial
+                    for trial in trials
+                    if trial.label == "One-pass active MPC"
+                ).final_effectiveness_estimates,
+                agents,
+            ),
+        ),
+        (
+            "info MPC",
+            _flatten_effectiveness(
+                information_aware.final_effectiveness_estimates, agents
+            ),
+        ),
+        (
             "diagonal LMPC",
             _flatten_effectiveness(
                 next(
@@ -845,6 +892,17 @@ def save_actuator_fault_diagnostics(
                     trial
                     for trial in trials
                     if trial.label == "Retained active-ID LMPC"
+                ).final_effectiveness_estimates,
+                agents,
+            ),
+        ),
+        (
+            "info LMPC",
+            _flatten_effectiveness(
+                next(
+                    trial
+                    for trial in trials
+                    if trial.label == "Retained information-ID LMPC"
                 ).final_effectiveness_estimates,
                 agents,
             ),
@@ -877,7 +935,7 @@ def save_actuator_fault_diagnostics(
     matrix_axis.set_yticks(np.arange(len(row_labels)), row_labels)
     fig.colorbar(image, ax=matrix_axis, fraction=0.045, pad=0.03)
     fig.suptitle(
-        "Passive and Active Local Fault Identification for Distributed Harbor MPC/LMPC",
+        "Passive, Round-Robin, and Information-Aware Fault Identification",
         fontsize=15,
     )
     fig.savefig(output, dpi=180, bbox_inches="tight")
@@ -899,6 +957,21 @@ def _effectiveness_rmse_history(trial, agents, disturbance) -> np.ndarray:
         )
         values.append(float(np.sqrt(np.mean(error * error))))
     return np.asarray(values, dtype=float)
+
+
+def _maximum_information_std_history(trial, agents) -> np.ndarray:
+    lengths = [len(trial.information_std_history[agent.name]) for agent in agents]
+    count = min(lengths, default=0)
+    return np.asarray(
+        [
+            max(
+                float(np.max(trial.information_std_history[agent.name][index]))
+                for agent in agents
+            )
+            for index in range(count)
+        ],
+        dtype=float,
+    )
 
 
 def _flatten_effectiveness(estimates, agents: list[HarborAgent]) -> np.ndarray:

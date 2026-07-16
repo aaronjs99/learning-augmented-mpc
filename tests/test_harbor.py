@@ -26,6 +26,7 @@ from scripts.harbor.mpc import (
     _estimate_control_effectiveness,
     _estimate_diagonal_control_effectiveness,
     _identification_channel,
+    _information_identification_channel,
     _least_excited_channel,
     load_harbor_mpc_config,
 )
@@ -183,6 +184,7 @@ class HarborTests(unittest.TestCase):
         model = agents[-1].model
         self.assertEqual(np.linalg.matrix_rank(model.allocation_matrix), 6)
         self.assertEqual(model.allocation_matrix.shape, (6, 8))
+        self.assertIsNotNone(model.thruster_allocation)
         requested = np.array([20.0, -15.0, 30.0, 4.0, -3.0, 5.0])
         command = model.allocate_wrench(requested)
         self.assertTrue(
@@ -227,6 +229,44 @@ class HarborTests(unittest.TestCase):
                 active_identification=True,
                 identification_probe_fraction=0.0,
             )
+
+    def test_information_scheduler_targets_uncertain_identifiable_channel(self) -> None:
+        config = replace(
+            load_harbor_mpc_config(),
+            identification_strategy="information",
+            identification_min_probes_per_channel=1,
+            identification_target_std=0.01,
+        )
+        information = np.diag([20.0, 0.5, 5.0])
+        increments = np.zeros((3, 3, 3))
+        increments[0, 0, 0] = 2.0
+        increments[1, 1, 1] = 4.0
+        increments[2, 2, 2] = 1.0
+        channel = _information_identification_channel(
+            information,
+            increments,
+            np.ones(3, dtype=int),
+            np.zeros(3, dtype=int),
+            config,
+        )
+        self.assertEqual(channel, 1)
+
+    def test_information_scheduler_honors_probe_quota_and_rejections(self) -> None:
+        config = replace(
+            load_harbor_mpc_config(),
+            identification_strategy="information",
+            identification_min_probes_per_channel=2,
+            identification_max_rejections=2,
+        )
+        increments = np.repeat(np.eye(3)[None, :, :], 3, axis=0)
+        channel = _information_identification_channel(
+            np.zeros((3, 3)),
+            increments,
+            np.array([2, 0, 0]),
+            np.array([0, 2, 0]),
+            config,
+        )
+        self.assertEqual(channel, 2)
 
     def test_active_identification_skips_repeatedly_rejected_channel(self) -> None:
         config = replace(

@@ -41,6 +41,9 @@ All notable repository-level changes are tracked here.
 - Constraint-aware active channel probing with local excitation telemetry,
   infeasible-probe rejection, nominal re-solve, and retained local model/safe-
   rollout transfer between repeated MPC and LMPC tasks.
+- Equal-budget Fisher-information probe scheduling with cumulative local
+  information telemetry, physical-channel sequence logging, and matched
+  one-pass/round-robin ablations.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.

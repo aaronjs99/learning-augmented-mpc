@@ -99,9 +99,10 @@ the remaining position drift. Add `--no-gif` for a faster metrics-and-PNG
 iteration.
 
 The fault-study command keeps RobEn and Inspector-Gadget as distinct UGVs,
-estimates their physical left/right drive losses separately, and compares passive versus
-constraint-aware active identification. Repeated LMPC trials retain only their
-own preceding local model estimate and clean rollout.
+estimates their physical left/right drive losses separately, and compares
+passive, round-robin, equal-budget one-pass, and information-aware active
+identification. Repeated LMPC trials retain only their own preceding local
+model estimate and clean rollout.
 
 Useful overrides:
 

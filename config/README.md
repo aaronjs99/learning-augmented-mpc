@@ -47,6 +47,13 @@ all YAML settings. A requested pulse is solved inside the platform NLP. An
 infeasible request is retried without the pulse and recorded separately, so it
 cannot silently become an executed fallback.
 
+`identification_strategy` selects `energy` round-robin probing or
+`information` scheduling. The latter uses `identification_prior_std`,
+`identification_measurement_noise`, and `identification_target_std` to rank
+candidate actuator pulses by expected local log-determinant information gain.
+These values tune a linearized scheduling proxy, not a calibrated confidence
+interval.
+
 `platform_profiles` lets each agent select an independent named model. The
 default UGV profiles are SRI Lab's Jackal-based RobEn and Husky-based Inspector-
 Gadget; they do not share mass, inertia, damping, limits, or footprint. Heron
@@ -54,7 +61,8 @@ and BlueROV2 Heavy profiles likewise own their parameters. Manufacturer maximum
 speed and `mission_speed` are separate. Physical model mass/inertia, damping,
 buoyancy, body centers, axis-specific wrench limits, and speed limits are all
 YAML values. The physical ROV profile also configures eight thruster-force
-limits; its 6x8 allocation is constructed from those and the axis limits.
+limits and the complete 6x8 allocation matrix in `[X,Y,Z,K,M,N]` row and
+`[T1,...,T8]` column order.
 Unidentified payload and hydrodynamic values remain documented
 engineering estimates. Control costs are
 normalized by each platform's actuator limits so steering angles, newtons, and

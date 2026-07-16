@@ -24,6 +24,7 @@ class HarborRobustnessTrial:
     """One matched plant-mismatch trial and its controller telemetry."""
 
     label: str
+    identification_strategy: str
     result: HarborResult
     valid: bool
     source_controller: str | None
@@ -35,8 +36,10 @@ class HarborRobustnessTrial:
     effectiveness_history: dict[str, np.ndarray]
     final_effectiveness_estimates: dict[str, np.ndarray]
     excitation_history: dict[str, np.ndarray]
+    information_std_history: dict[str, np.ndarray]
     probe_count_by_agent: dict[str, int]
     probe_channel_counts: dict[str, np.ndarray]
+    probe_sequence_by_agent: dict[str, list[int]]
     probe_rejection_counts: dict[str, np.ndarray]
 
 
@@ -232,6 +235,7 @@ def run_model_mismatch_study(
         trials.append(
             HarborRobustnessTrial(
                 label=label,
+                identification_strategy=controller.config.identification_strategy,
                 result=result,
                 valid=valid,
                 source_controller=None,
@@ -258,12 +262,20 @@ def run_model_mismatch_study(
                     name: np.asarray(values, dtype=float)
                     for name, values in controller.excitation_history.items()
                 },
+                information_std_history={
+                    name: np.asarray(values, dtype=float)
+                    for name, values in controller.information_std_history.items()
+                },
                 probe_count_by_agent=dict(
                     controller.identification_probe_count_by_agent
                 ),
                 probe_channel_counts={
                     name: value.copy()
                     for name, value in controller.identification_probe_channel_counts.items()
+                },
+                probe_sequence_by_agent={
+                    name: list(value)
+                    for name, value in controller.identification_probe_sequence_by_agent.items()
                 },
                 probe_rejection_counts={
                     name: value.copy()
@@ -317,10 +329,30 @@ def run_actuator_fault_study(
         goal_hold_steps=disturbance.evaluation_hold_steps,
     )
     definitions = (
-        ("Nominal MPC", False, "scalar", False, False, None),
-        ("Scalar-adaptive MPC", True, "scalar", False, False, None),
-        ("Diagonal-adaptive MPC", True, "diagonal", False, False, None),
-        ("Active diagonal MPC", True, "diagonal", False, True, None),
+        ("Nominal MPC", False, "scalar", False, False, None, "energy", 2),
+        ("Scalar-adaptive MPC", True, "scalar", False, False, None, "energy", 2),
+        ("Diagonal-adaptive MPC", True, "diagonal", False, False, None, "energy", 2),
+        ("Active diagonal MPC", True, "diagonal", False, True, None, "energy", 2),
+        (
+            "One-pass active MPC",
+            True,
+            "diagonal",
+            False,
+            True,
+            None,
+            "energy",
+            1,
+        ),
+        (
+            "Information-aware MPC",
+            True,
+            "diagonal",
+            False,
+            True,
+            None,
+            "information",
+            1,
+        ),
         (
             "Retained diagonal LMPC",
             True,
@@ -328,6 +360,8 @@ def run_actuator_fault_study(
             True,
             False,
             "Diagonal-adaptive MPC",
+            "energy",
+            2,
         ),
         (
             "Retained active-ID LMPC",
@@ -336,10 +370,31 @@ def run_actuator_fault_study(
             True,
             False,
             "Active diagonal MPC",
+            "energy",
+            2,
+        ),
+        (
+            "Retained information-ID LMPC",
+            True,
+            "diagonal",
+            True,
+            False,
+            "Information-aware MPC",
+            "information",
+            1,
         ),
     )
     trials = []
-    for label, adaptive, estimator_mode, learning, active, source_label in definitions:
+    for (
+        label,
+        adaptive,
+        estimator_mode,
+        learning,
+        active,
+        source_label,
+        identification_strategy,
+        minimum_probes,
+    ) in definitions:
         source = (
             next(trial for trial in trials if trial.label == source_label)
             if source_label is not None
@@ -354,6 +409,8 @@ def run_actuator_fault_study(
                 control_effectiveness_adaptation=adaptive,
                 effectiveness_estimator_mode=estimator_mode,
                 active_identification=active,
+                identification_strategy=identification_strategy,
+                identification_min_probes_per_channel=minimum_probes,
             ),
             dt=simulation.dt,
             safe_states=safe_result.states,
@@ -385,6 +442,7 @@ def run_actuator_fault_study(
         trials.append(
             HarborRobustnessTrial(
                 label=label,
+                identification_strategy=controller.config.identification_strategy,
                 result=result,
                 valid=valid,
                 source_controller=source_label,
@@ -411,12 +469,20 @@ def run_actuator_fault_study(
                     name: np.asarray(values, dtype=float)
                     for name, values in controller.excitation_history.items()
                 },
+                information_std_history={
+                    name: np.asarray(values, dtype=float)
+                    for name, values in controller.information_std_history.items()
+                },
                 probe_count_by_agent=dict(
                     controller.identification_probe_count_by_agent
                 ),
                 probe_channel_counts={
                     name: value.copy()
                     for name, value in controller.identification_probe_channel_counts.items()
+                },
+                probe_sequence_by_agent={
+                    name: list(value)
+                    for name, value in controller.identification_probe_sequence_by_agent.items()
                 },
                 probe_rejection_counts={
                     name: value.copy()

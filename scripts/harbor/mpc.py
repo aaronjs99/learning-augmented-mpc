@@ -48,8 +48,12 @@ class HarborMPCConfig:
     effectiveness_max: float = 1.2
     effectiveness_excitation_threshold: float = 0.05
     active_identification: bool = False
+    identification_strategy: str = "information"
     identification_probe_fraction: float = 0.12
     identification_target_energy: float = 0.06
+    identification_prior_std: float = 0.25
+    identification_measurement_noise: float = 0.005
+    identification_target_std: float = 0.15
     identification_probe_interval_steps: int = 1
     identification_min_probes_per_channel: int = 2
     identification_max_rejections: int = 2
@@ -91,6 +95,9 @@ class HarborMPCConfig:
             self.effectiveness_excitation_threshold,
             self.identification_probe_fraction,
             self.identification_target_energy,
+            self.identification_prior_std,
+            self.identification_measurement_noise,
+            self.identification_target_std,
             self.identification_clearance_buffer,
         )
         if any(value < 0.0 for value in nonnegative):
@@ -111,6 +118,14 @@ class HarborMPCConfig:
             raise ValueError(
                 "identification_probe_fraction must be positive when active"
             )
+        if self.identification_strategy not in {"energy", "information"}:
+            raise ValueError("identification_strategy must be energy or information")
+        if min(
+            self.identification_prior_std,
+            self.identification_measurement_noise,
+            self.identification_target_std,
+        ) <= 0.0:
+            raise ValueError("identification uncertainty settings must be positive")
 
 
 @dataclass(frozen=True)
@@ -588,12 +603,22 @@ class DistributedHarborMPC:
             for agent in agents
         }
         self.excitation_history = {agent.name: [] for agent in agents}
+        self.information_matrices = {
+            agent.name: np.zeros(
+                (agent.model.control_dim, agent.model.control_dim), dtype=float
+            )
+            for agent in agents
+        }
+        self.information_std_history = {agent.name: [] for agent in agents}
         self.identification_probe_count_by_agent = {
             agent.name: 0 for agent in agents
         }
         self.identification_probe_channel_counts = {
             agent.name: np.zeros(agent.model.control_dim, dtype=int)
             for agent in agents
+        }
+        self.identification_probe_sequence_by_agent: dict[str, list[int]] = {
+            agent.name: [] for agent in agents
         }
         self.identification_probe_rejection_counts = {
             agent.name: np.zeros(agent.model.control_dim, dtype=int)
@@ -707,6 +732,9 @@ class DistributedHarborMPC:
                 self.identification_probe_channel_counts[agent.name][
                     probe_channel
                 ] += 1
+                self.identification_probe_sequence_by_agent[agent.name].append(
+                    probe_channel
+                )
         self.solve_time_seconds += perf_counter() - started
         self.previous_controls[agent.name] = np.asarray(control, dtype=float)
         self.previous_states[agent.name] = np.asarray(state, dtype=float).copy()
@@ -718,6 +746,11 @@ class DistributedHarborMPC:
         )
         self.excitation_history[agent.name].append(
             self.excitation_energy[agent.name].copy()
+        )
+        self.information_std_history[agent.name].append(
+            _posterior_effectiveness_std(
+                self.information_matrices[agent.name], self.config
+            )
         )
         return self.previous_controls[agent.name]
 
@@ -731,6 +764,19 @@ class DistributedHarborMPC:
         previous_control = self.previous_controls[agent.name]
         normalized = previous_control / agent.model.control_scale()
         self.excitation_energy[agent.name] += normalized * normalized
+        normalized_sensitivity = _effectiveness_sensitivity_matrix(
+            agent.model,
+            previous_state,
+            previous_control,
+            self.dt,
+            self.control_effectiveness_estimates[agent.name],
+            self.config,
+            normalize_dynamic_state=True,
+        )
+        jacobian = (
+            normalized_sensitivity / self.config.identification_measurement_noise
+        )
+        self.information_matrices[agent.name] += jacobian.T @ jacobian
         if self.config.control_effectiveness_adaptation:
             self.control_effectiveness_estimates[agent.name] = (
                 _estimate_effectiveness_vector(
@@ -797,12 +843,28 @@ class DistributedHarborMPC:
             )
             if clearance <= required:
                 return empty, empty.copy(), None
-        channel = _identification_channel(
-            self.excitation_energy[agent.name],
-            self.identification_probe_channel_counts[agent.name],
-            self.identification_probe_rejection_counts[agent.name],
-            self.config,
-        )
+        if self.config.identification_strategy == "information":
+            increments = _candidate_probe_information(
+                model,
+                np.asarray(state, dtype=float),
+                self.control_effectiveness_estimates[agent.name],
+                self.dt,
+                self.config,
+            )
+            channel = _information_identification_channel(
+                self.information_matrices[agent.name],
+                increments,
+                self.identification_probe_channel_counts[agent.name],
+                self.identification_probe_rejection_counts[agent.name],
+                self.config,
+            )
+        else:
+            channel = _identification_channel(
+                self.excitation_energy[agent.name],
+                self.identification_probe_channel_counts[agent.name],
+                self.identification_probe_rejection_counts[agent.name],
+                self.config,
+            )
         if channel is None:
             return empty, empty.copy(), None
         count = self.identification_probe_channel_counts[agent.name][channel]
@@ -875,6 +937,152 @@ def _estimate_control_effectiveness(
     )
     gain = config.effectiveness_estimator_gain
     return float((1.0 - gain) * prior + gain * instantaneous)
+
+
+def _dynamic_state_scale(model: PlatformModel) -> np.ndarray:
+    """Return characteristic velocity/rate scales for local information."""
+    if model.kind == "ugv":
+        values = [model.max_speed]
+        if model.state_dim - model.pose_dim > 1:
+            values.append(model.max_yaw_rate)
+    elif model.kind == "usv":
+        values = [model.max_speed]
+        if model.state_dim - model.pose_dim > 1:
+            values.extend((model.max_sway_speed, model.max_yaw_rate))
+    else:
+        values = [
+            model.max_horizontal_speed,
+            model.max_horizontal_speed,
+            model.max_vertical_speed,
+            model.max_angular_rate,
+            model.max_angular_rate,
+            model.max_angular_rate,
+        ]
+    dynamic_dim = model.state_dim - model.pose_dim
+    return np.maximum(np.asarray(values[:dynamic_dim], dtype=float), 1e-9)
+
+
+def _effectiveness_sensitivity_matrix(
+    model: PlatformModel,
+    previous_state: np.ndarray,
+    previous_control: np.ndarray,
+    dt: float,
+    prior: np.ndarray,
+    config: HarborMPCConfig,
+    *,
+    normalize_dynamic_state: bool,
+) -> np.ndarray:
+    """Linearize one-step dynamic response with respect to actuator gains."""
+    command = np.asarray(previous_control, dtype=float).reshape(model.control_dim)
+    prior = np.asarray(prior, dtype=float).reshape(model.control_dim)
+    dynamic = slice(model.pose_dim, model.state_dim)
+    sensitivity = np.zeros(
+        (model.state_dim - model.pose_dim, model.control_dim), dtype=float
+    )
+    epsilon = 0.05
+    for channel in np.flatnonzero(np.abs(command) > 1e-12):
+        lower = prior.copy()
+        upper = prior.copy()
+        lower[channel] = max(config.effectiveness_min, prior[channel] - epsilon)
+        upper[channel] = min(config.effectiveness_max, prior[channel] + epsilon)
+        span = upper[channel] - lower[channel]
+        if span <= np.finfo(float).eps:
+            continue
+        low_state = model.step(previous_state, lower * command, dt)[dynamic]
+        high_state = model.step(previous_state, upper * command, dt)[dynamic]
+        sensitivity[:, channel] = (high_state - low_state) / span
+    if normalize_dynamic_state:
+        sensitivity /= _dynamic_state_scale(model)[:, None]
+    return sensitivity
+
+
+def _posterior_effectiveness_std(
+    information_matrix: np.ndarray, config: HarborMPCConfig
+) -> np.ndarray:
+    """Approximate local actuator-gain posterior standard deviations."""
+    information = np.asarray(information_matrix, dtype=float)
+    precision = information + np.eye(len(information)) / (
+        config.identification_prior_std**2
+    )
+    covariance = np.linalg.pinv(precision, hermitian=True)
+    return np.sqrt(np.maximum(np.diag(covariance), 0.0))
+
+
+def _candidate_probe_information(
+    model: PlatformModel,
+    state: np.ndarray,
+    prior: np.ndarray,
+    dt: float,
+    config: HarborMPCConfig,
+) -> np.ndarray:
+    """Predict Fisher-information increments for isolated channel probes."""
+    increments = np.zeros(
+        (model.control_dim, model.control_dim, model.control_dim), dtype=float
+    )
+    for channel in range(model.control_dim):
+        command = np.zeros(model.control_dim, dtype=float)
+        command[channel] = (
+            config.identification_probe_fraction * model.control_scale()[channel]
+        )
+        sensitivity = _effectiveness_sensitivity_matrix(
+            model,
+            state,
+            command,
+            dt,
+            prior,
+            config,
+            normalize_dynamic_state=True,
+        )
+        jacobian = sensitivity / config.identification_measurement_noise
+        increments[channel] = jacobian.T @ jacobian
+    return increments
+
+
+def _information_identification_channel(
+    information_matrix: np.ndarray,
+    candidate_increments: np.ndarray,
+    probe_counts: np.ndarray,
+    rejection_counts: np.ndarray,
+    config: HarborMPCConfig,
+) -> int | None:
+    """Select the safe probe with greatest expected local information gain."""
+    information = np.asarray(information_matrix, dtype=float)
+    dimension = len(information)
+    increments = np.asarray(candidate_increments, dtype=float)
+    if information.shape != (dimension, dimension) or increments.shape != (
+        dimension,
+        dimension,
+        dimension,
+    ):
+        raise ValueError("actuator information matrices have inconsistent shapes")
+    counts = np.asarray(probe_counts, dtype=int).reshape(dimension)
+    rejections = np.asarray(rejection_counts, dtype=int).reshape(dimension)
+    available = rejections < config.identification_max_rejections
+    posterior_std = _posterior_effectiveness_std(information, config)
+    calibration = np.flatnonzero(
+        available & (counts < config.identification_min_probes_per_channel)
+    )
+    if len(calibration):
+        minimum_count = int(np.min(counts[calibration]))
+        candidates = calibration[counts[calibration] == minimum_count]
+    else:
+        candidates = np.flatnonzero(
+            available & (posterior_std > config.identification_target_std)
+        )
+    if len(candidates) == 0:
+        return None
+    precision = information + np.eye(dimension) / (
+        config.identification_prior_std**2
+    )
+    base_sign, base_logdet = np.linalg.slogdet(precision)
+    if base_sign <= 0.0:
+        raise ValueError("actuator information precision must be positive definite")
+    scores = []
+    for channel in candidates:
+        sign, logdet = np.linalg.slogdet(precision + increments[channel])
+        gain = -np.inf if sign <= 0.0 else logdet - base_logdet
+        scores.append(gain * posterior_std[channel])
+    return int(candidates[int(np.argmax(scores))])
 
 
 def _estimate_effectiveness_vector(

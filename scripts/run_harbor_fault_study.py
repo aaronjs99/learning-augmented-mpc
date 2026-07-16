@@ -35,11 +35,12 @@ def main() -> None:
     args = parse_args()
     agents, simulation, communication = load_harbor_config(args.config)
     disturbance = load_harbor_fault_config(args.config)
+    mpc_config = load_harbor_mpc_config(args.config)
     trials = run_actuator_fault_study(
         agents,
         simulation,
         communication,
-        load_harbor_mpc_config(args.config),
+        mpc_config,
         disturbance,
         load_harbor_fault_study_config(args.config),
     )
@@ -55,6 +56,7 @@ def main() -> None:
         records.append(
             {
                 "controller": trial.label,
+                "identification_strategy": trial.identification_strategy,
                 "learning_source": trial.source_controller,
                 "valid": trial.valid,
                 "all_goals_reached": trial.result.all_goals_reached,
@@ -82,6 +84,7 @@ def main() -> None:
                     name: value.tolist()
                     for name, value in trial.probe_channel_counts.items()
                 },
+                "probe_sequence_by_agent": trial.probe_sequence_by_agent,
                 "probe_rejection_counts": {
                     name: value.tolist()
                     for name, value in trial.probe_rejection_counts.items()
@@ -100,6 +103,21 @@ def main() -> None:
                     )
                     for name, values in trial.excitation_history.items()
                 },
+                "final_information_std": {
+                    name: (
+                        values[-1].tolist()
+                        if len(values)
+                        else np.full(
+                            next(
+                                agent.model.control_dim
+                                for agent in agents
+                                if agent.name == name
+                            ),
+                            mpc_config.identification_prior_std,
+                        ).tolist()
+                    )
+                    for name, values in trial.information_std_history.items()
+                },
             }
         )
     output = Path(args.artifact_dir)
@@ -114,7 +132,9 @@ def main() -> None:
         output / "actuator_fault_diagnostics.png",
     )
     adaptive = next(
-        trial for trial in trials if trial.label == "Retained active-ID LMPC"
+        trial
+        for trial in trials
+        if trial.label == "Retained information-ID LMPC"
     )
     if not args.no_gif:
         save_harbor_animation(
@@ -122,7 +142,7 @@ def main() -> None:
             agents,
             simulation,
             output / "fault_aware_harbor_lmpc.gif",
-            label="Retained active-ID distributed LMPC",
+            label="Retained information-ID distributed LMPC",
         )
     print(json.dumps(records, indent=2))
     print(f"Saved actuator-fault diagnostics: {figure}")

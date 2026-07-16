@@ -74,7 +74,9 @@ MPC plus diagonal-adaptive LMPC. Each named platform owns its hidden vector and
 local estimate. In particular, RobEn and Inspector-Gadget are separate UGVs
 with separate model parameters and left/right effectiveness vectors. Heron and
 BlueROV2 estimates are likewise waterjet- and thruster-specific. Active trials
-request bounded alternating
-first-step pulses for under-observed channels inside the normal NLP. Unsafe or
+request bounded alternating first-step pulses for under-observed channels
+inside the normal NLP. The information-aware trial ranks admissible pulses by
+local expected Fisher-information gain and is compared against an equal-count
+one-pass schedule. Unsafe or
 infeasible requests are skipped or retried without the pulse, and repeated-task
 LMPC retains its own preceding local estimate and clean rollout.

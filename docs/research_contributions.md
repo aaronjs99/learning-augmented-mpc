@@ -122,18 +122,21 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
     - A causal finite-difference sensitivity matrix and bounded least-squares
       update identify excited channels from only local state transition and
       prior command data. No controller reads the configured plant fault.
-    - A local information monitor requests alternating channel pulses only when
-      a channel lacks normalized excitation or its minimum calibration quota.
+    - Energy and Fisher-information schedulers request alternating channel
+      pulses only when a channel lacks excitation, direct calibration, or
+      linearized actuator information.
       The selected pulse is a first-step NLP equality, so normal dynamics,
       domains, actuator limits, and communicated collision constraints remain
       active. Infeasible probes trigger a nominal re-solve and bounded channel
       rejection rather than a guidance fallback.
-    - Active diagonal MPC lowers gain RMSE from `0.0195` to `0.0100` (`48.6%`)
-      versus passive diagonal MPC at a `163 -> 169` completion-cost tradeoff.
-      Retaining each run's own local model and safe rollout, active-ID LMPC
-      lowers RMSE from `0.0285` to `0.0189` (`33.6%`) at a `160 -> 161` cost.
-    - All six matched trials are complete and swept-safe with numerical-zero
-      collision slack. The four actuator-wise trials are fallback-free; nominal
+    - Round-robin active MPC lowers gain RMSE from `0.0212` to `0.0100`
+      (`52.6%`) at a `162 -> 169` completion-cost tradeoff. At an equal budget
+      of 14 direct probes, information-aware ordering lowers RMSE from `0.0297`
+      to `0.0160` (`46.0%`) with identical completion cost `163`.
+    - Retaining each run's own local model and safe rollout, information-ID LMPC
+      lowers RMSE from `0.0184` to `0.0120` (`34.9%`) at a `160 -> 162` cost.
+    - All nine matched trials are complete and swept-safe with numerical-zero
+      collision slack. The seven actuator-wise trials are fallback-free; nominal
       and scalar baselines are not admitted because they require fallbacks.
       The claim is improved actuator identification with an explicit task-cost
       tradeoff, not universal dominance.
@@ -151,6 +154,18 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       allocation into its 12-state 6-DOF marine model. The overactuated 8-to-6
       contract creates a genuine passive-identification ambiguity that the active
       channel probes measurably reduce.
+
+16. **Equal-budget information-aware probe scheduling**
+    - Each agent accumulates its own normalized finite-difference Fisher
+      information matrix and ranks safe direct probes by expected log-determinant
+      gain weighted by current channel uncertainty.
+    - The saved telemetry includes the physical channel sequence, accepted and
+      rejected counts, and posterior-standard-deviation history, so scheduling
+      decisions can be audited independently of final RMSE.
+    - The posterior is explicitly treated as a linearized ranking proxy rather
+      than a calibrated confidence interval. The defensible result is the
+      matched 14-probe improvement over one-pass scheduling, not a universal
+      statistical guarantee.
 
 ## Current Evidence
 

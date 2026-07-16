@@ -89,22 +89,27 @@ python run.py harbor-fault-study
 | --- | ---: | ---: | ---: |
 | Nominal MPC | 178 | 0.235 | 13 |
 | Scalar-adaptive MPC | **156** | 0.166 | 7 |
-| Passive diagonal MPC | 163 | 0.0195 | 0 |
+| Passive diagonal MPC | 162 | 0.0212 | 0 |
 | Active diagonal MPC | 169 | **0.0100** | 0 |
-| Retained passive LMPC | 160 | 0.0285 | 0 |
-| Retained active-ID LMPC | 161 | **0.0189** | 0 |
+| One-pass active MPC | 163 | 0.0297 | 0 |
+| Information-aware MPC | 163 | **0.0160** | 0 |
+| Retained passive LMPC | 160 | 0.0184 | 0 |
+| Retained active-ID LMPC | 161 | 0.0189 | 0 |
+| Retained information-ID LMPC | 162 | **0.0120** | 0 |
 
-All six rollouts are complete and swept-safe with numerical-zero collision
+All nine rollouts are complete and swept-safe with numerical-zero collision
 slack. The nominal and scalar baselines require solver fallbacks and therefore
-are not admitted; all four actuator-wise trials are fallback-free and valid.
-Active diagonal MPC reduces gain RMSE by `48.6%` relative to passive diagonal
-MPC, while increasing completion cost by six steps (`3.7%`). Across repeated
-runs, the LMPC controllers retain their own prior local gain estimates and
-clean rollout. Retained active-ID LMPC lowers RMSE by `33.6%` relative to
-retained passive LMPC, while increasing completion cost by one step (`0.6%`).
+are not admitted; all seven actuator-wise trials are fallback-free and valid.
+Round-robin active MPC reduces gain RMSE by `52.6%` relative to passive
+diagonal MPC, while increasing completion cost by seven steps (`4.3%`). More
+importantly, information-aware MPC reduces RMSE by `46.0%` relative to the
+equal-budget one-pass comparator: both execute 14 direct probes and cost 163
+steps. Across repeated runs, retained information-ID LMPC lowers RMSE by
+`34.9%` relative to retained passive LMPC at a two-step (`1.3%`) cost increase.
 
-The active controller tracks normalized command energy and a minimum direct-
-probe quota for each physical actuator channel. A small alternating pulse is imposed
+The active controllers track normalized command energy, local transition
+information, and a minimum direct-probe quota for each physical actuator
+channel. A small alternating pulse is imposed
 as a first-step equality inside the platform's own NLP only while moving and
 clear of nearby agents. Dynamics, domain, actuator, and communicated collision
 constraints therefore see the requested pulse. If it is infeasible, the same
@@ -113,14 +118,16 @@ disabled. The rejected probe attempt is reported separately; a successful
 ordinary re-solve remains a clean control solve and is not an execution fallback.
 
 The diagnostic exposes the intended observability limit. Every physical channel
-receives two accepted direct probes in the active MPC trial, including all eight
+receives two accepted direct probes in the round-robin active MPC trial and one
+in the equal-budget one-pass and information-aware trials, including all eight
 BlueROV2 Heavy thrusters. The
 UGV model identifies physical left/right drive-side channels, the Heron model
 identifies port/starboard waterjet channels, and the BlueROV2 Heavy model
 identifies all eight thruster channels. Because eight actuator gains affect six
 dynamic-rate observations, simultaneous passive identification is
 underdetermined; channel-isolating active probes resolve that ambiguity over
-multiple transitions.
+multiple transitions. Probe counts, per-agent channel order, rejection counts,
+and the linearized posterior-standard-deviation trace are saved in JSON.
 
 ## Initial Evidence
 
