@@ -26,6 +26,7 @@ class HarborRobustnessTrial:
     label: str
     result: HarborResult
     valid: bool
+    source_controller: str | None
     completion_step_sum: int
     solver_fallbacks: int
     max_collision_slack: float
@@ -33,6 +34,10 @@ class HarborRobustnessTrial:
     final_residual_estimates: dict[str, np.ndarray]
     effectiveness_history: dict[str, np.ndarray]
     final_effectiveness_estimates: dict[str, np.ndarray]
+    excitation_history: dict[str, np.ndarray]
+    probe_count_by_agent: dict[str, int]
+    probe_channel_counts: dict[str, np.ndarray]
+    probe_rejection_counts: dict[str, np.ndarray]
 
 
 def sweep_network_robustness(
@@ -229,6 +234,7 @@ def run_model_mismatch_study(
                 label=label,
                 result=result,
                 valid=valid,
+                source_controller=None,
                 completion_step_sum=completion_cost,
                 solver_fallbacks=controller.fallback_count,
                 max_collision_slack=controller.max_collision_slack,
@@ -247,6 +253,21 @@ def run_model_mismatch_study(
                 final_effectiveness_estimates={
                     name: value.copy()
                     for name, value in controller.control_effectiveness_estimates.items()
+                },
+                excitation_history={
+                    name: np.asarray(values, dtype=float)
+                    for name, values in controller.excitation_history.items()
+                },
+                probe_count_by_agent=dict(
+                    controller.identification_probe_count_by_agent
+                ),
+                probe_channel_counts={
+                    name: value.copy()
+                    for name, value in controller.identification_probe_channel_counts.items()
+                },
+                probe_rejection_counts={
+                    name: value.copy()
+                    for name, value in controller.identification_probe_rejection_counts.items()
                 },
             )
         )
@@ -296,13 +317,35 @@ def run_actuator_fault_study(
         goal_hold_steps=disturbance.evaluation_hold_steps,
     )
     definitions = (
-        ("Nominal MPC", False, "scalar", False),
-        ("Scalar-adaptive MPC", True, "scalar", False),
-        ("Diagonal-adaptive MPC", True, "diagonal", False),
-        ("Diagonal-adaptive LMPC", True, "diagonal", True),
+        ("Nominal MPC", False, "scalar", False, False, None),
+        ("Scalar-adaptive MPC", True, "scalar", False, False, None),
+        ("Diagonal-adaptive MPC", True, "diagonal", False, False, None),
+        ("Active diagonal MPC", True, "diagonal", False, True, None),
+        (
+            "Retained diagonal LMPC",
+            True,
+            "diagonal",
+            True,
+            False,
+            "Diagonal-adaptive MPC",
+        ),
+        (
+            "Retained active-ID LMPC",
+            True,
+            "diagonal",
+            True,
+            False,
+            "Active diagonal MPC",
+        ),
     )
     trials = []
-    for label, adaptive, estimator_mode, learning in definitions:
+    for label, adaptive, estimator_mode, learning, active, source_label in definitions:
+        source = (
+            next(trial for trial in trials if trial.label == source_label)
+            if source_label is not None
+            else None
+        )
+        safe_result = source.result if source is not None else seed.result
         controller = DistributedHarborMPC(
             agents=agents,
             config=replace(
@@ -310,11 +353,17 @@ def run_actuator_fault_study(
                 residual_adaptation=False,
                 control_effectiveness_adaptation=adaptive,
                 effectiveness_estimator_mode=estimator_mode,
+                active_identification=active,
             ),
             dt=simulation.dt,
-            safe_states=seed.result.states,
-            safe_controls=seed.result.controls,
+            safe_states=safe_result.states,
+            safe_controls=safe_result.controls,
             learning=learning,
+            initial_effectiveness_estimates=(
+                source.final_effectiveness_estimates
+                if source is not None
+                else None
+            ),
         )
         result = run_harbor_simulation(
             agents,
@@ -338,6 +387,7 @@ def run_actuator_fault_study(
                 label=label,
                 result=result,
                 valid=valid,
+                source_controller=source_label,
                 completion_step_sum=completion_cost,
                 solver_fallbacks=controller.fallback_count,
                 max_collision_slack=controller.max_collision_slack,
@@ -356,6 +406,21 @@ def run_actuator_fault_study(
                 final_effectiveness_estimates={
                     name: value.copy()
                     for name, value in controller.control_effectiveness_estimates.items()
+                },
+                excitation_history={
+                    name: np.asarray(values, dtype=float)
+                    for name, values in controller.excitation_history.items()
+                },
+                probe_count_by_agent=dict(
+                    controller.identification_probe_count_by_agent
+                ),
+                probe_channel_counts={
+                    name: value.copy()
+                    for name, value in controller.identification_probe_channel_counts.items()
+                },
+                probe_rejection_counts={
+                    name: value.copy()
+                    for name, value in controller.identification_probe_rejection_counts.items()
                 },
             )
         )

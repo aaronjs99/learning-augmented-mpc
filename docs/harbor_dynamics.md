@@ -153,6 +153,28 @@ identify individual RobEn/Inspector-Gadget wheel motors, Heron waterjets, or
 BlueROV2 thrusters; that requires an explicit allocation matrix and sufficiently
 exciting maneuvers.
 
+Optional active identification makes missing excitation explicit. For channel
+`j`, the controller accumulates normalized command energy
+
+```text
+E_j(k) = sum_(i<k) (u_j(i) / u_j,max)^2
+```
+
+and requests a bounded alternating pulse while `E_j` is below its target or a
+minimum direct-probe quota has not been met. The selected first-step command
+is imposed inside the same nonlinear program:
+
+```text
+u_j(0) = sigma_k rho u_j,max,  sigma_k in {-1, +1}
+```
+
+The pulse is disabled near communicated agents and after repeated infeasibility.
+Only the selected channel is fixed; all other channels remain optimization
+variables. If the pulse-constrained NLP is infeasible, the agent immediately
+re-solves the ordinary NLP. Thus a rejected information request is telemetry,
+not an executed guidance fallback. A later LMPC iteration can initialize from
+that same agent's prior local gain estimate and admitted control/state rollout.
+
 Updates below a normalized command-excitation threshold are skipped. Using the
 effectiveness-adjusted transition, the same agent then computes
 

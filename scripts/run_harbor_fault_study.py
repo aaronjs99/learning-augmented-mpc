@@ -55,6 +55,7 @@ def main() -> None:
         records.append(
             {
                 "controller": trial.label,
+                "learning_source": trial.source_controller,
                 "valid": trial.valid,
                 "all_goals_reached": trial.result.all_goals_reached,
                 "completion_step_sum": trial.completion_step_sum,
@@ -66,9 +67,38 @@ def main() -> None:
                 "solver_fallbacks": trial.solver_fallbacks,
                 "max_collision_slack": trial.max_collision_slack,
                 "effectiveness_rmse": float(np.sqrt(np.mean(errors * errors))),
+                "hidden_effectiveness": {
+                    agent.name: disturbance.effectiveness(
+                        agent.model, agent.name
+                    ).tolist()
+                    for agent in agents
+                },
                 "final_effectiveness_estimates": {
                     name: value.tolist()
                     for name, value in trial.final_effectiveness_estimates.items()
+                },
+                "probe_count_by_agent": trial.probe_count_by_agent,
+                "probe_channel_counts": {
+                    name: value.tolist()
+                    for name, value in trial.probe_channel_counts.items()
+                },
+                "probe_rejection_counts": {
+                    name: value.tolist()
+                    for name, value in trial.probe_rejection_counts.items()
+                },
+                "final_excitation_energy": {
+                    name: (
+                        values[-1].tolist()
+                        if len(values)
+                        else np.zeros(
+                            next(
+                                agent.model.control_dim
+                                for agent in agents
+                                if agent.name == name
+                            )
+                        ).tolist()
+                    )
+                    for name, values in trial.excitation_history.items()
                 },
             }
         )
@@ -84,7 +114,7 @@ def main() -> None:
         output / "actuator_fault_diagnostics.png",
     )
     adaptive = next(
-        trial for trial in trials if trial.label == "Diagonal-adaptive LMPC"
+        trial for trial in trials if trial.label == "Retained active-ID LMPC"
     )
     if not args.no_gif:
         save_harbor_animation(
@@ -92,7 +122,7 @@ def main() -> None:
             agents,
             simulation,
             output / "fault_aware_harbor_lmpc.gif",
-            label="Diagonal fault-adaptive distributed LMPC",
+            label="Retained active-ID distributed LMPC",
         )
     print(json.dumps(records, indent=2))
     print(f"Saved actuator-fault diagnostics: {figure}")

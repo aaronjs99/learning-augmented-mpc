@@ -688,9 +688,9 @@ def save_actuator_fault_diagnostics(
     """Show asymmetric-fault paths, cost, convergence, and channel estimates."""
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    fig = plt.figure(figsize=(18.0, 8.4))
+    fig = plt.figure(figsize=(20.5, 8.4))
     grid = fig.add_gridspec(
-        2, 3, width_ratios=(1.05, 0.82, 1.18), hspace=0.34, wspace=0.30
+        2, 3, width_ratios=(1.05, 0.86, 1.20), hspace=0.34, wspace=0.42
     )
     map_axis = fig.add_subplot(grid[:, 0])
     cost_axis = fig.add_subplot(grid[0, 1])
@@ -701,9 +701,15 @@ def save_actuator_fault_diagnostics(
     diagonal = next(
         trial for trial in trials if trial.label == "Diagonal-adaptive MPC"
     )
+    active_diagonal = next(
+        trial for trial in trials if trial.label == "Active diagonal MPC"
+    )
     _draw_harbor_map(map_axis, simulation_config)
     for agent in agents:
-        for trial, style, alpha in ((scalar, "--", 0.55), (diagonal, "-", 1.0)):
+        for trial, style, alpha in (
+            (diagonal, "--", 0.55),
+            (active_diagonal, "-", 1.0),
+        ):
             positions = trial.result.positions[agent.name]
             map_axis.plot(
                 positions[:, 0],
@@ -732,8 +738,8 @@ def save_actuator_fault_diagnostics(
         for agent in agents
     ]
     style_handles = [
-        Line2D([0], [0], color="#333333", linestyle="--", label="scalar MPC"),
-        Line2D([0], [0], color="#333333", linestyle="-", label="diagonal MPC"),
+        Line2D([0], [0], color="#333333", linestyle="--", label="passive diagonal"),
+        Line2D([0], [0], color="#333333", linestyle="-", label="active diagonal"),
     ]
     map_axis.legend(
         handles=[*platform_handles, *style_handles],
@@ -742,11 +748,28 @@ def save_actuator_fault_diagnostics(
         ncol=2,
     )
 
-    labels = [trial.label.replace("-adaptive", "") for trial in trials]
+    labels = [
+        {
+            "Nominal MPC": "Nominal",
+            "Scalar-adaptive MPC": "Scalar",
+            "Diagonal-adaptive MPC": "Passive diag.",
+            "Active diagonal MPC": "Active diag.",
+            "Retained diagonal LMPC": "Passive LMPC",
+            "Retained active-ID LMPC": "Active-ID LMPC",
+        }[trial.label]
+        for trial in trials
+    ]
     bars = cost_axis.bar(
         np.arange(len(trials)),
         [trial.completion_step_sum for trial in trials],
-        color=["#8c8c8c", "#d8a02b", "#2c9c69", "#2878b5"],
+        color=[
+            "#8c8c8c",
+            "#d8a02b",
+            "#58a66f",
+            "#167a53",
+            "#6598c4",
+            "#205f9c",
+        ],
     )
     for trial, bar in zip(trials, bars, strict=True):
         cost_axis.text(
@@ -762,12 +785,14 @@ def save_actuator_fault_diagnostics(
             bar.set_edgecolor("#333333")
     cost_axis.set_title("Completion Cost")
     cost_axis.set_ylabel("sum of first-goal steps")
-    cost_axis.set_xticks(np.arange(len(labels)), labels, rotation=14, ha="right")
+    cost_axis.set_xticks(np.arange(len(labels)), labels, rotation=22, ha="right")
     cost_axis.grid(True, axis="y", alpha=0.25)
 
-    adaptive_trials = [trial for trial in trials if "adaptive" in trial.label]
+    adaptive_trials = [trial for trial in trials if trial.label != "Nominal MPC"]
     for trial, color in zip(
-        adaptive_trials, ("#d8a02b", "#2c9c69", "#2878b5"), strict=True
+        adaptive_trials,
+        ("#d8a02b", "#58a66f", "#167a53", "#6598c4", "#205f9c"),
+        strict=True,
     ):
         errors = _effectiveness_rmse_history(trial, agents, disturbance)
         rmse_axis.plot(errors, color=color, linewidth=2.0, label=trial.label)
@@ -797,12 +822,29 @@ def save_actuator_fault_diagnostics(
             _flatten_effectiveness(diagonal.final_effectiveness_estimates, agents),
         ),
         (
+            "active MPC",
+            _flatten_effectiveness(
+                active_diagonal.final_effectiveness_estimates, agents
+            ),
+        ),
+        (
             "diagonal LMPC",
             _flatten_effectiveness(
                 next(
                     trial
                     for trial in trials
-                    if trial.label == "Diagonal-adaptive LMPC"
+                    if trial.label == "Retained diagonal LMPC"
+                ).final_effectiveness_estimates,
+                agents,
+            ),
+        ),
+        (
+            "active LMPC",
+            _flatten_effectiveness(
+                next(
+                    trial
+                    for trial in trials
+                    if trial.label == "Retained active-ID LMPC"
                 ).final_effectiveness_estimates,
                 agents,
             ),
@@ -835,7 +877,7 @@ def save_actuator_fault_diagnostics(
     matrix_axis.set_yticks(np.arange(len(row_labels)), row_labels)
     fig.colorbar(image, ax=matrix_axis, fraction=0.045, pad=0.03)
     fig.suptitle(
-        "Local Diagonal Fault Identification for Distributed Harbor MPC",
+        "Passive and Active Local Fault Identification for Distributed Harbor MPC/LMPC",
         fontsize=15,
     )
     fig.savefig(output, dpi=180, bbox_inches="tight")

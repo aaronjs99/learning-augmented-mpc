@@ -47,6 +47,13 @@ class HarborMPCConfig:
     effectiveness_min: float = 0.5
     effectiveness_max: float = 1.2
     effectiveness_excitation_threshold: float = 0.05
+    active_identification: bool = False
+    identification_probe_fraction: float = 0.12
+    identification_target_energy: float = 0.06
+    identification_probe_interval_steps: int = 1
+    identification_min_probes_per_channel: int = 2
+    identification_max_rejections: int = 2
+    identification_clearance_buffer: float = 0.4
     ipopt_max_iter: int = 120
     ipopt_print_level: int = 0
 
@@ -56,6 +63,9 @@ class HarborMPCConfig:
             "replan_interval_steps": self.replan_interval_steps,
             "learning_iterations": self.learning_iterations,
             "terminal_samples": self.terminal_samples,
+            "identification_probe_interval_steps": self.identification_probe_interval_steps,
+            "identification_min_probes_per_channel": self.identification_min_probes_per_channel,
+            "identification_max_rejections": self.identification_max_rejections,
             "ipopt_max_iter": self.ipopt_max_iter,
         }
         if any(value <= 0 for value in integer_values.values()):
@@ -79,6 +89,9 @@ class HarborMPCConfig:
             self.effectiveness_min,
             self.effectiveness_max,
             self.effectiveness_excitation_threshold,
+            self.identification_probe_fraction,
+            self.identification_target_energy,
+            self.identification_clearance_buffer,
         )
         if any(value < 0.0 for value in nonnegative):
             raise ValueError("harbor_mpc weights and slack bounds must be nonnegative")
@@ -91,6 +104,12 @@ class HarborMPCConfig:
         if self.effectiveness_estimator_mode not in {"scalar", "diagonal"}:
             raise ValueError(
                 "effectiveness_estimator_mode must be scalar or diagonal"
+            )
+        if self.identification_probe_fraction > 1.0:
+            raise ValueError("identification_probe_fraction must be in [0, 1]")
+        if self.active_identification and self.identification_probe_fraction == 0.0:
+            raise ValueError(
+                "identification_probe_fraction must be positive when active"
             )
 
 
@@ -161,6 +180,8 @@ class HarborAgentOptimizer:
         previous_control: np.ndarray,
         position_drift: np.ndarray,
         control_effectiveness: np.ndarray,
+        identification_probe: np.ndarray,
+        identification_probe_mask: np.ndarray,
     ) -> HarborMPCStep:
         opti = self.opti
         opti.set_value(self.p_initial, state)
@@ -168,6 +189,11 @@ class HarborAgentOptimizer:
         opti.set_value(self.p_previous_control, previous_control)
         opti.set_value(self.p_position_drift, position_drift)
         opti.set_value(self.p_control_effectiveness, control_effectiveness)
+        if self.p_identification_probe is not None:
+            opti.set_value(self.p_identification_probe, identification_probe)
+            opti.set_value(
+                self.p_identification_probe_mask, identification_probe_mask
+            )
         for index, other in enumerate(self.other_agents):
             opti.set_value(
                 self.p_obstacles[index], obstacle_predictions[other.name].T
@@ -222,6 +248,12 @@ class HarborAgentOptimizer:
         p_previous_control = opti.parameter(nu, 1)
         p_position_drift = opti.parameter(3, 1)
         p_control_effectiveness = opti.parameter(nu, 1)
+        p_identification_probe = (
+            opti.parameter(nu, 1) if cfg.active_identification else None
+        )
+        p_identification_probe_mask = (
+            opti.parameter(nu, 1) if cfg.active_identification else None
+        )
         p_obstacles = [opti.parameter(3, horizon) for _ in self.other_agents]
 
         opti.subject_to(states[:, 0] == p_initial)
@@ -229,6 +261,14 @@ class HarborAgentOptimizer:
             opti.bounded(0.0, collision_slack, cfg.collision_slack_bound)
         )
         self._apply_bounds(opti, states, controls)
+        if cfg.active_identification:
+            opti.subject_to(
+                ca.times(
+                    p_identification_probe_mask,
+                    controls[:, 0] - p_identification_probe,
+                )
+                == 0.0
+            )
 
         cost = 0
         previous = p_previous_control
@@ -329,6 +369,8 @@ class HarborAgentOptimizer:
         self.p_previous_control = p_previous_control
         self.p_position_drift = p_position_drift
         self.p_control_effectiveness = p_control_effectiveness
+        self.p_identification_probe = p_identification_probe
+        self.p_identification_probe_mask = p_identification_probe_mask
         self.p_obstacles = p_obstacles
 
     def _tracking_cost(self, state, goal):
@@ -481,6 +523,7 @@ class DistributedHarborMPC:
         safe_states: dict[str, np.ndarray],
         safe_controls: dict[str, np.ndarray],
         learning: bool,
+        initial_effectiveness_estimates: dict[str, np.ndarray] | None = None,
     ) -> None:
         self.agents = {agent.name: agent for agent in agents}
         self.config = config
@@ -510,7 +553,49 @@ class DistributedHarborMPC:
             agent.name: np.ones(agent.model.control_dim, dtype=float)
             for agent in agents
         }
+        if initial_effectiveness_estimates is not None:
+            unknown = set(initial_effectiveness_estimates) - set(self.agents)
+            if unknown:
+                raise ValueError(
+                    "initial effectiveness contains unknown agent(s): "
+                    + ", ".join(sorted(unknown))
+                )
+            for agent in agents:
+                if agent.name not in initial_effectiveness_estimates:
+                    continue
+                estimate = np.asarray(
+                    initial_effectiveness_estimates[agent.name], dtype=float
+                ).reshape(-1)
+                if estimate.shape != (agent.model.control_dim,):
+                    raise ValueError(
+                        f"{agent.name} initial effectiveness must have "
+                        f"{agent.model.control_dim} entries"
+                    )
+                if (
+                    np.any(estimate < config.effectiveness_min)
+                    or np.any(estimate > config.effectiveness_max)
+                ):
+                    raise ValueError(
+                        f"{agent.name} initial effectiveness is outside estimator bounds"
+                    )
+                self.control_effectiveness_estimates[agent.name] = estimate.copy()
         self.effectiveness_history = {agent.name: [] for agent in agents}
+        self.excitation_energy = {
+            agent.name: np.zeros(agent.model.control_dim, dtype=float)
+            for agent in agents
+        }
+        self.excitation_history = {agent.name: [] for agent in agents}
+        self.identification_probe_count_by_agent = {
+            agent.name: 0 for agent in agents
+        }
+        self.identification_probe_channel_counts = {
+            agent.name: np.zeros(agent.model.control_dim, dtype=int)
+            for agent in agents
+        }
+        self.identification_probe_rejection_counts = {
+            agent.name: np.zeros(agent.model.control_dim, dtype=int)
+            for agent in agents
+        }
         self.solve_count = 0
         self.fallback_count = 0
         self.solve_time_seconds = 0.0
@@ -551,32 +636,61 @@ class DistributedHarborMPC:
             self.config.prediction_horizon,
         )
         predictions = self._obstacle_predictions(agent, inbox, step)
+        probe, probe_mask, probe_channel = self._identification_probe(
+            agent,
+            state,
+            desired_velocity,
+            inbox,
+            step,
+        )
         started = perf_counter()
+        solve_arguments = dict(
+            state=np.asarray(state, dtype=float),
+            goal=np.asarray(navigation_goal, dtype=float),
+            obstacle_predictions=predictions,
+            safe_states=safe_sample_states,
+            safe_costs=safe_costs,
+            warm_states=warm_states,
+            warm_controls=warm_controls,
+            previous_control=self.previous_controls[agent.name],
+            position_drift=self.position_drift_estimates[agent.name],
+            control_effectiveness=self.control_effectiveness_estimates[agent.name],
+            identification_probe=probe,
+            identification_probe_mask=probe_mask,
+        )
         try:
-            solution = self.optimizers[agent.name].solve(
-                state=np.asarray(state, dtype=float),
-                goal=np.asarray(navigation_goal, dtype=float),
-                obstacle_predictions=predictions,
-                safe_states=safe_sample_states,
-                safe_costs=safe_costs,
-                warm_states=warm_states,
-                warm_controls=warm_controls,
-                previous_control=self.previous_controls[agent.name],
-                position_drift=self.position_drift_estimates[agent.name],
-                control_effectiveness=self.control_effectiveness_estimates[agent.name],
-            )
+            solution = self.optimizers[agent.name].solve(**solve_arguments)
         except RuntimeError:
-            self.fallback_count += 1
-            self.fallback_count_by_agent[agent.name] += 1
-            self.failure_steps_by_agent[agent.name].append(step)
-            status = self.optimizers[agent.name].last_status
-            self.failure_status_counts[status] = (
-                self.failure_status_counts.get(status, 0) + 1
-            )
-            control = agent.model.guidance_control(
-                state, desired_velocity, dt, desired_pose=navigation_goal
-            )
+            solution = None
+            if probe_channel is not None:
+                self.identification_probe_rejection_counts[agent.name][
+                    probe_channel
+                ] += 1
+                solve_arguments["identification_probe"] = np.zeros_like(probe)
+                solve_arguments["identification_probe_mask"] = np.zeros_like(
+                    probe_mask
+                )
+                try:
+                    solution = self.optimizers[agent.name].solve(**solve_arguments)
+                except RuntimeError:
+                    pass
+            if solution is None:
+                self.fallback_count += 1
+                self.fallback_count_by_agent[agent.name] += 1
+                self.failure_steps_by_agent[agent.name].append(step)
+                status = self.optimizers[agent.name].last_status
+                self.failure_status_counts[status] = (
+                    self.failure_status_counts.get(status, 0) + 1
+                )
+                control = agent.model.guidance_control(
+                    state, desired_velocity, dt, desired_pose=navigation_goal
+                )
+            else:
+                control = solution.control
+                probe_channel = None
         else:
+            control = solution.control
+        if solution is not None:
             self.solve_count += 1
             self.solve_count_by_agent[agent.name] += 1
             self.max_collision_slack = max(
@@ -585,9 +699,12 @@ class DistributedHarborMPC:
             self.max_terminal_slack = max(
                 self.max_terminal_slack, solution.max_terminal_slack
             )
-            control = solution.control
-        finally:
-            self.solve_time_seconds += perf_counter() - started
+            if probe_channel is not None:
+                self.identification_probe_count_by_agent[agent.name] += 1
+                self.identification_probe_channel_counts[agent.name][
+                    probe_channel
+                ] += 1
+        self.solve_time_seconds += perf_counter() - started
         self.previous_controls[agent.name] = np.asarray(control, dtype=float)
         self.previous_states[agent.name] = np.asarray(state, dtype=float).copy()
         self.residual_history[agent.name].append(
@@ -595,6 +712,9 @@ class DistributedHarborMPC:
         )
         self.effectiveness_history[agent.name].append(
             self.control_effectiveness_estimates[agent.name].copy()
+        )
+        self.excitation_history[agent.name].append(
+            self.excitation_energy[agent.name].copy()
         )
         return self.previous_controls[agent.name]
 
@@ -606,6 +726,8 @@ class DistributedHarborMPC:
             return
         previous_state = self.previous_states[agent.name]
         previous_control = self.previous_controls[agent.name]
+        normalized = previous_control / agent.model.control_scale()
+        self.excitation_energy[agent.name] += normalized * normalized
         if self.config.control_effectiveness_adaptation:
             self.control_effectiveness_estimates[agent.name] = (
                 _estimate_effectiveness_vector(
@@ -638,6 +760,61 @@ class DistributedHarborMPC:
         if norm > self.config.residual_max_speed:
             estimate *= self.config.residual_max_speed / norm
         self.position_drift_estimates[agent.name] = estimate
+
+    def _identification_probe(
+        self,
+        agent: HarborAgent,
+        state: np.ndarray,
+        desired_velocity: np.ndarray,
+        inbox: dict[str, AgentMessage],
+        step: int,
+    ) -> tuple[np.ndarray, np.ndarray, int | None]:
+        """Select one direct, constraint-aware local identification pulse."""
+        model = agent.model
+        empty = np.zeros(model.control_dim, dtype=float)
+        if (
+            not self.config.active_identification
+            or not self.config.control_effectiveness_adaptation
+            or self.config.effectiveness_estimator_mode != "diagonal"
+            or np.linalg.norm(desired_velocity) <= 1e-6
+            or step % self.config.identification_probe_interval_steps != 0
+        ):
+            return empty, empty.copy(), None
+        own_position = model.position(np.asarray(state, dtype=float))
+        for other_name, message in inbox.items():
+            other = self.agents.get(other_name)
+            if other is None:
+                continue
+            clearance = float(np.linalg.norm(own_position - message.position))
+            required = (
+                agent.radius
+                + other.radius
+                + self.config.collision_buffer
+                + self.config.identification_clearance_buffer
+            )
+            if clearance <= required:
+                return empty, empty.copy(), None
+        channel = _identification_channel(
+            self.excitation_energy[agent.name],
+            self.identification_probe_channel_counts[agent.name],
+            self.identification_probe_rejection_counts[agent.name],
+            self.config,
+        )
+        if channel is None:
+            return empty, empty.copy(), None
+        count = self.identification_probe_channel_counts[agent.name][channel]
+        sign = 1.0 if count % 2 == 0 else -1.0
+        probe = empty.copy()
+        probe[channel] = (
+            sign
+            * self.config.identification_probe_fraction
+            * model.control_scale()[channel]
+        )
+        mask = empty.copy()
+        mask[channel] = 1.0
+        return probe, mask, channel
+
+
     def _obstacle_predictions(
         self,
         agent: HarborAgent,
@@ -727,6 +904,42 @@ def _estimate_effectiveness_vector(
         dt,
         prior_vector,
         config,
+    )
+
+
+def _least_excited_channel(
+    excitation_energy: np.ndarray, target_energy: float
+) -> int | None:
+    """Return the least-observed channel below a common information target."""
+    energy = np.asarray(excitation_energy, dtype=float).reshape(-1)
+    candidates = np.flatnonzero(energy < target_energy)
+    if len(candidates) == 0:
+        return None
+    return int(candidates[np.argmin(energy[candidates])])
+
+
+def _identification_channel(
+    excitation_energy: np.ndarray,
+    probe_counts: np.ndarray,
+    rejection_counts: np.ndarray,
+    config: HarborMPCConfig,
+) -> int | None:
+    """Prioritize calibration quotas, then remaining low-energy channels."""
+    energy = np.asarray(excitation_energy, dtype=float).reshape(-1)
+    counts = np.asarray(probe_counts, dtype=int).reshape(energy.shape)
+    rejections = np.asarray(rejection_counts, dtype=int).reshape(energy.shape)
+    available = rejections < config.identification_max_rejections
+    calibration = np.flatnonzero(
+        available & (counts < config.identification_min_probes_per_channel)
+    )
+    if len(calibration):
+        ordering = np.lexsort((energy[calibration], counts[calibration]))
+        return int(calibration[ordering[0]])
+    eligible_energy = energy.copy()
+    eligible_energy[~available] = config.identification_target_energy
+    return _least_excited_channel(
+        eligible_energy,
+        config.identification_target_energy,
     )
 
 

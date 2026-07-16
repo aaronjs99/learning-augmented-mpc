@@ -38,6 +38,13 @@ horizon and terminal settings used by that controlled comparison. Scalar
 values remain supported for kind-wide robustness experiments; a vector must
 match the selected platform's control dimension.
 
+`active_identification` enables local constraint-aware calibration. Probe
+fraction, normalized energy target, interval, minimum successful probes per
+channel, maximum rejected probes, and extra communication-clearance guard are
+all YAML settings. A requested pulse is solved inside the platform NLP. An
+infeasible request is retried without the pulse and recorded separately, so it
+cannot silently become an executed fallback.
+
 `platform_profiles` lets each agent select an independent named model. The
 default UGV profiles are SRI Lab's Jackal-based RobEn and Husky-based Inspector-
 Gadget; they do not share mass, inertia, damping, limits, or footprint. Heron

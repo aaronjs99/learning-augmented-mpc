@@ -72,4 +72,7 @@ MPC plus diagonal-adaptive LMPC. Each named platform owns its hidden vector and
 local estimate. In particular, RobEn and Inspector-Gadget are separate UGVs
 with separate model parameters and `[force, yaw moment]` effectiveness vectors.
 The resulting estimate is at the generalized-control level, not the individual
-wheel, waterjet, or thruster level.
+wheel, waterjet, or thruster level. Active trials request bounded alternating
+first-step pulses for under-observed channels inside the normal NLP. Unsafe or
+infeasible requests are skipped or retried without the pulse, and repeated-task
+LMPC retains its own preceding local estimate and clean rollout.

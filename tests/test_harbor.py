@@ -22,8 +22,11 @@ from scripts.harbor import (
 from scripts.harbor.experiments import sweep_network_robustness
 from scripts.harbor.learning import run_distributed_harbor_lmpc
 from scripts.harbor.mpc import (
+    HarborAgentOptimizer,
     _estimate_control_effectiveness,
     _estimate_diagonal_control_effectiveness,
+    _identification_channel,
+    _least_excited_channel,
     load_harbor_mpc_config,
 )
 from scripts.harbor.plotting import (
@@ -163,6 +166,69 @@ class HarborTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "1 or 2 entries"):
             disturbance.effectiveness(agents[0].model, agents[0].name)
+
+    def test_active_identification_selects_only_under_observed_channels(self) -> None:
+        energy = np.array([0.08, 0.01, 0.03])
+        self.assertEqual(_least_excited_channel(energy, 0.06), 1)
+        self.assertIsNone(_least_excited_channel(energy, 0.01))
+
+    def test_active_identification_rejects_zero_probe(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must be positive when active"):
+            replace(
+                load_harbor_mpc_config(),
+                active_identification=True,
+                identification_probe_fraction=0.0,
+            )
+
+    def test_active_identification_skips_repeatedly_rejected_channel(self) -> None:
+        config = replace(
+            load_harbor_mpc_config(),
+            active_identification=True,
+            identification_min_probes_per_channel=1,
+            identification_max_rejections=2,
+        )
+        channel = _identification_channel(
+            np.zeros(3),
+            np.zeros(3, dtype=int),
+            np.array([2, 0, 0]),
+            config,
+        )
+        self.assertEqual(channel, 1)
+
+    def test_optimizer_enforces_selected_identification_probe(self) -> None:
+        agents, simulation, _ = load_harbor_config()
+        agent = agents[0]
+        other = agents[2]
+        config = replace(
+            load_harbor_mpc_config(),
+            prediction_horizon=3,
+            active_identification=True,
+        )
+        optimizer = HarborAgentOptimizer(
+            agent=agent,
+            other_agents=[other],
+            config=config,
+            dt=simulation.dt,
+            learning=False,
+        )
+        probe = np.array([0.0, 0.12 * agent.model.max_yaw_moment])
+        mask = np.array([0.0, 1.0])
+        state = agent.start.copy()
+        result = optimizer.solve(
+            state=state,
+            goal=agent.goal,
+            obstacle_predictions={other.name: np.full((3, 3), 100.0)},
+            safe_states=np.repeat(state[None, :], 3, axis=0),
+            safe_costs=np.zeros(config.terminal_samples),
+            warm_states=np.repeat(state[None, :], 4, axis=0),
+            warm_controls=np.zeros((3, agent.model.control_dim)),
+            previous_control=np.zeros(agent.model.control_dim),
+            position_drift=np.zeros(3),
+            control_effectiveness=np.ones(agent.model.control_dim),
+            identification_probe=probe,
+            identification_probe_mask=mask,
+        )
+        self.assertAlmostEqual(result.control[1], probe[1], places=8)
 
     def test_hidden_current_advects_only_marine_execution_plant(self) -> None:
         agents, simulation, communication = load_harbor_config()

@@ -1,6 +1,7 @@
 [
   {
     "controller": "Nominal MPC",
+    "learning_source": null,
     "valid": true,
     "all_goals_reached": true,
     "completion_step_sum": 153,
@@ -27,6 +28,28 @@
     "solver_fallbacks": 0,
     "max_collision_slack": 4.779198169352607e-20,
     "effectiveness_rmse": 0.23270152556440193,
+    "hidden_effectiveness": {
+      "ground_rover_1": [
+        0.68,
+        0.94
+      ],
+      "ground_rover_2": [
+        0.9,
+        0.7
+      ],
+      "surface_vessel": [
+        0.58,
+        0.93
+      ],
+      "underwater_rov": [
+        0.84,
+        0.95,
+        0.62,
+        0.96,
+        0.72,
+        0.9
+      ]
+    },
     "final_effectiveness_estimates": {
       "ground_rover_1": [
         1.0,
@@ -48,10 +71,83 @@
         1.0,
         1.0
       ]
+    },
+    "probe_count_by_agent": {
+      "ground_rover_1": 0,
+      "ground_rover_2": 0,
+      "surface_vessel": 0,
+      "underwater_rov": 0
+    },
+    "probe_channel_counts": {
+      "ground_rover_1": [
+        0,
+        0
+      ],
+      "ground_rover_2": [
+        0,
+        0
+      ],
+      "surface_vessel": [
+        0,
+        0
+      ],
+      "underwater_rov": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "probe_rejection_counts": {
+      "ground_rover_1": [
+        0,
+        0
+      ],
+      "ground_rover_2": [
+        0,
+        0
+      ],
+      "surface_vessel": [
+        0,
+        0
+      ],
+      "underwater_rov": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "final_excitation_energy": {
+      "ground_rover_1": [
+        25.734073124753465,
+        2.6376433593677047e-13
+      ],
+      "ground_rover_2": [
+        41.67121419750464,
+        1.3233181536802615e-09
+      ],
+      "surface_vessel": [
+        40.840543481681074,
+        27.393581288964295
+      ],
+      "underwater_rov": [
+        12.038683353644032,
+        8.326321473543418,
+        2.3773646860518225,
+        0.04497193775585254,
+        1.0005144408296658,
+        1.0947680307455532
+      ]
     }
   },
   {
     "controller": "Scalar-adaptive MPC",
+    "learning_source": null,
     "valid": true,
     "all_goals_reached": true,
     "completion_step_sum": 138,
@@ -78,6 +174,28 @@
     "solver_fallbacks": 0,
     "max_collision_slack": 6.1139796260934456e-24,
     "effectiveness_rmse": 0.17510629709054856,
+    "hidden_effectiveness": {
+      "ground_rover_1": [
+        0.68,
+        0.94
+      ],
+      "ground_rover_2": [
+        0.9,
+        0.7
+      ],
+      "surface_vessel": [
+        0.58,
+        0.93
+      ],
+      "underwater_rov": [
+        0.84,
+        0.95,
+        0.62,
+        0.96,
+        0.72,
+        0.9
+      ]
+    },
     "final_effectiveness_estimates": {
       "ground_rover_1": [
         0.6800261176308089,
@@ -99,10 +217,83 @@
         0.7337877882944693,
         0.7337877882944693
       ]
+    },
+    "probe_count_by_agent": {
+      "ground_rover_1": 0,
+      "ground_rover_2": 0,
+      "surface_vessel": 0,
+      "underwater_rov": 0
+    },
+    "probe_channel_counts": {
+      "ground_rover_1": [
+        0,
+        0
+      ],
+      "ground_rover_2": [
+        0,
+        0
+      ],
+      "surface_vessel": [
+        0,
+        0
+      ],
+      "underwater_rov": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "probe_rejection_counts": {
+      "ground_rover_1": [
+        0,
+        0
+      ],
+      "ground_rover_2": [
+        0,
+        0
+      ],
+      "surface_vessel": [
+        0,
+        0
+      ],
+      "underwater_rov": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "final_excitation_energy": {
+      "ground_rover_1": [
+        25.782804298571296,
+        2.728707855250109e-13
+      ],
+      "ground_rover_2": [
+        41.70758441946161,
+        1.3319065854654942e-09
+      ],
+      "surface_vessel": [
+        40.59527628931457,
+        26.50263060824708
+      ],
+      "underwater_rov": [
+        13.574605457144168,
+        7.518177676116729,
+        3.6989136071946995,
+        0.07647875785912081,
+        2.5869956918291344,
+        1.2404094048251886
+      ]
     }
   },
   {
     "controller": "Diagonal-adaptive MPC",
+    "learning_source": null,
     "valid": true,
     "all_goals_reached": true,
     "completion_step_sum": 146,
@@ -129,6 +320,28 @@
     "solver_fallbacks": 0,
     "max_collision_slack": 6.631810583522886e-27,
     "effectiveness_rmse": 0.12261407561814809,
+    "hidden_effectiveness": {
+      "ground_rover_1": [
+        0.68,
+        0.94
+      ],
+      "ground_rover_2": [
+        0.9,
+        0.7
+      ],
+      "surface_vessel": [
+        0.58,
+        0.93
+      ],
+      "underwater_rov": [
+        0.84,
+        0.95,
+        0.62,
+        0.96,
+        0.72,
+        0.9
+      ]
+    },
     "final_effectiveness_estimates": {
       "ground_rover_1": [
         0.6800261176306877,
@@ -150,56 +363,515 @@
         0.7201110060494738,
         0.9001023219359295
       ]
+    },
+    "probe_count_by_agent": {
+      "ground_rover_1": 0,
+      "ground_rover_2": 0,
+      "surface_vessel": 0,
+      "underwater_rov": 0
+    },
+    "probe_channel_counts": {
+      "ground_rover_1": [
+        0,
+        0
+      ],
+      "ground_rover_2": [
+        0,
+        0
+      ],
+      "surface_vessel": [
+        0,
+        0
+      ],
+      "underwater_rov": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "probe_rejection_counts": {
+      "ground_rover_1": [
+        0,
+        0
+      ],
+      "ground_rover_2": [
+        0,
+        0
+      ],
+      "surface_vessel": [
+        0,
+        0
+      ],
+      "underwater_rov": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "final_excitation_energy": {
+      "ground_rover_1": [
+        25.782827025959225,
+        1.2456508560853724e-13
+      ],
+      "ground_rover_2": [
+        41.70758443385444,
+        1.3273078284951956e-09
+      ],
+      "surface_vessel": [
+        42.30207246777709,
+        25.142836349690512
+      ],
+      "underwater_rov": [
+        14.380916146051035,
+        7.915175867559706,
+        3.9062257120658392,
+        0.05763990862226009,
+        2.5175218000067527,
+        1.1378888186042662
+      ]
     }
   },
   {
-    "controller": "Diagonal-adaptive LMPC",
+    "controller": "Active diagonal MPC",
+    "learning_source": null,
     "valid": true,
     "all_goals_reached": true,
-    "completion_step_sum": 146,
+    "completion_step_sum": 140,
     "first_goal_steps": {
-      "ground_rover_1": 27,
-      "ground_rover_2": 42,
-      "surface_vessel": 53,
+      "ground_rover_1": 28,
+      "ground_rover_2": 44,
+      "surface_vessel": 44,
       "underwater_rov": 24
     },
     "final_goal_errors": {
-      "ground_rover_1": 1.2930281068459966e-07,
-      "ground_rover_2": 1.465075093560653e-06,
-      "surface_vessel": 0.11631578995454975,
-      "underwater_rov": 1.6495630563748331e-06
+      "ground_rover_1": 4.2035629791931164e-05,
+      "ground_rover_2": 1.0947743126077354e-05,
+      "surface_vessel": 0.17193500662590042,
+      "underwater_rov": 1.671879858808505e-06
     },
     "final_orientation_errors": {
-      "ground_rover_1": 2.1039944764211782e-07,
-      "ground_rover_2": 3.3006710919991633e-07,
-      "surface_vessel": 0.09041180243338331,
-      "underwater_rov": 1.0511836434358257e-12
+      "ground_rover_1": 4.7974957340102264e-12,
+      "ground_rover_2": 2.693391834007741e-07,
+      "surface_vessel": 0.0865417505736854,
+      "underwater_rov": 2.7732079746357975e-12
     },
-    "min_pairwise_distance": 1.375000347906367,
+    "min_pairwise_distance": 1.3508203453057293,
     "pairwise_violation_count": 0,
     "solver_fallbacks": 0,
-    "max_collision_slack": 1.0084936964510563e-24,
-    "effectiveness_rmse": 0.12256773027952327,
-    "final_effectiveness_estimates": {
+    "max_collision_slack": 2.0798786334368757e-20,
+    "effectiveness_rmse": 0.08290192261656396,
+    "hidden_effectiveness": {
       "ground_rover_1": [
-        0.6800261176306874,
-        1.0
+        0.68,
+        0.94
       ],
       "ground_rover_2": [
-        0.9000001193237301,
-        1.0
+        0.9,
+        0.7
       ],
       "surface_vessel": [
-        0.5800000039498044,
+        0.58,
         0.93
       ],
       "underwater_rov": [
-        0.7423779265769608,
-        0.6722531790245778,
-        0.6200018787392664,
-        0.9608901254230916,
-        0.7201110018619447,
-        0.9001046841170502
+        0.84,
+        0.95,
+        0.62,
+        0.96,
+        0.72,
+        0.9
+      ]
+    },
+    "final_effectiveness_estimates": {
+      "ground_rover_1": [
+        0.6800241085821729,
+        0.9506787109375001
+      ],
+      "ground_rover_2": [
+        0.9000000671195989,
+        0.7533935546875001
+      ],
+      "surface_vessel": [
+        0.5800000020976859,
+        0.9300000000301962
+      ],
+      "underwater_rov": [
+        0.7393315710880066,
+        0.6866131604883743,
+        0.6200007045129832,
+        0.9610022795828145,
+        0.7201868356338115,
+        0.9001971589375807
+      ]
+    },
+    "probe_count_by_agent": {
+      "ground_rover_1": 7,
+      "ground_rover_2": 7,
+      "surface_vessel": 4,
+      "underwater_rov": 6
+    },
+    "probe_channel_counts": {
+      "ground_rover_1": [
+        2,
+        5
+      ],
+      "ground_rover_2": [
+        2,
+        5
+      ],
+      "surface_vessel": [
+        2,
+        2
+      ],
+      "underwater_rov": [
+        2,
+        2,
+        2,
+        0,
+        0,
+        0
+      ]
+    },
+    "probe_rejection_counts": {
+      "ground_rover_1": [
+        0,
+        0
+      ],
+      "ground_rover_2": [
+        0,
+        0
+      ],
+      "surface_vessel": [
+        0,
+        0
+      ],
+      "underwater_rov": [
+        0,
+        0,
+        0,
+        2,
+        2,
+        2
+      ]
+    },
+    "final_excitation_energy": {
+      "ground_rover_1": [
+        25.51550093358682,
+        0.09062601528300342
+      ],
+      "ground_rover_2": [
+        41.482318313584784,
+        0.08816393538949052
+      ],
+      "surface_vessel": [
+        41.78336736300902,
+        21.512615923635085
+      ],
+      "underwater_rov": [
+        13.474244921688436,
+        8.559237389108638,
+        3.7515133410493395,
+        0.05676640359787499,
+        2.5696694618858524,
+        1.0397425354930145
+      ]
+    }
+  },
+  {
+    "controller": "Retained diagonal LMPC",
+    "learning_source": "Diagonal-adaptive MPC",
+    "valid": true,
+    "all_goals_reached": true,
+    "completion_step_sum": 141,
+    "first_goal_steps": {
+      "ground_rover_1": 27,
+      "ground_rover_2": 42,
+      "surface_vessel": 50,
+      "underwater_rov": 22
+    },
+    "final_goal_errors": {
+      "ground_rover_1": 1.2708428712242602e-07,
+      "ground_rover_2": 1.0411261637966146e-07,
+      "surface_vessel": 0.14022906898285134,
+      "underwater_rov": 1.6833113839594325e-06
+    },
+    "final_orientation_errors": {
+      "ground_rover_1": 1.9694730957198203e-07,
+      "ground_rover_2": 1.262485529451851e-07,
+      "surface_vessel": 0.09189060678255911,
+      "underwater_rov": 1.5680529027622604e-12
+    },
+    "min_pairwise_distance": 1.3750003720342125,
+    "pairwise_violation_count": 0,
+    "solver_fallbacks": 0,
+    "max_collision_slack": 0.0,
+    "effectiveness_rmse": 0.09910857860529218,
+    "hidden_effectiveness": {
+      "ground_rover_1": [
+        0.68,
+        0.94
+      ],
+      "ground_rover_2": [
+        0.9,
+        0.7
+      ],
+      "surface_vessel": [
+        0.58,
+        0.93
+      ],
+      "underwater_rov": [
+        0.84,
+        0.95,
+        0.62,
+        0.96,
+        0.72,
+        0.9
+      ]
+    },
+    "final_effectiveness_estimates": {
+      "ground_rover_1": [
+        0.6800000026235796,
+        1.0
+      ],
+      "ground_rover_2": [
+        0.9000000000002137,
+        1.0
+      ],
+      "surface_vessel": [
+        0.58,
+        0.93
+      ],
+      "underwater_rov": [
+        0.8128543625691576,
+        0.7965945338794589,
+        0.6200000000194493,
+        0.9600396317243298,
+        0.7200000288221338,
+        0.9000002736017637
+      ]
+    },
+    "probe_count_by_agent": {
+      "ground_rover_1": 0,
+      "ground_rover_2": 0,
+      "surface_vessel": 0,
+      "underwater_rov": 0
+    },
+    "probe_channel_counts": {
+      "ground_rover_1": [
+        0,
+        0
+      ],
+      "ground_rover_2": [
+        0,
+        0
+      ],
+      "surface_vessel": [
+        0,
+        0
+      ],
+      "underwater_rov": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "probe_rejection_counts": {
+      "ground_rover_1": [
+        0,
+        0
+      ],
+      "ground_rover_2": [
+        0,
+        0
+      ],
+      "surface_vessel": [
+        0,
+        0
+      ],
+      "underwater_rov": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "final_excitation_energy": {
+      "ground_rover_1": [
+        25.782785307155386,
+        2.3764673381403097e-13
+      ],
+      "ground_rover_2": [
+        41.707584717940534,
+        1.335848867557417e-09
+      ],
+      "surface_vessel": [
+        44.784254026848615,
+        29.097173396821205
+      ],
+      "underwater_rov": [
+        16.438069073861758,
+        7.901334211683699,
+        5.124915907157052,
+        0.04931587188478453,
+        3.309925569008665,
+        1.0902928375850098
+      ]
+    }
+  },
+  {
+    "controller": "Retained active-ID LMPC",
+    "learning_source": "Active diagonal MPC",
+    "valid": true,
+    "all_goals_reached": true,
+    "completion_step_sum": 142,
+    "first_goal_steps": {
+      "ground_rover_1": 27,
+      "ground_rover_2": 42,
+      "surface_vessel": 51,
+      "underwater_rov": 22
+    },
+    "final_goal_errors": {
+      "ground_rover_1": 2.085986922088037e-05,
+      "ground_rover_2": 6.170065958187132e-06,
+      "surface_vessel": 0.12525301792842372,
+      "underwater_rov": 1.6833612956687068e-06
+    },
+    "final_orientation_errors": {
+      "ground_rover_1": 1.9908503023913227e-07,
+      "ground_rover_2": 1.022202913425474e-07,
+      "surface_vessel": 0.09150654930681279,
+      "underwater_rov": 1.6832589188735914e-12
+    },
+    "min_pairwise_distance": 1.373033584914412,
+    "pairwise_violation_count": 0,
+    "solver_fallbacks": 0,
+    "max_collision_slack": 0.0,
+    "effectiveness_rmse": 0.033968678929278295,
+    "hidden_effectiveness": {
+      "ground_rover_1": [
+        0.68,
+        0.94
+      ],
+      "ground_rover_2": [
+        0.9,
+        0.7
+      ],
+      "surface_vessel": [
+        0.58,
+        0.93
+      ],
+      "underwater_rov": [
+        0.84,
+        0.95,
+        0.62,
+        0.96,
+        0.72,
+        0.9
+      ]
+    },
+    "final_effectiveness_estimates": {
+      "ground_rover_1": [
+        0.6800000024217657,
+        0.9506787109375001
+      ],
+      "ground_rover_2": [
+        0.9000000000001203,
+        0.7533935546875001
+      ],
+      "surface_vessel": [
+        0.58,
+        0.93
+      ],
+      "underwater_rov": [
+        0.796225742097197,
+        0.8553144172410774,
+        0.6200000000041028,
+        0.9600446207677482,
+        0.7200000481200288,
+        0.9000007732160366
+      ]
+    },
+    "probe_count_by_agent": {
+      "ground_rover_1": 0,
+      "ground_rover_2": 0,
+      "surface_vessel": 0,
+      "underwater_rov": 0
+    },
+    "probe_channel_counts": {
+      "ground_rover_1": [
+        0,
+        0
+      ],
+      "ground_rover_2": [
+        0,
+        0
+      ],
+      "surface_vessel": [
+        0,
+        0
+      ],
+      "underwater_rov": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "probe_rejection_counts": {
+      "ground_rover_1": [
+        0,
+        0
+      ],
+      "ground_rover_2": [
+        0,
+        0
+      ],
+      "surface_vessel": [
+        0,
+        0
+      ],
+      "underwater_rov": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "final_excitation_energy": {
+      "ground_rover_1": [
+        25.782809525491366,
+        9.118349447324846e-06
+      ],
+      "ground_rover_2": [
+        41.70758615519521,
+        1.2456106627003199e-05
+      ],
+      "surface_vessel": [
+        44.8347128237709,
+        35.59460925181171
+      ],
+      "underwater_rov": [
+        16.366371652414333,
+        7.896325649520383,
+        5.137997188598608,
+        0.04915778391305441,
+        3.3445499724409866,
+        1.0771969781356179
       ]
     }
   }

@@ -84,26 +84,36 @@ The controller receives no configured fault value.
 python run.py harbor-fault-study
 ```
 
-| Controller | Step sum | Effectiveness RMSE | Heron final error | Fallbacks |
-| --- | ---: | ---: | ---: | ---: |
-| Nominal MPC | 153 | 0.233 | 0.100 m | 0 |
-| Scalar-adaptive MPC | **138** | 0.175 | 0.167 m | 0 |
-| Diagonal-adaptive MPC | 146 | **0.123** | 0.197 m | 0 |
-| Diagonal-adaptive LMPC | 146 | **0.123** | **0.116 m** | 0 |
+| Controller | Step sum | Effectiveness RMSE | Fallbacks |
+| --- | ---: | ---: | ---: |
+| Nominal MPC | 153 | 0.233 | 0 |
+| Scalar-adaptive MPC | **138** | 0.175 | 0 |
+| Passive diagonal MPC | 146 | 0.123 | 0 |
+| Active diagonal MPC | 140 | **0.083** | 0 |
+| Retained passive LMPC | 141 | 0.099 | 0 |
+| Retained active-ID LMPC | 142 | **0.034** | 0 |
 
-All four rollouts are complete, swept-safe, fallback-free, and use numerical-
-zero collision slack. Channel-wise adaptation reduces final effectiveness RMSE
-by about `30.0%` relative to scalar adaptation. Adding the learned terminal set
-to the diagonal estimator reduces held Heron error by about `40.9%` relative to
-diagonal MPC at the same completion cost. Scalar MPC is faster in this route,
-so this is an identification/regulation benefit rather than a universal task-
-time improvement.
+All six rollouts are complete, swept-safe, fallback-free, and use numerical-
+zero collision slack. Active diagonal MPC reduces task cost by `4.1%` and gain
+RMSE by `32.4%` relative to passive diagonal MPC. Across repeated runs, the
+LMPC controllers retain their own prior local gain estimates and clean rollout.
+Retained active-ID LMPC lowers RMSE by `65.7%` relative to retained passive
+LMPC, while increasing completion cost by one step (`0.7%`).
 
-The diagnostic also exposes observability limits: straight-line UGV motion may
-not excite yaw moment, and some ROV wrench channels are less identifiable under
-saturation and correlated motion. An unexcited estimate staying at `1.0` must
-not be interpreted as proof of a healthy actuator. The current model identifies
-generalized force/moment channels, not individual wheel motors or thrusters.
+The active controller tracks normalized command energy and a minimum direct-
+probe quota for each generalized channel. A small alternating pulse is imposed
+as a first-step equality inside the platform's own NLP only while moving and
+clear of nearby agents. Dynamics, domain, actuator, and communicated collision
+constraints therefore see the requested pulse. If it is infeasible, the same
+agent immediately re-solves without it; repeatedly rejected channels are
+disabled. The rejected probe attempt is reported separately; a successful
+ordinary re-solve remains a clean control solve and is not an execution fallback.
+
+The diagnostic still exposes observability limits. ROV roll/pitch/yaw pulses
+were rejected by the terminal problem in this route, but their natural motion
+was informative; ROV horizontal gains remain the largest residual error. The
+current model identifies generalized force/moment channels, not individual
+wheel motors or thrusters.
 
 ## Initial Evidence
 

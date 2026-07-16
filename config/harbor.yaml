@@ -75,6 +75,13 @@ harbor_mpc:
   effectiveness_min: 0.5
   effectiveness_max: 1.2
   effectiveness_excitation_threshold: 0.05
+  active_identification: false
+  identification_probe_fraction: 0.12
+  identification_target_energy: 0.06
+  identification_probe_interval_steps: 1
+  identification_min_probes_per_channel: 2
+  identification_max_rejections: 2
+  identification_clearance_buffer: 0.4
   ipopt_max_iter: 250
   ipopt_print_level: 0
 

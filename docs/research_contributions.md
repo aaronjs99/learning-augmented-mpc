@@ -115,22 +115,31 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       rather than `229` updates. Three- and four-step blocks stay safe and
       complete but regress task cost, making update interval a control variable.
 
-14. **Local channel-wise fault identification inside distributed LMPC**
+14. **Constraint-aware active fault identification inside distributed LMPC**
     - Each named platform can carry a hidden diagonal effectiveness vector over
       its generalized controls; RobEn and Inspector-Gadget retain independent
       UGV models, routes, force/yaw-moment faults, and estimates.
     - A causal finite-difference sensitivity matrix and bounded least-squares
       update identify excited channels from only local state transition and
       prior command data. No controller reads the configured plant fault.
-    - In the current asymmetric benchmark, diagonal adaptation lowers final
-      gain RMSE about `30.0%` versus scalar adaptation. Diagonal LMPC lowers
-      held Heron error about `40.9%` versus diagonal MPC at equal task cost.
-    - Scalar MPC remains faster in this route. The contribution is therefore
-      improved fault identification and terminal regulation under heterogeneous
-      channel losses, not universal completion-time dominance.
-    - The diagnostic deliberately reports unexcited channels. Individual wheel,
-      waterjet, and thruster identification requires allocation models and
-      persistently exciting trajectories and remains future work.
+    - A local information monitor requests alternating channel pulses only when
+      a channel lacks normalized excitation or its minimum calibration quota.
+      The selected pulse is a first-step NLP equality, so normal dynamics,
+      domains, actuator limits, and communicated collision constraints remain
+      active. Infeasible probes trigger a nominal re-solve and bounded channel
+      rejection rather than a guidance fallback.
+    - Active diagonal MPC lowers completion cost from `146` to `140` and gain
+      RMSE from `0.123` to `0.083` versus passive diagonal MPC. Retaining each
+      run's own local model and safe rollout, active-ID LMPC lowers RMSE from
+      `0.099` to `0.034` versus retained passive LMPC at a `141 -> 142` cost.
+    - All six matched trials are complete, swept-safe, fallback-free, and use
+      numerical-zero collision slack. The claim is improved identification and
+      one MPC task-cost result, not universal dominance.
+    - Active fault-diagnosis input design is established literature. The
+      defensible contribution is its local constraint-aware integration and
+      retained-model ablation in this untethered heterogeneous distributed-LMPC
+      setting. Individual wheel, waterjet, and thruster identification still
+      requires explicit allocation models.
 
 ## Current Evidence
 
@@ -186,16 +195,23 @@ Recent work also covers fault-tolerant networked heterogeneous marine surface
 vessels ([Ocean Engineering, 2024](https://doi.org/10.1016/j.oceaneng.2024.119370))
 and adaptive error-compensation NMPC for heterogeneous USV-AUV systems
 ([Ocean Engineering, 2026](https://doi.org/10.1016/j.oceaneng.2026.125938)).
+Input design for active fault diagnosis is itself a mature field
+([Annual Reviews in Control, 2019](https://doi.org/10.1016/j.arcontrol.2019.03.002)),
+including integrated input-set design for multiplicative actuator faults
+([IEEE Control Systems Letters, 2023](https://doi.org/10.1109/LCSYS.2023.3273912))
+and minimally invasive state-constrained diagnosis for nonlinear systems
+([Control Engineering Practice, 2024](https://doi.org/10.1016/j.conengprac.2024.106118)).
 
 The defensible project contribution is therefore the integration and tested
-ablation: local separated current/effectiveness identification inside
-safe-set distributed LMPC for untethered mixed-domain UGV/USV/ROV agents with
-different 3-DOF/6-DOF contracts, hard communicated collision constraints,
-sustained-goal evaluation, and strict rejection of fallback-contaminated data.
-The residual-only failure versus clean joint-adaptive result supports this
-architecture in the configured benchmark. Broader novelty still requires
-comparison against observer-based marine MPC baselines, noisy Monte Carlo
-trials, and hardware or higher-fidelity validation.
+ablation: local separated current/effectiveness identification plus bounded
+constraint-aware excitation inside safe-set distributed LMPC for untethered
+mixed-domain UGV/USV/ROV agents with different 3-DOF/6-DOF contracts, hard
+communicated collision constraints, sustained-goal evaluation, and strict
+rejection of fallback-contaminated data. The residual-only failure, clean joint-
+adaptive result, and matched passive/active fault study support this architecture
+in the configured benchmark. Broader novelty still requires comparison against
+observer-based and optimal-input-design baselines, noisy Monte Carlo trials,
+and hardware or higher-fidelity validation.
 
 The strongest manta-specific case remains `manta_crossover`:
 
