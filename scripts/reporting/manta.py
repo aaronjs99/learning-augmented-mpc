@@ -92,7 +92,7 @@ def prepare_manta_report(
             result.statuses_by_iteration
         ),
         "optimizer_slack_by_iteration": [
-            summarize_optimizer_slack(np.zeros((0, len(scenario.starts), 2)))
+            summarize_optimizer_slack(np.zeros((0, len(scenario.starts), 3)))
         ]
         + [summarize_optimizer_slack(values) for values in result.slack_by_iteration],
         "cost_by_iteration": {

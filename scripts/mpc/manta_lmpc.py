@@ -124,12 +124,13 @@ class MantaLMPCConfig:
 
 @dataclass(frozen=True)
 class MantaStepSolution:
-    """One optimizer step with observable maximum slack values."""
+    """One optimizer step with observable constraint-relaxation values."""
 
     control: np.ndarray
     next_state: np.ndarray
     max_static_slack: float
     max_hyperplane_slack: float
+    max_terminal_slack: float
 
 
 class MantaAgentOptimizer:
@@ -202,6 +203,9 @@ class MantaAgentOptimizer:
             ),
             max_hyperplane_slack=max(
                 0.0, float(np.max(sol.value(self.slack_hyper)))
+            ),
+            max_terminal_slack=float(
+                np.max(np.abs(sol.value(self.terminal_slack)))
             ),
         )
 

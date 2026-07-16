@@ -124,12 +124,12 @@ def _record_for_result(
     selected_slack = (
         summarize_optimizer_slack(result.slack_by_iteration[selected - 1])
         if selected is not None and selected > 0
-        else summarize_optimizer_slack(np.zeros((0, len(goals), 2)))
+        else summarize_optimizer_slack(np.zeros((0, len(goals), 3)))
     )
     latest_slack = (
         summarize_optimizer_slack(result.slack_by_iteration[-1])
         if result.slack_by_iteration
-        else summarize_optimizer_slack(np.zeros((0, len(goals), 2)))
+        else summarize_optimizer_slack(np.zeros((0, len(goals), 3)))
     )
 
     return {
@@ -161,19 +161,27 @@ def _record_for_result(
         ),
         "selected_max_static_slack": selected_slack["max_static_slack"],
         "selected_max_hyperplane_slack": selected_slack["max_hyperplane_slack"],
+        "selected_max_terminal_slack": selected_slack["max_terminal_slack"],
         "selected_nonzero_static_slack_steps": selected_slack[
             "nonzero_static_slack_steps"
         ],
         "selected_nonzero_hyperplane_slack_steps": selected_slack[
             "nonzero_hyperplane_slack_steps"
         ],
+        "selected_nonzero_terminal_slack_steps": selected_slack[
+            "nonzero_terminal_slack_steps"
+        ],
         "latest_max_static_slack": latest_slack["max_static_slack"],
         "latest_max_hyperplane_slack": latest_slack["max_hyperplane_slack"],
+        "latest_max_terminal_slack": latest_slack["max_terminal_slack"],
         "latest_nonzero_static_slack_steps": latest_slack[
             "nonzero_static_slack_steps"
         ],
         "latest_nonzero_hyperplane_slack_steps": latest_slack[
             "nonzero_hyperplane_slack_steps"
+        ],
+        "latest_nonzero_terminal_slack_steps": latest_slack[
+            "nonzero_terminal_slack_steps"
         ],
         "latest_valid": latest_validation.valid,
         "latest_safe": latest_validation.safe,
@@ -201,12 +209,16 @@ def _write_csv(path: Path, records: list[dict[str, object]]) -> None:
         "selected_safety_interventions",
         "selected_max_static_slack",
         "selected_max_hyperplane_slack",
+        "selected_max_terminal_slack",
         "selected_nonzero_static_slack_steps",
         "selected_nonzero_hyperplane_slack_steps",
+        "selected_nonzero_terminal_slack_steps",
         "latest_max_static_slack",
         "latest_max_hyperplane_slack",
+        "latest_max_terminal_slack",
         "latest_nonzero_static_slack_steps",
         "latest_nonzero_hyperplane_slack_steps",
+        "latest_nonzero_terminal_slack_steps",
         "latest_valid",
         "latest_safe",
         "latest_solver_clean",
@@ -227,7 +239,8 @@ def _print_table(records: list[dict[str, object]]) -> None:
     print(
         "scenario, seconds, selected, valid, safe, selected_clean, latest_clean, "
         "safety_interventions, "
-        "selected_static_slack, latest_static_slack, min_pairwise, "
+        "selected_static_slack, latest_static_slack, selected_terminal_slack, "
+        "latest_terminal_slack, min_pairwise, "
         "min_obs_clearance, selected_costs"
     )
     for record in records:
@@ -240,6 +253,8 @@ def _print_table(records: list[dict[str, object]]) -> None:
             f"{record['selected_safety_interventions']}, "
             f"{_fmt(record['selected_max_static_slack'])}, "
             f"{_fmt(record['latest_max_static_slack'])}, "
+            f"{_fmt(record['selected_max_terminal_slack'])}, "
+            f"{_fmt(record['latest_max_terminal_slack'])}, "
             f"{_fmt(record['selected_min_pairwise'])}, "
             f"{_fmt(record['selected_min_obstacle_clearance'])}, "
             f"{record['selected_costs']}"

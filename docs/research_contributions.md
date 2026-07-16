@@ -61,8 +61,9 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
      solver failure.
 
 10. **Constraint-slack telemetry**
-    - Every successful MPC solve exposes its maximum static-obstacle and
-      pairwise-hyperplane slack instead of reducing solver behavior to `ok`.
+    - Every successful MPC solve exposes its maximum static-obstacle,
+      pairwise-hyperplane, and absolute terminal slack instead of reducing
+      solver behavior to `ok`.
     - Reports preserve maxima and nonzero-use counts per learning iteration,
       enabling safety interventions and performance changes to be tied back to
       the optimizer's actual relaxation usage.
@@ -98,6 +99,19 @@ still did not become a complete selectable LMPC result. This suggests that the
 remaining 3-agent problem is not basic safety; it is coordination and terminal
 reachability under decentralized hyperplane constraints.
 
+An instrumented 60-step triangle probe isolates the active relaxation:
+
+```text
+python run.py sweep --scenario manta_triangle --iterations 1 --max-steps 60
+```
+
+All 180 agent-solves are IPOPT-clean with zero static and hyperplane slack and
+no safety-filter intervention. Absolute terminal slack is nonzero on all 180
+solves, with a maximum of `0.114` against the configured bound of `4.0`. The
+terminal relaxation is therefore continuously active but not saturated; simply
+raising its bound or retuning collision penalties is not supported by this
+evidence.
+
 ## High-Value Next Experiments
 
 1. **Priority-aware hyperplanes**
@@ -111,10 +125,13 @@ reachability under decentralized hyperplane constraints.
    - Expected benefit: preserve feasibility early while tightening safety later.
 
 3. **Terminal reachability filtering**
-   - Select terminal safe-set samples using both time index and reachable
-     position/control consistency.
-   - Expected benefit: avoid terminal points that are safe but unreachable from
-     the current short horizon.
+   - Compare the current single convex-hull terminal relaxation with a pruned
+     bank of discrete safe-set candidates. The source paper's numerical method
+     solves one FHOCP per terminal safe-set element, while this adaptation uses
+     one relaxed convex-hull problem for runtime reasons.
+   - Expected benefit: avoid convex combinations that are inexpensive but do
+     not correspond to a dynamically reachable stored state, while controlling
+     runtime through reachability and cost pruning.
 
 4. **Waypoint terminal repair**
    - A capped APF repair phase exists behind `repair_incomplete_with_apf`, but

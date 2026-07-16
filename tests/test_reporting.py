@@ -45,7 +45,7 @@ class ReportingTests(unittest.TestCase):
             histories=[history, history],
             controls_by_iteration=[np.zeros((1, 2, 2))],
             slack_by_iteration=[
-                np.array([[[0.01, 0.0], [0.0, 0.02]]], dtype=float)
+                np.array([[[0.01, 0.0, 0.3], [0.0, 0.02, 0.4]]], dtype=float)
             ],
             statuses_by_iteration=[[{0: "ok", 1: "fallback_apf"}]],
             success_by_iteration=[True, validation.valid],
@@ -76,6 +76,8 @@ class ReportingTests(unittest.TestCase):
                 "nonzero_static_slack_steps": 1,
                 "max_hyperplane_slack": 0.02,
                 "nonzero_hyperplane_slack_steps": 1,
+                "max_terminal_slack": 0.4,
+                "nonzero_terminal_slack_steps": 2,
             },
         )
         self.assertEqual(report.summary["cost_by_iteration"], {"0": [1, 1], "1": [1, 1]})

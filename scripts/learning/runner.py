@@ -189,7 +189,7 @@ def run_manta_lmpc(
             next_states: dict[int, np.ndarray] = {}
             step_controls: dict[int, np.ndarray] = {}
             step_statuses: dict[int, str] = {}
-            step_slacks = np.full((num_agents, 2), np.nan, dtype=float)
+            step_slacks = np.full((num_agents, 3), np.nan, dtype=float)
 
             for agent in range(num_agents):
                 _raise_if_stop_requested(should_stop)
@@ -227,6 +227,7 @@ def run_manta_lmpc(
                     step_slacks[agent] = (
                         solution.max_static_slack,
                         solution.max_hyperplane_slack,
+                        solution.max_terminal_slack,
                     )
                     step_statuses[agent] = "ok"
                 except RuntimeError as exc:
@@ -320,7 +321,7 @@ def run_manta_lmpc(
             if recovery.statuses:
                 iteration_statuses.extend(recovery.statuses)
                 iteration_slacks.extend(
-                    np.full((num_agents, 2), np.nan, dtype=float)
+                    np.full((num_agents, 3), np.nan, dtype=float)
                     for _ in recovery.statuses
                 )
                 stored_controls = np.vstack((main_controls, recovery.controls))
@@ -329,7 +330,7 @@ def run_manta_lmpc(
         histories.append(_snapshot_safe_sets(history))
         controls_by_iteration.append(stored_controls)
         slack_by_iteration.append(
-            np.asarray(iteration_slacks, dtype=float).reshape(-1, num_agents, 2)
+            np.asarray(iteration_slacks, dtype=float).reshape(-1, num_agents, 3)
         )
         statuses_by_iteration.append(iteration_statuses)
         validation = validate_trajectory(
@@ -381,11 +382,11 @@ def run_manta_lmpc(
 
 
 def summarize_optimizer_slack(values: np.ndarray) -> dict[str, float | int | None]:
-    """Summarize per-step ``(static, hyperplane)`` optimizer slack telemetry."""
+    """Summarize per-step static, hyperplane, and terminal slack telemetry."""
     telemetry = np.asarray(values, dtype=float)
-    if telemetry.ndim != 3 or telemetry.shape[2] != 2:
+    if telemetry.ndim != 3 or telemetry.shape[2] != 3:
         raise ValueError(
-            f"slack telemetry must have shape (steps, agents, 2), got {telemetry.shape}"
+            f"slack telemetry must have shape (steps, agents, 3), got {telemetry.shape}"
         )
 
     finite = np.isfinite(telemetry)
@@ -393,7 +394,7 @@ def summarize_optimizer_slack(values: np.ndarray) -> dict[str, float | int | Non
     summary: dict[str, float | int | None] = {
         "solved_agent_steps": solved_agent_steps,
     }
-    for index, name in enumerate(("static", "hyperplane")):
+    for index, name in enumerate(("static", "hyperplane", "terminal")):
         channel = telemetry[:, :, index]
         valid = channel[np.isfinite(channel)]
         summary[f"max_{name}_slack"] = (

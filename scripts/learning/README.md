@@ -23,9 +23,10 @@ Safety is checked independently of the optimizer. Unsafe proposed transitions
 are replaced by bounded APF actions or zero-translation holds, and the report
 separates these interventions from IPOPT fallback events.
 
-Successful optimizer steps retain maximum static and hyperplane slack telemetry.
-Run summaries distinguish unavailable APF/fallback telemetry from solved
-zero-slack steps and report both maxima and nonzero-use counts.
+Successful optimizer steps retain maximum static, hyperplane, and absolute
+terminal slack telemetry. Run summaries distinguish unavailable APF/fallback
+telemetry from solved zero-slack steps and report both maxima and nonzero-use
+counts.
 
 LMPC warm starts use stored safe-set controls blended with a nominal constant
 control, which keeps IPOPT close to dynamically plausible prior motion without
