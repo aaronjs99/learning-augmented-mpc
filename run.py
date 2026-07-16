@@ -38,6 +38,11 @@ def main() -> None:
         from scripts.run_harbor import main as run_harbor
 
         run_harbor()
+    elif command == "harbor-sweep":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_sweep import main as run_harbor_sweep
+
+        run_harbor_sweep()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

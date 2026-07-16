@@ -67,6 +67,13 @@ def load_harbor_config(
         )
     if len(agents) < 2:
         raise ValueError("harbor config requires at least two agents")
+    for agent in agents:
+        if agent.model.kind == "ugv" and agent.domain.y_bounds[0] < simulation.shoreline_y:
+            raise ValueError("UGV domain must remain on land above the shoreline")
+        if agent.model.kind in {"usv", "rov"} and agent.domain.y_bounds[1] > simulation.shoreline_y:
+            raise ValueError("USV/ROV domains must remain in harbor water")
+        if agent.model.kind == "rov" and agent.domain.z_bounds[1] >= 0.0:
+            raise ValueError("ROV domain must remain below the water surface")
     return agents, simulation, communication
 
 

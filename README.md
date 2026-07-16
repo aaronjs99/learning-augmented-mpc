@@ -58,6 +58,14 @@ Heterogeneous harbor communication ablation (writes no file by default):
 
 `python3 run.py harbor`
 
+Harbor comparison PNG and coordinated GIF under ignored temporary results:
+
+`python3 run.py harbor --plot-dir results/tmp/harbor_eta`
+
+Seeded communication delay/dropout sweep and robustness heatmap:
+
+`python3 run.py harbor-sweep`
+
 Useful overrides:
 
 `python3 run.py --iterations 1`

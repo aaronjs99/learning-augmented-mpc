@@ -84,9 +84,26 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
     - Range, rate, delay, message lifetime, dropout, and random seed are YAML
       configuration, and communication changes information without introducing
       any physical relative-pose constraint.
-    - Against independent goal tracking, the first deterministic communication
-      policy reduces swept violations from `7` to `0` and raises minimum 3D
-      separation from `0.172 m` to `1.634 m`, while all three platforms finish.
+    - In the shoreline-constrained harbor, coordination reduces swept USV/ROV
+      violations from `6` to `0` and raises minimum 3D separation from
+      `0.611 m` to at least `1.407 m`, while all three platforms finish.
+    - ETA-negotiated asymmetric response preserves zero violations and reduces
+      summed completion steps from `143` to `128` versus reciprocal response, a
+      `10.5%` improvement with `1.407 m` minimum separation.
+    - A 150-trial seeded delay/dropout sweep exposes separate safety and final-
+      completion boundaries. Constant-velocity stale-message prediction was
+      rejected as a default because turning motion made it regress at high
+      delay in the physically partitioned harbor.
+
+13. **Configurable block guidance execution**
+    - The useful block-replanning concept from the legacy `distmpc` prototype is
+      retained as a platform-neutral guidance update interval with zero-order
+      control hold and explicit update-count telemetry.
+    - Unlike the legacy centralized GEKKO script, the experiment remains
+      heterogeneous, communication-aware, swept-validated, and YAML-backed.
+    - A two-step block cuts guidance updates from `131` to `68` (`48.1%`) while
+      preserving zero violations and the same `128` summed completion cost;
+      larger blocks expose measurable completion and safety regressions.
 
 ## Current Evidence
 

@@ -7,6 +7,12 @@ All notable repository-level changes are tracked here.
 - Swept-safe compact APF staging with dynamically replayed delayed controls.
 - Modular untethered UGV/USV/ROV harbor simulation with configurable delayed
   communication and a reproducible independent-versus-coordinated ablation.
+- ETA-negotiated asymmetric harbor coordination with a reciprocal-policy
+  baseline and completion-cost regression test.
+- Seeded network robustness sweeps with separate safety/final-completion
+  heatmaps and optional delayed-message prediction.
+- Explicit shoreline, quay, surface-water, and underwater operating regions for
+  physically meaningful UGV/USV/ROV harbor scenarios.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.

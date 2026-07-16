@@ -78,13 +78,25 @@ class HarborSimulationConfig:
 
     dt: float = 0.2
     horizon: int = 160
+    guidance_update_interval_steps: int = 1
     goal_tolerance: float = 0.25
     coordination_distance: float = 2.0
     avoidance_gain: float = 1.5
     yielding_speed_scale: float = 0.15
+    coordination_policy: str = "eta_priority"
+    priority_response_scale: float = 0.5
+    predict_delayed_messages: bool = True
+    world_x_bounds: tuple[float, float] = (-5.0, 5.0)
+    world_y_bounds: tuple[float, float] = (-5.0, 5.0)
+    shoreline_y: float = 3.0
+    seabed_z: float = -4.0
 
     def __post_init__(self) -> None:
-        if self.dt <= 0.0 or self.horizon <= 0:
+        if (
+            self.dt <= 0.0
+            or self.horizon <= 0
+            or self.guidance_update_interval_steps <= 0
+        ):
             raise ValueError("harbor dt and horizon must be positive")
         if self.goal_tolerance <= 0.0 or self.coordination_distance <= 0.0:
             raise ValueError("harbor goal and coordination distances must be positive")
@@ -92,6 +104,18 @@ class HarborSimulationConfig:
             raise ValueError("harbor avoidance_gain must be nonnegative")
         if not 0.0 <= self.yielding_speed_scale <= 1.0:
             raise ValueError("harbor yielding_speed_scale must be in [0, 1]")
+        if self.coordination_policy not in {"reciprocal", "eta_priority"}:
+            raise ValueError(
+                "harbor coordination_policy must be reciprocal or eta_priority"
+            )
+        if not 0.0 <= self.priority_response_scale <= 1.0:
+            raise ValueError("harbor priority_response_scale must be in [0, 1]")
+        if not self.world_x_bounds[0] < self.world_x_bounds[1]:
+            raise ValueError("harbor world_x_bounds must be increasing")
+        if not self.world_y_bounds[0] < self.shoreline_y < self.world_y_bounds[1]:
+            raise ValueError("harbor shoreline_y must lie inside world_y_bounds")
+        if self.seabed_z >= 0.0:
+            raise ValueError("harbor seabed_z must be below the water surface")
 
 
 @dataclass(frozen=True)
@@ -109,6 +133,7 @@ class HarborResult:
     messages_sent: int
     messages_delivered: int
     messages_dropped: int
+    guidance_update_count: int
 
 def run_harbor_simulation(
     agents: list[HarborAgent],
@@ -126,7 +151,10 @@ def run_harbor_simulation(
     current = {agent.name: np.asarray(agent.start, dtype=float).copy() for agent in agents}
     histories = {name: [state.copy()] for name, state in current.items()}
     controls = {name: [] for name in names}
+    last_controls: dict[str, np.ndarray] = {}
+    guidance_update_count = 0
     first_goal_steps: dict[str, int | None] = {name: None for name in names}
+    stopped_at_goal: set[str] = set()
     network = CommunicationNetwork(names, communication)
 
     for step in range(config.horizon):
@@ -135,6 +163,7 @@ def run_harbor_simulation(
                 agent.model.position(current[name]),
                 agent.model.velocity(current[name]),
                 agent.goal,
+                _platform_speed(agent.model),
             )
             for name, agent in by_name.items()
         }
@@ -154,13 +183,34 @@ def run_harbor_simulation(
                 desired_velocity = _coordinate_velocity(
                     name,
                     position,
+                    agent.goal,
+                    _platform_speed(agent.model),
                     desired_velocity,
                     inboxes[name],
                     config,
+                    step,
                 )
-            control = agent.model.guidance_control(
-                current[name], desired_velocity, config.dt
+            at_goal = goal_distance <= config.goal_tolerance
+            left_goal = name in stopped_at_goal and not at_goal
+            if left_goal:
+                stopped_at_goal.remove(name)
+            update_guidance = name not in last_controls or (
+                at_goal and name not in stopped_at_goal
             )
+            if left_goal:
+                update_guidance = True
+            if not at_goal and step % config.guidance_update_interval_steps == 0:
+                update_guidance = True
+            if update_guidance:
+                control = agent.model.guidance_control(
+                    current[name], desired_velocity, config.dt
+                )
+                last_controls[name] = control
+                guidance_update_count += 1
+                if at_goal:
+                    stopped_at_goal.add(name)
+            else:
+                control = last_controls[name]
             next_state = agent.model.step(current[name], control, config.dt)
             next_states[name] = agent.domain.project(agent.model, next_state)
             controls[name].append(control)
@@ -201,25 +251,49 @@ def run_harbor_simulation(
         messages_sent=network.sent_count,
         messages_delivered=network.delivered_count,
         messages_dropped=network.dropped_count,
+        guidance_update_count=guidance_update_count,
     )
 
 
-def _coordinate_velocity(name, position, desired, inbox, config):
+def _coordinate_velocity(
+    name, position, goal, cruise_speed, desired, inbox, config, current_step
+):
     adjusted = np.asarray(desired, dtype=float).copy()
     for other_name, message in inbox.items():
-        relative = position - message.position
+        message_position = message.position
+        if config.predict_delayed_messages:
+            message_age = max(0, current_step - message.sent_step)
+            message_position = (
+                message.position + message_age * config.dt * message.velocity
+            )
+        relative = position - message_position
         distance = float(np.linalg.norm(relative))
         if distance >= config.coordination_distance or distance < 1e-9:
             continue
         closing = float(np.dot(desired - message.velocity, -relative / distance))
         if closing <= 0.0:
             continue
-        if name > other_name:
+        should_yield = name > other_name
+        if config.coordination_policy == "eta_priority":
+            own_eta = np.linalg.norm(goal - position) / cruise_speed
+            other_eta = (
+                np.linalg.norm(message.goal - message_position)
+                / message.cruise_speed
+            )
+            should_yield = (own_eta, name) > (other_eta, other_name)
+        if should_yield:
             adjusted *= config.yielding_speed_scale
             planar = relative[:2] / distance
             adjusted[:2] += config.avoidance_gain * np.array([-planar[1], planar[0]])
         else:
-            adjusted += config.avoidance_gain * relative / distance
+            response_scale = (
+                1.0
+                if config.coordination_policy == "reciprocal"
+                else config.priority_response_scale
+            )
+            adjusted += (
+                response_scale * config.avoidance_gain * relative / distance
+            )
     return adjusted
 
 

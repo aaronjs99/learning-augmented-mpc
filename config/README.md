@@ -4,6 +4,18 @@
 `harbor.yaml` independently configures heterogeneous UGV/USV/ROV dynamics,
 operating domains, coordination, and delayed communication experiments.
 
+Harbor `coordination_policy` selects reciprocal or ETA-priority response.
+`priority_response_scale` controls how much reciprocal avoidance the priority
+agent retains; `yielding_speed_scale` controls the yielding agent. Network
+range, update interval, delay, message TTL, dropout probability, and seed are
+all explicit YAML values and never act as physical pose constraints.
+`predict_delayed_messages` optionally enables timestamp-aware constant-velocity
+state propagation before decentralized conflict evaluation. It is disabled by
+default because turning harbor trajectories invalidate that approximation at
+high delay.
+`guidance_update_interval_steps` controls zero-order-hold block execution and
+supports update-load versus safety ablations.
+
 It owns the scenario states/goals, obstacle, dynamics constants, APF initializer
 tuning, LMPC horizons/weights/slacks, and output defaults. CLI flags in
 `run.py` are intended for quick overrides only.

@@ -43,6 +43,7 @@ class AgentMessage:
     position: np.ndarray
     velocity: np.ndarray
     goal: np.ndarray
+    cruise_speed: float
 
 
 class CommunicationNetwork:
@@ -63,17 +64,20 @@ class CommunicationNetwork:
     def exchange(
         self,
         step: int,
-        observations: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]],
+        observations: dict[
+            str, tuple[np.ndarray, np.ndarray, np.ndarray, float]
+        ],
     ) -> dict[str, dict[str, AgentMessage]]:
         """Broadcast due observations and return each receiver's latest inbox."""
         if self.config.enabled and step % self.config.update_interval_steps == 0:
-            for sender, (position, velocity, goal) in observations.items():
+            for sender, (position, velocity, goal, cruise_speed) in observations.items():
                 message = AgentMessage(
                     sender=sender,
                     sent_step=step,
                     position=np.asarray(position, dtype=float).copy(),
                     velocity=np.asarray(velocity, dtype=float).copy(),
                     goal=np.asarray(goal, dtype=float).copy(),
+                    cruise_speed=float(cruise_speed),
                 )
                 for receiver in self.names:
                     if receiver == sender:
