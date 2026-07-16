@@ -75,6 +75,7 @@ def main() -> None:
                     for step in result.first_goal_steps.values()
                 ),
                 "final_goal_errors": result.final_goal_errors,
+                "final_orientation_errors": result.final_orientation_errors,
                 "min_pairwise_distance": result.min_pairwise_distance,
                 "pairwise_violation_count": result.pairwise_violation_count,
                 "messages_sent": result.messages_sent,

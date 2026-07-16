@@ -56,20 +56,44 @@ class HarborAgent:
     goal: np.ndarray
     radius: float
     domain: OperatingDomain
+    waypoints: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("harbor agent name must not be empty")
         if np.asarray(self.start).shape != (self.model.state_dim,):
             raise ValueError("harbor agent start does not match model state dimension")
-        if np.asarray(self.goal).shape != (3,):
-            raise ValueError("harbor agent goal must have shape (3,)")
+        if np.asarray(self.goal).shape != (self.model.pose_dim,):
+            raise ValueError(
+                f"harbor agent goal must have shape ({self.model.pose_dim},)"
+            )
         if self.radius <= 0.0:
             raise ValueError("harbor agent radius must be positive")
         if not self.domain.contains(self.model.position(self.start)):
             raise ValueError("harbor agent start lies outside its operating domain")
-        if not self.domain.contains(self.goal):
+        if not self.domain.contains(self.model.goal_position(self.goal)):
             raise ValueError("harbor agent goal lies outside its operating domain")
+        if self.waypoints is not None:
+            waypoints = np.asarray(self.waypoints, dtype=float)
+            if waypoints.ndim != 2 or waypoints.shape[1] != self.model.pose_dim:
+                raise ValueError(
+                    f"harbor agent waypoints must have shape (N, {self.model.pose_dim})"
+                )
+            if not all(
+                self.domain.contains(self.model.goal_position(point))
+                for point in waypoints
+            ):
+                raise ValueError("harbor agent waypoint lies outside its operating domain")
+
+    @property
+    def route(self) -> np.ndarray:
+        """Return intermediate waypoints followed by the final goal."""
+        intermediate = (
+            np.empty((0, self.model.pose_dim))
+            if self.waypoints is None
+            else np.asarray(self.waypoints, dtype=float)
+        )
+        return np.vstack((intermediate, self.goal))
 
 
 @dataclass(frozen=True)
@@ -80,6 +104,7 @@ class HarborSimulationConfig:
     horizon: int = 160
     guidance_update_interval_steps: int = 1
     goal_tolerance: float = 0.25
+    orientation_tolerance: float = 0.15
     coordination_distance: float = 2.0
     avoidance_gain: float = 1.5
     yielding_speed_scale: float = 0.15
@@ -98,7 +123,11 @@ class HarborSimulationConfig:
             or self.guidance_update_interval_steps <= 0
         ):
             raise ValueError("harbor dt and horizon must be positive")
-        if self.goal_tolerance <= 0.0 or self.coordination_distance <= 0.0:
+        if (
+            self.goal_tolerance <= 0.0
+            or self.orientation_tolerance <= 0.0
+            or self.coordination_distance <= 0.0
+        ):
             raise ValueError("harbor goal and coordination distances must be positive")
         if self.avoidance_gain < 0.0:
             raise ValueError("harbor avoidance_gain must be nonnegative")
@@ -127,6 +156,7 @@ class HarborResult:
     controls: dict[str, np.ndarray]
     first_goal_steps: dict[str, int | None]
     final_goal_errors: dict[str, float]
+    final_orientation_errors: dict[str, float]
     all_goals_reached: bool
     min_pairwise_distance: float
     pairwise_violation_count: int
@@ -154,6 +184,7 @@ def run_harbor_simulation(
     last_controls: dict[str, np.ndarray] = {}
     guidance_update_count = 0
     first_goal_steps: dict[str, int | None] = {name: None for name in names}
+    route_indices = {name: 0 for name in names}
     stopped_at_goal: set[str] = set()
     network = CommunicationNetwork(names, communication)
 
@@ -162,35 +193,56 @@ def run_harbor_simulation(
             name: (
                 agent.model.position(current[name]),
                 agent.model.velocity(current[name]),
-                agent.goal,
+                agent.model.goal_position(agent.goal),
                 _platform_speed(agent.model),
             )
             for name, agent in by_name.items()
         }
+        if all(_goal_reached(by_name[name], current[name], by_name[name].goal, config) for name in names):
+            for name in names:
+                if first_goal_steps[name] is None:
+                    first_goal_steps[name] = step
+            break
         inboxes = network.exchange(step, observations)
         next_states = {}
         for name, agent in by_name.items():
             position = observations[name][0]
-            goal_delta = agent.goal - position
+            route = agent.route
+            while (
+                route_indices[name] < len(route) - 1
+                and _goal_reached(
+                    agent, current[name], route[route_indices[name]], config
+                )
+            ):
+                route_indices[name] += 1
+            navigation_goal = route[route_indices[name]]
+            navigation_position = agent.model.goal_position(navigation_goal)
+            goal_delta = navigation_position - position
             goal_distance = float(np.linalg.norm(goal_delta))
-            if goal_distance <= config.goal_tolerance:
+            at_final_goal = route_indices[name] == len(route) - 1
+            reached_navigation_goal = _goal_reached(
+                agent, current[name], navigation_goal, config
+            )
+            if at_final_goal and reached_navigation_goal:
                 desired_velocity = np.zeros(3)
                 if first_goal_steps[name] is None:
                     first_goal_steps[name] = step
             else:
-                desired_velocity = goal_delta / max(goal_distance, 1e-9)
-                desired_velocity *= _platform_speed(agent.model)
-                desired_velocity = _coordinate_velocity(
-                    name,
-                    position,
-                    agent.goal,
-                    _platform_speed(agent.model),
-                    desired_velocity,
-                    inboxes[name],
-                    config,
-                    step,
-                )
-            at_goal = goal_distance <= config.goal_tolerance
+                desired_velocity = np.zeros(3)
+                if goal_distance > config.goal_tolerance:
+                    desired_velocity = goal_delta / max(goal_distance, 1e-9)
+                    desired_velocity *= _platform_speed(agent.model)
+                    desired_velocity = _coordinate_velocity(
+                        name,
+                        position,
+                        navigation_position,
+                        _platform_speed(agent.model),
+                        desired_velocity,
+                        inboxes[name],
+                        config,
+                        step,
+                    )
+            at_goal = at_final_goal and reached_navigation_goal
             left_goal = name in stopped_at_goal and not at_goal
             if left_goal:
                 stopped_at_goal.remove(name)
@@ -202,8 +254,18 @@ def run_harbor_simulation(
             if not at_goal and step % config.guidance_update_interval_steps == 0:
                 update_guidance = True
             if update_guidance:
-                control = agent.model.guidance_control(
-                    current[name], desired_velocity, config.dt
+                proposed_control = agent.model.guidance_control(
+                    current[name],
+                    desired_velocity,
+                    config.dt,
+                    desired_pose=navigation_goal,
+                )
+                smoothing = float(getattr(agent.model, "control_smoothing", 1.0))
+                control = (
+                    proposed_control
+                    if name not in last_controls
+                    else smoothing * proposed_control
+                    + (1.0 - smoothing) * last_controls[name]
                 )
                 last_controls[name] = control
                 guidance_update_count += 1
@@ -221,10 +283,7 @@ def run_harbor_simulation(
 
     for name, agent in by_name.items():
         if first_goal_steps[name] is None:
-            final_distance = np.linalg.norm(
-                agent.model.position(current[name]) - agent.goal
-            )
-            if final_distance <= config.goal_tolerance:
+            if _goal_reached(agent, current[name], agent.goal, config):
                 first_goal_steps[name] = config.horizon
 
     state_arrays = {name: np.asarray(values) for name, values in histories.items()}
@@ -233,7 +292,20 @@ def run_harbor_simulation(
         for name, values in state_arrays.items()
     }
     final_goal_errors = {
-        name: float(np.linalg.norm(position_arrays[name][-1] - by_name[name].goal))
+        name: float(
+            np.linalg.norm(
+                position_arrays[name][-1]
+                - by_name[name].model.goal_position(by_name[name].goal)
+            )
+        )
+        for name in names
+    }
+    final_orientation_errors = {
+        name: float(
+            np.linalg.norm(
+                by_name[name].model.orientation_error(state_arrays[name][-1], by_name[name].goal)
+            )
+        )
         for name in names
     }
     min_distance, violation_count = _pairwise_metrics(position_arrays, by_name)
@@ -243,8 +315,11 @@ def run_harbor_simulation(
         controls={name: np.asarray(values) for name, values in controls.items()},
         first_goal_steps=first_goal_steps,
         final_goal_errors=final_goal_errors,
+        final_orientation_errors=final_orientation_errors,
         all_goals_reached=all(
-            error <= config.goal_tolerance for error in final_goal_errors.values()
+            final_goal_errors[name] <= config.goal_tolerance
+            and final_orientation_errors[name] <= config.orientation_tolerance
+            for name in names
         ),
         min_pairwise_distance=min_distance,
         pairwise_violation_count=violation_count,
@@ -299,8 +374,19 @@ def _coordinate_velocity(
 
 def _platform_speed(model: PlatformModel) -> float:
     if model.kind == "rov":
-        return float(model.max_surge_speed)
+        return float(model.max_horizontal_speed)
     return float(model.max_speed)
+
+
+def _goal_reached(agent, state, goal, config) -> bool:
+    position_error = np.linalg.norm(
+        agent.model.position(state) - agent.model.goal_position(goal)
+    )
+    orientation_error = np.linalg.norm(agent.model.orientation_error(state, goal))
+    return bool(
+        position_error <= config.goal_tolerance
+        and orientation_error <= config.orientation_tolerance
+    )
 
 
 def _pairwise_metrics(position_arrays, agents):

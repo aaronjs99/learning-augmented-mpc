@@ -44,8 +44,10 @@ def load_harbor_config(
             raise ValueError(
                 f"agent {entry['name']} start must have shape ({model.state_dim},)"
             )
-        if goal.shape != (3,):
-            raise ValueError(f"agent {entry['name']} goal must have shape (3,)")
+        if goal.shape != (model.pose_dim,):
+            raise ValueError(
+                f"agent {entry['name']} goal must have shape ({model.pose_dim},)"
+            )
         domain_data = entry["domain"]
         domain = OperatingDomain(
             x_bounds=_bounds(domain_data["x"], f"{entry['name']}.domain.x"),
@@ -63,6 +65,11 @@ def load_harbor_config(
                 goal=goal,
                 radius=radius,
                 domain=domain,
+                waypoints=(
+                    np.asarray(entry["waypoints"], dtype=float)
+                    if "waypoints" in entry
+                    else None
+                ),
             )
         )
     if len(agents) < 2:

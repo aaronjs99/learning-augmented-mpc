@@ -3,6 +3,9 @@
 `manta.yaml` is the default runtime configuration for manta LMPC.
 `harbor.yaml` independently configures heterogeneous UGV/USV/ROV dynamics,
 operating domains, coordination, and delayed communication experiments.
+UGV and USV goals are planar `[x, y, yaw]` poses. ROV goals and waypoints are
+`[x, y, z, roll, pitch, yaw]` poses for its 12-state, 6-DOF model. Position and
+orientation tolerances are configured separately.
 
 Harbor `coordination_policy` selects reciprocal or ETA-priority response.
 `priority_response_scale` controls how much reciprocal avoidance the priority
@@ -15,6 +18,8 @@ default because turning harbor trajectories invalidate that approximation at
 high delay.
 `guidance_update_interval_steps` controls zero-order-hold block execution and
 supports update-load versus safety ablations.
+ROV response gains and `control_smoothing` tune finite-rate 6-DOF pose tracking
+without changing the UGV/USV controllers.
 
 It owns the scenario states/goals, obstacle, dynamics constants, APF initializer
 tuning, LMPC horizons/weights/slacks, and output defaults. CLI flags in

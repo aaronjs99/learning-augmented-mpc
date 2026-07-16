@@ -78,22 +78,23 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       automatically falls back to the established behavior.
 
 12. **Untethered heterogeneous harbor coordination**
-    - UGV, USV, and ROV models expose a common world-velocity guidance contract
-      while retaining different state dimensions, controls, dynamics, and
-      operating domains.
+    - Two 3-DOF-pose UGVs, one 3-DOF-pose USV, and a 6-DOF-pose, 12-state ROV
+      expose a common world-velocity guidance contract while retaining distinct
+      controls, dynamics, goals, and operating domains.
     - Range, rate, delay, message lifetime, dropout, and random seed are YAML
       configuration, and communication changes information without introducing
       any physical relative-pose constraint.
-    - In the shoreline-constrained harbor, coordination reduces swept USV/ROV
-      violations from `6` to `0` and raises minimum 3D separation from
-      `0.611 m` to at least `1.407 m`, while all three platforms finish.
-    - ETA-negotiated asymmetric response preserves zero violations and reduces
-      summed completion steps from `143` to `128` versus reciprocal response, a
-      `10.5%` improvement with `1.407 m` minimum separation.
-    - A 150-trial seeded delay/dropout sweep exposes separate safety and final-
-      completion boundaries. Constant-velocity stale-message prediction was
-      rejected as a default because turning motion made it regress at high
-      delay in the physically partitioned harbor.
+    - In the shoreline-constrained harbor, coordination removes four swept UGV
+      violations and raises minimum 3D separation from `0.650 m` to `1.568 m`
+      while all four platforms satisfy position and attitude tolerances.
+    - Reciprocal response is safe but leaves two platforms incomplete;
+      ETA-priority is the tested policy that restores both safety and liveness.
+    - A 150-trial seeded delay/dropout sweep remains safe throughout the tested
+      grid but exposes a separate final-completion boundary. This is scoped
+      empirical evidence, not a safety guarantee.
+    - This package is currently a distributed guidance baseline. Successful
+      rollout samples are visualized but are not yet used by an LMPC terminal
+      set or learned cost-to-go.
 
 13. **Configurable block guidance execution**
     - The useful block-replanning concept from the legacy `distmpc` prototype is
@@ -101,9 +102,9 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       control hold and explicit update-count telemetry.
     - Unlike the legacy centralized GEKKO script, the experiment remains
       heterogeneous, communication-aware, swept-validated, and YAML-backed.
-    - A two-step block cuts guidance updates from `131` to `68` (`48.1%`) while
-      preserving zero violations and the same `128` summed completion cost;
-      larger blocks expose measurable completion and safety regressions.
+    - A two-step block cuts guidance updates from `218` to `119` (`45.4%`)
+      while preserving completion, zero violations, and the same `205` step
+      sum; four-step guidance loses completion.
 
 ## Current Evidence
 

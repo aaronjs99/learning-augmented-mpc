@@ -19,6 +19,7 @@ class PlatformModel(ABC):
     kind: str
     state_dim: int
     control_dim: int
+    pose_dim: int
 
     @abstractmethod
     def position(self, state: np.ndarray) -> np.ndarray:
@@ -29,8 +30,20 @@ class PlatformModel(ABC):
         """Return world-frame ``[vx, vy, vz]`` velocity."""
 
     @abstractmethod
+    def goal_position(self, goal: np.ndarray) -> np.ndarray:
+        """Map a platform pose goal to world-frame ``[x, y, z]``."""
+
+    @abstractmethod
+    def orientation_error(self, state: np.ndarray, goal: np.ndarray) -> np.ndarray:
+        """Return wrapped angular pose error in the platform's DOF space."""
+
+    @abstractmethod
     def guidance_control(
-        self, state: np.ndarray, desired_velocity: np.ndarray, dt: float
+        self,
+        state: np.ndarray,
+        desired_velocity: np.ndarray,
+        dt: float,
+        desired_pose: np.ndarray | None = None,
     ) -> np.ndarray:
         """Map a desired world velocity to bounded platform controls."""
 
@@ -50,6 +63,7 @@ class UGVModel(PlatformModel):
     kind: str = field(default="ugv", init=False)
     state_dim: int = field(default=4, init=False)
     control_dim: int = field(default=2, init=False)
+    pose_dim: int = field(default=3, init=False)
 
     def __post_init__(self) -> None:
         if min(self.max_speed, self.max_acceleration, self.max_yaw_rate) <= 0.0:
@@ -63,12 +77,26 @@ class UGVModel(PlatformModel):
             [state[3] * np.cos(state[2]), state[3] * np.sin(state[2]), 0.0]
         )
 
+    def goal_position(self, goal: np.ndarray) -> np.ndarray:
+        return np.array([goal[0], goal[1], self.ground_z], dtype=float)
+
+    def orientation_error(self, state: np.ndarray, goal: np.ndarray) -> np.ndarray:
+        return np.array([wrap_angle(goal[2] - state[2])])
+
     def guidance_control(
-        self, state: np.ndarray, desired_velocity: np.ndarray, dt: float
+        self,
+        state: np.ndarray,
+        desired_velocity: np.ndarray,
+        dt: float,
+        desired_pose: np.ndarray | None = None,
     ) -> np.ndarray:
         desired = np.asarray(desired_velocity, dtype=float)[:2]
         speed = min(float(np.linalg.norm(desired)), self.max_speed)
-        heading = state[2] if speed < 1e-9 else float(np.arctan2(desired[1], desired[0]))
+        heading = (
+            float(desired_pose[2])
+            if speed < 1e-9 and desired_pose is not None
+            else state[2] if speed < 1e-9 else float(np.arctan2(desired[1], desired[0]))
+        )
         return np.array(
             [
                 np.clip((speed - state[3]) / dt, -self.max_acceleration, self.max_acceleration),
@@ -99,6 +127,7 @@ class USVModel(PlatformModel):
     kind: str = field(default="usv", init=False)
     state_dim: int = field(default=4, init=False)
     control_dim: int = field(default=2, init=False)
+    pose_dim: int = field(default=3, init=False)
 
     def __post_init__(self) -> None:
         if min(self.max_speed, self.max_thrust, self.max_yaw_rate) <= 0.0:
@@ -114,12 +143,26 @@ class USVModel(PlatformModel):
             [state[3] * np.cos(state[2]), state[3] * np.sin(state[2]), 0.0]
         )
 
+    def goal_position(self, goal: np.ndarray) -> np.ndarray:
+        return np.array([goal[0], goal[1], self.surface_z], dtype=float)
+
+    def orientation_error(self, state: np.ndarray, goal: np.ndarray) -> np.ndarray:
+        return np.array([wrap_angle(goal[2] - state[2])])
+
     def guidance_control(
-        self, state: np.ndarray, desired_velocity: np.ndarray, dt: float
+        self,
+        state: np.ndarray,
+        desired_velocity: np.ndarray,
+        dt: float,
+        desired_pose: np.ndarray | None = None,
     ) -> np.ndarray:
         desired = np.asarray(desired_velocity, dtype=float)[:2]
         speed = min(float(np.linalg.norm(desired)), self.max_speed)
-        heading = state[2] if speed < 1e-9 else float(np.arctan2(desired[1], desired[0]))
+        heading = (
+            float(desired_pose[2])
+            if speed < 1e-9 and desired_pose is not None
+            else state[2] if speed < 1e-9 else float(np.arctan2(desired[1], desired[0]))
+        )
         thrust = (speed - state[3]) / dt + self.drag * state[3]
         return np.array(
             [
@@ -143,75 +186,111 @@ class USVModel(PlatformModel):
 
 @dataclass(frozen=True)
 class ROVModel(PlatformModel):
-    """Untethered underwater surge-heave-yaw model with linear drag."""
+    """Untethered damped 6-DOF ROV with world-frame wrench control."""
 
-    max_surge_speed: float = 0.8
-    max_heave_speed: float = 0.5
-    max_surge_force: float = 1.2
-    max_heave_force: float = 0.8
-    max_yaw_rate: float = 0.7
-    surge_drag: float = 0.3
-    heave_drag: float = 0.4
+    max_horizontal_speed: float = 0.8
+    max_vertical_speed: float = 0.5
+    max_force: float = 1.2
+    max_angular_rate: float = 0.7
+    max_torque: float = 1.0
+    linear_drag: float = 0.3
+    angular_drag: float = 0.4
+    velocity_response_gain: float = 1.8
+    attitude_response_gain: float = 1.0
+    angular_rate_response_gain: float = 2.0
+    control_smoothing: float = 0.4
     kind: str = field(default="rov", init=False)
-    state_dim: int = field(default=6, init=False)
-    control_dim: int = field(default=3, init=False)
+    state_dim: int = field(default=12, init=False)
+    control_dim: int = field(default=6, init=False)
+    pose_dim: int = field(default=6, init=False)
 
     def __post_init__(self) -> None:
         positive = (
-            self.max_surge_speed,
-            self.max_heave_speed,
-            self.max_surge_force,
-            self.max_heave_force,
-            self.max_yaw_rate,
+            self.max_horizontal_speed,
+            self.max_vertical_speed,
+            self.max_force,
+            self.max_angular_rate,
+            self.max_torque,
+            self.velocity_response_gain,
+            self.attitude_response_gain,
+            self.angular_rate_response_gain,
+            self.control_smoothing,
         )
         if min(positive) <= 0.0:
             raise ValueError("ROV speed, force, and yaw-rate bounds must be positive")
-        if self.surge_drag < 0.0 or self.heave_drag < 0.0:
+        if self.control_smoothing > 1.0:
+            raise ValueError("ROV control_smoothing must be in (0, 1]")
+        if self.linear_drag < 0.0 or self.angular_drag < 0.0:
             raise ValueError("ROV drag values must be nonnegative")
 
     def position(self, state: np.ndarray) -> np.ndarray:
         return np.asarray(state[:3], dtype=float).copy()
 
     def velocity(self, state: np.ndarray) -> np.ndarray:
-        return np.array(
-            [state[4] * np.cos(state[3]), state[4] * np.sin(state[3]), state[5]]
-        )
+        return np.asarray(state[6:9], dtype=float).copy()
+
+    def goal_position(self, goal: np.ndarray) -> np.ndarray:
+        return np.asarray(goal[:3], dtype=float).copy()
+
+    def orientation_error(self, state: np.ndarray, goal: np.ndarray) -> np.ndarray:
+        return np.asarray([wrap_angle(goal[i] - state[i]) for i in range(3, 6)])
 
     def guidance_control(
-        self, state: np.ndarray, desired_velocity: np.ndarray, dt: float
+        self,
+        state: np.ndarray,
+        desired_velocity: np.ndarray,
+        dt: float,
+        desired_pose: np.ndarray | None = None,
     ) -> np.ndarray:
         desired = np.asarray(desired_velocity, dtype=float)
-        planar = desired[:2]
-        surge = min(float(np.linalg.norm(planar)), self.max_surge_speed)
-        heading = state[3] if surge < 1e-9 else float(np.arctan2(planar[1], planar[0]))
-        heave = np.clip(desired[2], -self.max_heave_speed, self.max_heave_speed)
-        return np.array(
-            [
-                np.clip((surge - state[4]) / dt + self.surge_drag * state[4], -self.max_surge_force, self.max_surge_force),
-                np.clip((heave - state[5]) / dt + self.heave_drag * state[5], -self.max_heave_force, self.max_heave_force),
-                np.clip(wrap_angle(heading - state[3]) / dt, -self.max_yaw_rate, self.max_yaw_rate),
-            ]
+        planar_speed = np.linalg.norm(desired[:2])
+        if planar_speed > self.max_horizontal_speed:
+            desired[:2] *= self.max_horizontal_speed / planar_speed
+        desired[2] = np.clip(
+            desired[2], -self.max_vertical_speed, self.max_vertical_speed
         )
+        angular_error = (
+            np.zeros(3)
+            if desired_pose is None
+            else self.orientation_error(state, desired_pose)
+        )
+        desired_rates = np.clip(
+            self.attitude_response_gain * angular_error,
+            -self.max_angular_rate,
+            self.max_angular_rate,
+        )
+        forces = np.clip(
+            self.velocity_response_gain * (desired - state[6:9])
+            + self.linear_drag * state[6:9],
+            -self.max_force,
+            self.max_force,
+        )
+        torques = np.clip(
+            self.angular_rate_response_gain * (desired_rates - state[9:12])
+            + self.angular_drag * state[9:12],
+            -self.max_torque,
+            self.max_torque,
+        )
+        return np.concatenate((forces, torques))
 
     def step(self, state: np.ndarray, control: np.ndarray, dt: float) -> np.ndarray:
         value = np.asarray(state, dtype=float).copy()
-        surge_force = np.clip(control[0], -self.max_surge_force, self.max_surge_force)
-        heave_force = np.clip(control[1], -self.max_heave_force, self.max_heave_force)
-        yaw_rate = np.clip(control[2], -self.max_yaw_rate, self.max_yaw_rate)
-        value[4] = np.clip(
-            value[4] + dt * (surge_force - self.surge_drag * value[4]),
-            0.0,
-            self.max_surge_speed,
+        forces = np.clip(control[:3], -self.max_force, self.max_force)
+        torques = np.clip(control[3:6], -self.max_torque, self.max_torque)
+        value[6:9] += dt * (forces - self.linear_drag * value[6:9])
+        horizontal_speed = np.linalg.norm(value[6:8])
+        if horizontal_speed > self.max_horizontal_speed:
+            value[6:8] *= self.max_horizontal_speed / horizontal_speed
+        value[8] = np.clip(
+            value[8], -self.max_vertical_speed, self.max_vertical_speed
         )
-        value[5] = np.clip(
-            value[5] + dt * (heave_force - self.heave_drag * value[5]),
-            -self.max_heave_speed,
-            self.max_heave_speed,
+        value[9:12] = np.clip(
+            value[9:12] + dt * (torques - self.angular_drag * value[9:12]),
+            -self.max_angular_rate,
+            self.max_angular_rate,
         )
-        value[3] = wrap_angle(value[3] + dt * yaw_rate)
-        value[0] += dt * value[4] * np.cos(value[3])
-        value[1] += dt * value[4] * np.sin(value[3])
-        value[2] += dt * value[5]
+        value[:3] += dt * value[6:9]
+        value[3:6] = [wrap_angle(angle) for angle in value[3:6] + dt * value[9:12]]
         return value
 
 

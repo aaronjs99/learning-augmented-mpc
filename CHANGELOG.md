@@ -13,6 +13,10 @@ All notable repository-level changes are tracked here.
   heatmaps and optional delayed-message prediction.
 - Explicit shoreline, quay, surface-water, and underwater operating regions for
   physically meaningful UGV/USV/ROV harbor scenarios.
+- Two independent quay UGVs and a depth-changing, 12-state 6-DOF ROV route.
+- Separate 3-DOF planar and 6-DOF underwater pose-goal validation.
+- Harbor safety envelopes, successful-rollout samples, goal headings, depth,
+  and roll/pitch/yaw diagnostics with an explicit non-LMPC scope boundary.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.

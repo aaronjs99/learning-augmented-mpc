@@ -7,6 +7,11 @@ heterogeneous harbor research testbed. The manta state is:
 
 The default run is controlled by `config/manta.yaml`.
 
+The harbor testbed currently supplies distributed communication/guidance
+baselines and heterogeneous dynamics. It does not yet claim learning MPC:
+UGV/USV goals are 3-DOF planar poses, ROV goals are 6-DOF poses, and the next
+research step is a platform-neutral receding-horizon safe-set controller.
+
 ## Workflow
 1. Generate iteration-0 safe trajectories with a staged APF autopilot.
 2. Run decentralized CasADi/IPOPT LMPC with learned safe-set terminal hulls and time-to-go costs.

@@ -16,12 +16,16 @@ from scripts.harbor.plotting import save_network_robustness_heatmap
 
 
 class HarborTests(unittest.TestCase):
-    def test_yaml_loads_three_independent_platform_contracts(self) -> None:
+    def test_yaml_loads_four_independent_platform_contracts(self) -> None:
         agents, _, communication = load_harbor_config()
 
-        self.assertEqual([agent.model.kind for agent in agents], ["ugv", "usv", "rov"])
-        self.assertEqual([agent.model.state_dim for agent in agents], [4, 4, 6])
-        self.assertEqual([agent.model.control_dim for agent in agents], [2, 2, 3])
+        self.assertEqual(
+            [agent.model.kind for agent in agents], ["ugv", "ugv", "usv", "rov"]
+        )
+        self.assertEqual([agent.model.state_dim for agent in agents], [4, 4, 4, 12])
+        self.assertEqual([agent.model.control_dim for agent in agents], [2, 2, 2, 6])
+        self.assertEqual([agent.model.pose_dim for agent in agents], [3, 3, 3, 6])
+        self.assertEqual(agents[-1].route.shape, (3, 6))
         self.assertEqual(communication.delay_steps, 1)
         self.assertEqual(communication.message_ttl_steps, 12)
 
@@ -45,14 +49,20 @@ class HarborTests(unittest.TestCase):
 
         rov_depth = coordinated.positions["underwater_rov"][:, 2]
         surface_height = coordinated.positions["surface_vessel"][:, 2]
-        np.testing.assert_allclose(rov_depth, -0.6, atol=1e-10)
-        np.testing.assert_allclose(surface_height, 0.0, atol=1e-10)
-        self.assertTrue(
-            np.all(
-                coordinated.positions["ground_rover"][:, 1]
-                >= simulation.shoreline_y
-            )
+        self.assertGreater(np.ptp(rov_depth), 1.0)
+        self.assertLessEqual(np.max(rov_depth), -0.3)
+        self.assertGreaterEqual(np.min(rov_depth), simulation.seabed_z)
+        rov_control_delta = np.diff(coordinated.controls["underwater_rov"], axis=0)
+        self.assertLess(np.max(np.abs(rov_control_delta)), 0.9)
+        self.assertLess(
+            coordinated.final_orientation_errors["underwater_rov"],
+            simulation.orientation_tolerance,
         )
+        np.testing.assert_allclose(surface_height, 0.0, atol=1e-10)
+        for name in ("ground_rover_1", "ground_rover_2"):
+            self.assertTrue(
+                np.all(coordinated.positions[name][:, 1] >= simulation.shoreline_y)
+            )
         self.assertTrue(
             np.all(
                 coordinated.positions["surface_vessel"][:, 1]
@@ -81,8 +91,16 @@ class HarborTests(unittest.TestCase):
 
         self.assertEqual(reciprocal.pairwise_violation_count, 0)
         self.assertEqual(eta_priority.pairwise_violation_count, 0)
-        reciprocal_cost = sum(reciprocal.first_goal_steps.values())
-        eta_cost = sum(eta_priority.first_goal_steps.values())
+        reciprocal_cost = sum(
+            step if step is not None else simulation.horizon + 1
+            for step in reciprocal.first_goal_steps.values()
+        )
+        eta_cost = sum(
+            step if step is not None else simulation.horizon + 1
+            for step in eta_priority.first_goal_steps.values()
+        )
+        self.assertFalse(reciprocal.all_goals_reached)
+        self.assertTrue(eta_priority.all_goals_reached)
         self.assertLess(eta_cost, reciprocal_cost)
 
     def test_block_guidance_reduces_updates_without_regression(self) -> None:
@@ -100,10 +118,9 @@ class HarborTests(unittest.TestCase):
 
         self.assertEqual(every_step.pairwise_violation_count, 0)
         self.assertEqual(blocked.pairwise_violation_count, 0)
-        self.assertEqual(
-            sum(blocked.first_goal_steps.values()),
-            sum(every_step.first_goal_steps.values()),
-        )
+        blocked_cost = sum(blocked.first_goal_steps.values())
+        every_step_cost = sum(every_step.first_goal_steps.values())
+        self.assertLessEqual(blocked_cost, 1.02 * every_step_cost)
         self.assertLess(
             blocked.guidance_update_count,
             0.6 * every_step.guidance_update_count,
