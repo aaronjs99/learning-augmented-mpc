@@ -13,7 +13,9 @@ from PIL import Image
 
 from scripts.harbor import (
     DEFAULT_HARBOR_CONFIG,
+    HarborDisturbanceConfig,
     load_harbor_config,
+    load_harbor_disturbance_config,
     run_harbor_simulation,
 )
 from scripts.harbor.experiments import sweep_network_robustness
@@ -47,6 +49,39 @@ class HarborTests(unittest.TestCase):
         self.assertEqual(agents[-1].route.shape, (3, 6))
         self.assertEqual(communication.delay_steps, 1)
         self.assertEqual(communication.message_ttl_steps, 12)
+        disturbance = load_harbor_disturbance_config()
+        self.assertEqual(disturbance.water_current, [-0.1, 0.0, 0.03])
+        self.assertEqual(disturbance.evaluation_hold_steps, 12)
+
+    def test_hidden_current_advects_only_marine_execution_plant(self) -> None:
+        agents, simulation, communication = load_harbor_config()
+        selected = [
+            replace(
+                agent,
+                goal=np.asarray(agent.start[: agent.model.pose_dim]).copy(),
+                waypoints=None,
+            )
+            for agent in (agents[0], agents[2])
+        ]
+        result = run_harbor_simulation(
+            selected,
+            replace(simulation, horizon=1, goal_hold_steps=2),
+            replace(communication, enabled=False),
+            disturbance=HarborDisturbanceConfig(water_current=(0.2, -0.1, 0.05)),
+        )
+
+        np.testing.assert_allclose(
+            result.positions[selected[0].name][-1],
+            result.positions[selected[0].name][0],
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            result.positions[selected[1].name][-1]
+            - result.positions[selected[1].name][0],
+            simulation.dt * np.array([0.2, -0.1, 0.0]),
+            atol=1e-12,
+        )
+        self.assertEqual(len(result.applied_controls[selected[1].name]), 1)
 
     def test_communication_improves_safety_without_pose_coupling(self) -> None:
         agents, simulation, communication = load_harbor_config()

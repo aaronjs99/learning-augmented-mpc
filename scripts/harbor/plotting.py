@@ -8,7 +8,7 @@ import numpy as np
 
 from scripts.plotting._backend import configure_matplotlib
 
-from .simulation import HarborAgent, HarborResult
+from .simulation import HarborAgent, HarborDisturbanceConfig, HarborResult
 
 configure_matplotlib()
 
@@ -513,6 +513,118 @@ def save_horizon_efficiency(
         axis.legend()
     fig.suptitle("Learning Terminal Sets Compress the Required Horizon", fontsize=15)
     fig.tight_layout()
+    fig.savefig(output, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+    return output
+
+
+def save_model_mismatch_diagnostics(
+    trials,
+    agents: list[HarborAgent],
+    simulation_config,
+    disturbance: HarborDisturbanceConfig,
+    path: str | Path,
+) -> Path:
+    """Show robust paths, sustained terminal error, and residual convergence."""
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig = plt.figure(figsize=(14.5, 8.2))
+    grid = fig.add_gridspec(2, 2, width_ratios=(1.15, 1.0), hspace=0.34)
+    map_axis = fig.add_subplot(grid[:, 0])
+    error_axis = fig.add_subplot(grid[0, 1])
+    residual_axis = fig.add_subplot(grid[1, 1])
+    colors = _agent_colors(agents)
+    nominal = next(trial for trial in trials if trial.label == "Nominal MPC")
+    adaptive = next(
+        trial for trial in trials if trial.label == "Residual-adaptive LMPC"
+    )
+    _draw_harbor_map(map_axis, simulation_config)
+    for agent in agents:
+        color = colors[agent.name]
+        for trial, style, alpha in ((nominal, "--", 0.5), (adaptive, "-", 1.0)):
+            positions = trial.result.positions[agent.name]
+            map_axis.plot(
+                positions[:, 0],
+                positions[:, 1],
+                color=color,
+                linestyle=style,
+                linewidth=1.7 if style == "--" else 2.5,
+                alpha=alpha,
+                label=(
+                    f"{_display_name(agent)}: {trial.label}"
+                    if agent.model.kind in {"usv", "rov"}
+                    else None
+                ),
+            )
+        map_axis.scatter(agent.goal[0], agent.goal[1], color=color, marker="*", s=120)
+    current = np.asarray(disturbance.water_current, dtype=float)
+    map_axis.quiver(
+        -4.4,
+        -4.3,
+        6.0 * current[0],
+        6.0 * current[1],
+        color="#222222",
+        width=0.007,
+        angles="xy",
+        scale_units="xy",
+        scale=1.0,
+        label="hidden water current",
+    )
+    map_axis.set_title("Executed Paths Under the Same Hidden Current")
+    map_axis.set_xlabel("x [m]")
+    map_axis.set_ylabel("y [m]")
+    map_axis.set_aspect("equal", adjustable="box")
+    map_axis.grid(True, alpha=0.25)
+    map_axis.legend(loc="upper left", fontsize=8)
+
+    marine = [agent for agent in agents if agent.model.kind in {"usv", "rov"}]
+    labels = [trial.label.replace("Residual-adaptive ", "Adaptive ") for trial in trials]
+    x_values = np.arange(len(labels))
+    width = 0.34
+    for index, agent in enumerate(marine):
+        errors = [trial.result.final_goal_errors[agent.name] for trial in trials]
+        error_axis.bar(
+            x_values + (index - 0.5) * width,
+            errors,
+            width,
+            color=colors[agent.name],
+            label=_display_name(agent),
+        )
+    error_axis.axhline(
+        simulation_config.goal_tolerance,
+        color="#555555",
+        linestyle=":",
+        label="position tolerance",
+    )
+    error_axis.set_title(
+        f"Terminal Error After {disturbance.evaluation_hold_steps}-Step Hold"
+    )
+    error_axis.set_ylabel("position error [m]")
+    error_axis.set_xticks(x_values, labels, rotation=12, ha="right")
+    error_axis.grid(True, axis="y", alpha=0.25)
+    error_axis.legend(fontsize=8)
+
+    component_styles = ((0, "x", "-"), (1, "y", "--"), (2, "z", ":"))
+    for agent in marine:
+        history = adaptive.residual_history[agent.name]
+        for component, component_name, style in component_styles:
+            if agent.model.kind == "usv" and component == 2:
+                continue
+            residual_axis.plot(
+                history[:, component],
+                color=colors[agent.name],
+                linestyle=style,
+                linewidth=1.8,
+                label=f"{_display_name(agent)} {component_name}",
+            )
+            truth = current[component]
+            residual_axis.axhline(truth, color="#444444", linestyle=style, alpha=0.3)
+    residual_axis.set_title("Locally Estimated Position-Velocity Residual")
+    residual_axis.set_xlabel("control update")
+    residual_axis.set_ylabel("estimated residual [m/s]")
+    residual_axis.grid(True, alpha=0.25)
+    residual_axis.legend(ncol=2, fontsize=8)
+    fig.suptitle("Distributed Harbor MPC Robustness to Unmodeled Current", fontsize=15)
     fig.savefig(output, dpi=180, bbox_inches="tight")
     plt.close(fig)
     return output

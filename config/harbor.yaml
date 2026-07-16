@@ -1,6 +1,7 @@
 simulation:
   dt: 0.2
   horizon: 180
+  goal_hold_steps: 1
   guidance_update_interval_steps: 2
   goal_tolerance: 0.30
   orientation_tolerance: 0.15
@@ -25,6 +26,13 @@ communication:
   dropout_probability: 0.0
   seed: 7
 
+disturbance_study:
+  water_current: [-0.10, 0.0, 0.03]
+  ugv_control_effectiveness: 1.0
+  usv_control_effectiveness: 1.0
+  rov_control_effectiveness: 1.0
+  evaluation_hold_steps: 12
+
 harbor_mpc:
   prediction_horizon: 12
   replan_interval_steps: 1
@@ -44,6 +52,9 @@ harbor_mpc:
   collision_buffer: 0.12
   collision_slack_weight: 100000.0
   collision_slack_bound: 0.0
+  residual_adaptation: false
+  residual_estimator_gain: 0.35
+  residual_max_speed: 0.35
   ipopt_max_iter: 250
   ipopt_print_level: 0
 

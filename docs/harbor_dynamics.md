@@ -53,9 +53,10 @@ C(nu)nu = [-m_v v r,
 ```
 
 Unlike the former scalar-surge model, this state includes sway and yaw-rate
-dynamics. It remains a calm-water model: current, wind, waves, explicit added-
-mass matrices, and individual propeller allocation are future disturbances and
-identification targets.
+dynamics. Its nominal transition remains a calm-water model. The robustness
+study applies current outside that transition as execution-plant mismatch;
+wind, waves, explicit added-mass matrices, and individual propeller allocation
+remain future disturbances and identification targets.
 
 ## ROV: 6-DOF marine craft
 
@@ -78,9 +79,34 @@ roll/pitch restoring moments.
 
 The ROV has a real 12-state trajectory, six bounded wrench inputs, 6-DOF pose
 goal, body-frame velocity, depth limits, and attitude dynamics. It does not yet
-model off-diagonal added mass, Euler-angle singularity avoidance, current/wave
-disturbances, or a thruster allocation `tau = B f_thruster`. Those require a
-specific vehicle geometry and identified coefficients.
+model off-diagonal added mass, Euler-angle singularity avoidance, wave forces,
+or a thruster allocation `tau = B f_thruster`. Those require a specific vehicle
+geometry and identified coefficients.
+
+## Execution-plant mismatch and residual model
+
+For marine platforms, the robustness plant advances nominal dynamics and then
+adds a hidden world-frame current `v_c` to position:
+
+```text
+p_(k+1) = p_nominal_(k+1) + dt v_c
+u_applied = alpha_platform u_commanded
+```
+
+The USV uses only horizontal current; the ROV uses all three components. The
+UGV is not advected. Optional actuator effectiveness `alpha_platform` is also
+applied only in execution. The controller does not read either value. With its
+own measured state and prior command, agent `i` computes
+
+```text
+r_measured = (p_k - p_model(x_(k-1), u_(k-1))) / dt
+r_hat_k = clip((1-gamma) r_hat_(k-1) + gamma r_measured)
+p_pred_(j+1) = p_model_(j+1) + dt r_hat_k
+```
+
+This is a bounded constant-residual model, not a learned hydrodynamic model.
+It is appropriate for steady current and local bias, but it does not identify
+control effectiveness, rapidly varying waves, or coupled velocity dynamics.
 
 ## Reduced reproducibility models
 

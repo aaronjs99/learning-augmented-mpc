@@ -79,9 +79,16 @@ Matched-horizon MPC/LMPC efficiency study:
 
 `python3 run.py harbor-horizon-study`
 
-These commands overwrite five curated artifacts in `results/latest/harbor/`:
-the main metrics/dashboard/GIF plus the horizon-study JSON/PNG. Add `--no-gif`
-to `harbor-lmpc` for a faster metrics-and-PNG iteration.
+Unmodeled-current study with nominal MPC, locally residual-adaptive MPC, and
+residual-adaptive LMPC:
+
+`python3 run.py harbor-robustness`
+
+These commands overwrite curated artifacts in `results/latest/harbor/`. The
+robustness command writes one metrics JSON, one combined diagnostic, and one
+GIF. The current is hidden from the controllers; each adaptive agent estimates
+only its own one-step position residual from local state and previous control.
+Add `--no-gif` for a faster metrics-and-PNG iteration.
 
 Useful overrides:
 

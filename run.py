@@ -53,6 +53,11 @@ def main() -> None:
         from scripts.run_harbor_horizon_study import main as run_horizon_study
 
         run_horizon_study()
+    elif command == "harbor-robustness":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_robustness import main as run_harbor_robustness
+
+        run_harbor_robustness()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

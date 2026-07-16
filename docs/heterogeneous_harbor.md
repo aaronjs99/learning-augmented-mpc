@@ -116,6 +116,23 @@ Generate the matched-horizon evidence:
 python run.py harbor-horizon-study
 ```
 
+Evaluate model mismatch and local residual adaptation:
+
+```text
+python run.py harbor-robustness
+```
+
+The default study applies an unmodeled `[-0.10, 0.00, 0.03]` m/s current to
+marine execution only. USV vertical current is discarded at the surface. The
+adaptive controller observes no current parameter; each agent estimates its
+own one-step world-position residual and uses the filtered value in subsequent
+predictions. A 12-step in-tolerance hold tests station keeping. In the current
+reference run, all three optimized controllers are complete, swept-safe, and
+fallback-free. Combined USV+ROV terminal position error falls from 0.196 m for
+nominal MPC to 0.066 m for adaptive MPC and 0.031 m for adaptive LMPC. The LMPC
+trial reaches first-goal cost 176 versus 169 for MPC, exposing the regulation
+accuracy/completion-speed tradeoff.
+
 Sweep delay and dropout over five deterministic seeds and generate a robustness
 heatmap:
 

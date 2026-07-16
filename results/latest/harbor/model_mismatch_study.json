@@ -1,0 +1,152 @@
+[
+  {
+    "controller": "Nominal MPC",
+    "valid": true,
+    "all_goals_reached": true,
+    "completion_step_sum": 169,
+    "first_goal_steps": {
+      "ground_rover_1": 41,
+      "ground_rover_2": 41,
+      "surface_vessel": 39,
+      "underwater_rov": 48
+    },
+    "final_goal_errors": {
+      "ground_rover_1": 0.003981808595490891,
+      "ground_rover_2": 0.003981062581992895,
+      "surface_vessel": 0.1328904445563297,
+      "underwater_rov": 0.06338235906063802
+    },
+    "final_orientation_errors": {
+      "ground_rover_1": 0.0032110806767504663,
+      "ground_rover_2": 0.003210087194238209,
+      "surface_vessel": 0.0018533570934970989,
+      "underwater_rov": 1.3609139765918163e-05
+    },
+    "min_pairwise_distance": 0.9089631635087851,
+    "pairwise_violation_count": 0,
+    "solver_fallbacks": 0,
+    "max_collision_slack": 0.0,
+    "final_residual_estimates": {
+      "ground_rover_1": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "ground_rover_2": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "surface_vessel": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "underwater_rov": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  {
+    "controller": "Residual-adaptive MPC",
+    "valid": true,
+    "all_goals_reached": true,
+    "completion_step_sum": 169,
+    "first_goal_steps": {
+      "ground_rover_1": 41,
+      "ground_rover_2": 41,
+      "surface_vessel": 39,
+      "underwater_rov": 48
+    },
+    "final_goal_errors": {
+      "ground_rover_1": 0.003981806688286817,
+      "ground_rover_2": 0.003981060661504416,
+      "surface_vessel": 0.06545679986210838,
+      "underwater_rov": 4.434963113378072e-05
+    },
+    "final_orientation_errors": {
+      "ground_rover_1": 0.003211068768234071,
+      "ground_rover_2": 0.0032100989721652873,
+      "surface_vessel": 0.045575739654818204,
+      "underwater_rov": 3.6849984198752795e-05
+    },
+    "min_pairwise_distance": 0.9089631634564955,
+    "pairwise_violation_count": 0,
+    "solver_fallbacks": 0,
+    "max_collision_slack": 6.780381911094545e-33,
+    "final_residual_estimates": {
+      "ground_rover_1": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "ground_rover_2": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "surface_vessel": [
+        -0.09999999999999909,
+        0.0,
+        0.0
+      ],
+      "underwater_rov": [
+        -0.09999999999999913,
+        0.0,
+        0.02999999999999975
+      ]
+    }
+  },
+  {
+    "controller": "Residual-adaptive LMPC",
+    "valid": true,
+    "all_goals_reached": true,
+    "completion_step_sum": 176,
+    "first_goal_steps": {
+      "ground_rover_1": 41,
+      "ground_rover_2": 41,
+      "surface_vessel": 47,
+      "underwater_rov": 47
+    },
+    "final_goal_errors": {
+      "ground_rover_1": 0.004124382523095407,
+      "ground_rover_2": 0.004123683581891795,
+      "surface_vessel": 0.029608112322700414,
+      "underwater_rov": 0.0017114315068931065
+    },
+    "final_orientation_errors": {
+      "ground_rover_1": 0.0032018902515642544,
+      "ground_rover_2": 0.003201070238815884,
+      "surface_vessel": 0.033945326652741414,
+      "underwater_rov": 0.0006604783815969979
+    },
+    "min_pairwise_distance": 0.9082428967517947,
+    "pairwise_violation_count": 0,
+    "solver_fallbacks": 0,
+    "max_collision_slack": 0.0,
+    "final_residual_estimates": {
+      "ground_rover_1": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "ground_rover_2": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "surface_vessel": [
+        -0.099999999997832,
+        0.0,
+        0.0
+      ],
+      "underwater_rov": [
+        -0.09999999999783121,
+        0.0,
+        0.029999999999349623
+      ]
+    }
+  }
+]

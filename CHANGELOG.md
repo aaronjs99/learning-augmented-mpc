@@ -24,6 +24,9 @@ All notable repository-level changes are tracked here.
   dynamics with matching NumPy/CasADi transitions and a frozen reduced baseline.
 - Matched-horizon MPC/LMPC study and horizon-efficiency plot demonstrating
   learned-terminal-set liveness and completion-cost gains.
+- Hidden execution-plant current/actuator mismatch, local causal residual
+  adaptation, sustained-goal evaluation, and nominal-versus-adaptive
+  robustness diagnostics.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.
@@ -31,6 +34,8 @@ All notable repository-level changes are tracked here.
 - Baseline solver diagnostics with per-timestep, per-agent statuses.
 
 ### Changed
+- External MPC providers now continue station-keeping updates after first goal
+  entry, preventing stale nonzero UGV controls while slower agents finish.
 - Physical harbor models are now the default; all masses, damping, hydrostatics,
   steering geometry, and actuator limits live in `config/harbor.yaml`.
 - Harbor learning seeds from the best clean MPC rollout and rejects later safe

@@ -38,6 +38,9 @@ class HarborMPCConfig:
     collision_buffer: float = 0.1
     collision_slack_weight: float = 100000.0
     collision_slack_bound: float = 0.0
+    residual_adaptation: bool = False
+    residual_estimator_gain: float = 0.35
+    residual_max_speed: float = 0.35
     ipopt_max_iter: int = 120
     ipopt_print_level: int = 0
 
@@ -64,9 +67,13 @@ class HarborMPCConfig:
             self.collision_buffer,
             self.collision_slack_weight,
             self.collision_slack_bound,
+            self.residual_estimator_gain,
+            self.residual_max_speed,
         )
         if any(value < 0.0 for value in nonnegative):
             raise ValueError("harbor_mpc weights and slack bounds must be nonnegative")
+        if self.residual_estimator_gain > 1.0:
+            raise ValueError("residual_estimator_gain must be in [0, 1]")
 
 
 @dataclass(frozen=True)
@@ -134,11 +141,13 @@ class HarborAgentOptimizer:
         warm_states: np.ndarray,
         warm_controls: np.ndarray,
         previous_control: np.ndarray,
+        position_drift: np.ndarray,
     ) -> HarborMPCStep:
         opti = self.opti
         opti.set_value(self.p_initial, state)
         opti.set_value(self.p_goal, goal)
         opti.set_value(self.p_previous_control, previous_control)
+        opti.set_value(self.p_position_drift, position_drift)
         for index, other in enumerate(self.other_agents):
             opti.set_value(
                 self.p_obstacles[index], obstacle_predictions[other.name].T
@@ -191,6 +200,7 @@ class HarborAgentOptimizer:
         p_initial = opti.parameter(nx, 1)
         p_goal = opti.parameter(pose_dim, 1)
         p_previous_control = opti.parameter(nu, 1)
+        p_position_drift = opti.parameter(3, 1)
         p_obstacles = [opti.parameter(3, horizon) for _ in self.other_agents]
 
         opti.subject_to(states[:, 0] == p_initial)
@@ -205,7 +215,15 @@ class HarborAgentOptimizer:
         for index in range(horizon):
             opti.subject_to(
                 states[:, index + 1]
-                == _symbolic_step(ca, model, states[:, index], controls[:, index], self.dt)
+                == _apply_symbolic_position_drift(
+                    ca,
+                    model,
+                    _symbolic_step(
+                        ca, model, states[:, index], controls[:, index], self.dt
+                    ),
+                    p_position_drift,
+                    self.dt,
+                )
             )
             cost += self._tracking_cost(states[:, index + 1], p_goal)
             normalized_control = ca.rdivide(controls[:, index], control_scale)
@@ -284,6 +302,7 @@ class HarborAgentOptimizer:
         self.p_initial = p_initial
         self.p_goal = p_goal
         self.p_previous_control = p_previous_control
+        self.p_position_drift = p_position_drift
         self.p_obstacles = p_obstacles
 
     def _tracking_cost(self, state, goal):
@@ -436,6 +455,11 @@ class DistributedHarborMPC:
         self.previous_controls = {
             agent.name: np.zeros(agent.model.control_dim) for agent in agents
         }
+        self.previous_states: dict[str, np.ndarray] = {}
+        self.position_drift_estimates = {
+            agent.name: np.zeros(3) for agent in agents
+        }
+        self.residual_history = {agent.name: [] for agent in agents}
         self.solve_count = 0
         self.fallback_count = 0
         self.solve_time_seconds = 0.0
@@ -459,6 +483,7 @@ class DistributedHarborMPC:
         step: int,
         dt: float,
     ) -> np.ndarray:
+        self._update_residual_estimate(agent, state)
         safe_states = self.safe_states[agent.name]
         safe_controls = self.safe_controls[agent.name]
         nearest = _nearest_reference_index(agent.model, safe_states, state)
@@ -486,6 +511,7 @@ class DistributedHarborMPC:
                 warm_states=warm_states,
                 warm_controls=warm_controls,
                 previous_control=self.previous_controls[agent.name],
+                position_drift=self.position_drift_estimates[agent.name],
             )
         except RuntimeError:
             self.fallback_count += 1
@@ -511,7 +537,35 @@ class DistributedHarborMPC:
         finally:
             self.solve_time_seconds += perf_counter() - started
         self.previous_controls[agent.name] = np.asarray(control, dtype=float)
+        self.previous_states[agent.name] = np.asarray(state, dtype=float).copy()
+        self.residual_history[agent.name].append(
+            self.position_drift_estimates[agent.name].copy()
+        )
         return self.previous_controls[agent.name]
+
+    def _update_residual_estimate(
+        self, agent: HarborAgent, current_state: np.ndarray
+    ) -> None:
+        """Estimate local one-step position-model error from onboard state history."""
+        if not self.config.residual_adaptation or agent.name not in self.previous_states:
+            return
+        predicted = agent.model.step(
+            self.previous_states[agent.name],
+            self.previous_controls[agent.name],
+            self.dt,
+        )
+        measured_velocity_error = (
+            agent.model.position(current_state) - agent.model.position(predicted)
+        ) / self.dt
+        gain = self.config.residual_estimator_gain
+        estimate = (
+            (1.0 - gain) * self.position_drift_estimates[agent.name]
+            + gain * measured_velocity_error
+        )
+        norm = float(np.linalg.norm(estimate))
+        if norm > self.config.residual_max_speed:
+            estimate *= self.config.residual_max_speed / norm
+        self.position_drift_estimates[agent.name] = estimate
 
     def _obstacle_predictions(
         self,
@@ -572,6 +626,12 @@ def _warm_reference(
 
 def _symbolic_step(ca, model: PlatformModel, state, control, dt: float):
     return model.symbolic_step(ca, state, control, dt)
+
+
+def _apply_symbolic_position_drift(ca, model, state, drift, dt: float):
+    """Add the estimated world-velocity residual to predicted position only."""
+    dimensions = 3 if model.kind == "rov" else 2
+    return ca.vertcat(state[:dimensions] + dt * drift[:dimensions], state[dimensions:])
 
 
 def _symbolic_position(ca, model: PlatformModel, state):

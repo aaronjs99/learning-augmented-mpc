@@ -2,14 +2,34 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 import numpy as np
 
 from .communication import LinkConfig
 from .learning import run_distributed_harbor_lmpc
-from .mpc import HarborMPCConfig
-from .simulation import HarborAgent, HarborSimulationConfig, run_harbor_simulation
+from .mpc import DistributedHarborMPC, HarborMPCConfig
+from .simulation import (
+    HarborAgent,
+    HarborDisturbanceConfig,
+    HarborResult,
+    HarborSimulationConfig,
+    run_harbor_simulation,
+)
+
+
+@dataclass(frozen=True)
+class HarborRobustnessTrial:
+    """One matched plant-mismatch trial and its controller telemetry."""
+
+    label: str
+    result: HarborResult
+    valid: bool
+    completion_step_sum: int
+    solver_fallbacks: int
+    max_collision_slack: float
+    residual_history: dict[str, np.ndarray]
+    final_residual_estimates: dict[str, np.ndarray]
 
 
 def sweep_network_robustness(
@@ -134,3 +154,85 @@ def sweep_prediction_horizons(
                 }
             )
     return records
+
+
+def run_model_mismatch_study(
+    agents: list[HarborAgent],
+    simulation: HarborSimulationConfig,
+    communication: LinkConfig,
+    mpc_config: HarborMPCConfig,
+    disturbance: HarborDisturbanceConfig,
+) -> list[HarborRobustnessTrial]:
+    """Compare nominal and residual-adaptive controllers on one hidden plant."""
+    seed_iterations = run_distributed_harbor_lmpc(
+        agents,
+        simulation,
+        communication,
+        replace(mpc_config, learning_iterations=1, residual_adaptation=False),
+    )
+    seed = min(
+        (record for record in seed_iterations if record.admitted),
+        key=lambda record: record.completion_step_sum,
+    )
+    evaluation = replace(
+        simulation,
+        guidance_update_interval_steps=mpc_config.replan_interval_steps,
+        goal_hold_steps=disturbance.evaluation_hold_steps,
+    )
+    definitions = (
+        ("Nominal MPC", False, False),
+        ("Residual-adaptive MPC", True, False),
+        ("Residual-adaptive LMPC", True, True),
+    )
+    trials = []
+    for label, adaptive, learning in definitions:
+        controller = DistributedHarborMPC(
+            agents=agents,
+            config=replace(mpc_config, residual_adaptation=adaptive),
+            dt=simulation.dt,
+            safe_states=seed.result.states,
+            safe_controls=seed.result.controls,
+            learning=learning,
+        )
+        result = run_harbor_simulation(
+            agents,
+            evaluation,
+            communication,
+            control_provider=controller,
+            disturbance=disturbance,
+        )
+        completion_cost = sum(
+            step if step is not None else simulation.horizon + 1
+            for step in result.first_goal_steps.values()
+        )
+        valid = (
+            result.all_goals_reached
+            and result.pairwise_violation_count == 0
+            and controller.fallback_count == 0
+            and controller.max_collision_slack <= 1e-9
+        )
+        trials.append(
+            HarborRobustnessTrial(
+                label=label,
+                result=result,
+                valid=valid,
+                completion_step_sum=completion_cost,
+                solver_fallbacks=controller.fallback_count,
+                max_collision_slack=controller.max_collision_slack,
+                residual_history={
+                    name: np.asarray(values, dtype=float)
+                    for name, values in controller.residual_history.items()
+                },
+                final_residual_estimates={
+                    name: value.copy()
+                    for name, value in controller.position_drift_estimates.items()
+                },
+            )
+        )
+        print(
+            f"{label}: complete={result.all_goals_reached}, "
+            f"safe={result.pairwise_violation_count == 0}, "
+            f"cost={completion_cost}, fallbacks={controller.fallback_count}",
+            flush=True,
+        )
+    return trials

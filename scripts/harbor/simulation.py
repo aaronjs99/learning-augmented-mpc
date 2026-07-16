@@ -103,6 +103,7 @@ class HarborSimulationConfig:
 
     dt: float = 0.2
     horizon: int = 160
+    goal_hold_steps: int = 1
     guidance_update_interval_steps: int = 1
     goal_tolerance: float = 0.25
     orientation_tolerance: float = 0.15
@@ -122,6 +123,7 @@ class HarborSimulationConfig:
         if (
             self.dt <= 0.0
             or self.horizon <= 0
+            or self.goal_hold_steps <= 0
             or self.guidance_update_interval_steps <= 0
         ):
             raise ValueError("harbor dt and horizon must be positive")
@@ -151,12 +153,52 @@ class HarborSimulationConfig:
 
 
 @dataclass(frozen=True)
+class HarborDisturbanceConfig:
+    """Unknown execution-plant effects used for robustness experiments."""
+
+    water_current: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    ugv_control_effectiveness: float = 1.0
+    usv_control_effectiveness: float = 1.0
+    rov_control_effectiveness: float = 1.0
+    evaluation_hold_steps: int = 12
+
+    def __post_init__(self) -> None:
+        if len(self.water_current) != 3:
+            raise ValueError("water_current must contain [x, y, z] velocity")
+        if not np.all(np.isfinite(self.water_current)):
+            raise ValueError("water_current must be finite")
+        effectiveness = (
+            self.ugv_control_effectiveness,
+            self.usv_control_effectiveness,
+            self.rov_control_effectiveness,
+        )
+        if any(not 0.0 < value <= 1.5 for value in effectiveness):
+            raise ValueError("control effectiveness must be in (0, 1.5]")
+        if self.evaluation_hold_steps <= 0:
+            raise ValueError("evaluation_hold_steps must be positive")
+
+    def effectiveness(self, kind: str) -> float:
+        """Return the hidden actuator effectiveness for a platform kind."""
+        return float(getattr(self, f"{kind}_control_effectiveness"))
+
+    def current(self, model: PlatformModel) -> np.ndarray:
+        """Return the environmental world velocity acting on a platform."""
+        if model.kind == "ugv":
+            return np.zeros(3)
+        value = np.asarray(self.water_current, dtype=float).copy()
+        if model.kind == "usv":
+            value[2] = 0.0
+        return value
+
+
+@dataclass(frozen=True)
 class HarborResult:
     """Trajectories and communication telemetry for one rollout."""
 
     states: dict[str, np.ndarray]
     positions: dict[str, np.ndarray]
     controls: dict[str, np.ndarray]
+    applied_controls: dict[str, np.ndarray]
     first_goal_steps: dict[str, int | None]
     final_goal_errors: dict[str, float]
     final_orientation_errors: dict[str, float]
@@ -190,6 +232,7 @@ def run_harbor_simulation(
     config: HarborSimulationConfig,
     communication: LinkConfig,
     control_provider: HarborControlProvider | None = None,
+    disturbance: HarborDisturbanceConfig | None = None,
 ) -> HarborResult:
     """Simulate independent platforms coordinated only by received messages."""
     if len(agents) < 2:
@@ -202,24 +245,32 @@ def run_harbor_simulation(
     current = {agent.name: np.asarray(agent.start, dtype=float).copy() for agent in agents}
     histories = {name: [state.copy()] for name, state in current.items()}
     controls = {name: [] for name in names}
+    applied_controls = {name: [] for name in names}
+    plant = disturbance or HarborDisturbanceConfig()
     last_controls: dict[str, np.ndarray] = {}
     guidance_update_count = 0
     first_goal_steps: dict[str, int | None] = {name: None for name in names}
     route_indices = {name: 0 for name in names}
     stopped_at_goal: set[str] = set()
+    goal_hold_counts = {
+        name: int(_goal_reached(by_name[name], current[name], by_name[name].goal, config))
+        for name in names
+    }
     network = CommunicationNetwork(names, communication)
 
     for step in range(config.horizon):
         observations = {
             name: (
                 agent.model.position(current[name]),
-                agent.model.velocity(current[name]),
+                agent.model.velocity(current[name]) + plant.current(agent.model),
                 agent.model.goal_position(agent.goal),
                 _platform_speed(agent.model),
             )
             for name, agent in by_name.items()
         }
-        if all(_goal_reached(by_name[name], current[name], by_name[name].goal, config) for name in names):
+        if all(
+            count >= config.goal_hold_steps for count in goal_hold_counts.values()
+        ):
             for name in names:
                 if first_goal_steps[name] is None:
                     first_goal_steps[name] = step
@@ -274,10 +325,9 @@ def run_harbor_simulation(
             left_goal = name in stopped_at_goal and not at_goal
             if left_goal:
                 stopped_at_goal.remove(name)
-            continuous_station_keeping = agent.model.variant in {
-                "marine_3dof",
-                "marine_6dof",
-            }
+            continuous_station_keeping = control_provider is not None or (
+                agent.model.variant in {"marine_3dof", "marine_6dof"}
+            )
             update_guidance = name not in last_controls or (
                 at_goal and name not in stopped_at_goal
             )
@@ -321,13 +371,22 @@ def run_harbor_simulation(
                     stopped_at_goal.add(name)
             else:
                 control = last_controls[name]
-            next_state = agent.model.step(current[name], control, config.dt)
+            applied_control = plant.effectiveness(agent.model.kind) * control
+            next_state = agent.model.step(current[name], applied_control, config.dt)
+            current_velocity = plant.current(agent.model)
+            next_state = _advect_position(agent.model, next_state, current_velocity, config.dt)
             next_states[name] = agent.domain.project(agent.model, next_state)
             controls[name].append(control)
+            applied_controls[name].append(applied_control)
 
         current = next_states
         for name in names:
             histories[name].append(current[name].copy())
+            goal_hold_counts[name] = (
+                goal_hold_counts[name] + 1
+                if _goal_reached(by_name[name], current[name], by_name[name].goal, config)
+                else 0
+            )
 
     for name, agent in by_name.items():
         if first_goal_steps[name] is None:
@@ -361,6 +420,9 @@ def run_harbor_simulation(
         states=state_arrays,
         positions=position_arrays,
         controls={name: np.asarray(values) for name, values in controls.items()},
+        applied_controls={
+            name: np.asarray(values) for name, values in applied_controls.items()
+        },
         first_goal_steps=first_goal_steps,
         final_goal_errors=final_goal_errors,
         final_orientation_errors=final_orientation_errors,
@@ -376,6 +438,16 @@ def run_harbor_simulation(
         messages_dropped=network.dropped_count,
         guidance_update_count=guidance_update_count,
     )
+
+
+def _advect_position(
+    model: PlatformModel, state: np.ndarray, current: np.ndarray, dt: float
+) -> np.ndarray:
+    """Apply an unmodeled world-frame current to marine position states."""
+    value = np.asarray(state, dtype=float).copy()
+    dimensions = 3 if model.kind == "rov" else 2
+    value[:dimensions] += dt * np.asarray(current, dtype=float)[:dimensions]
+    return value
 
 
 def _coordinate_velocity(

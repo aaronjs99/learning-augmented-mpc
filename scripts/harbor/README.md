@@ -8,12 +8,14 @@ controllers behind the same simulation and communication boundary.
   each owning matching numerical and symbolic transitions.
 - `communication.py`: range-, rate-, delay-, TTL-, and dropout-aware message
   delivery with deterministic random seeds.
-- `simulation.py`: operating-domain projection, decentralized coordination,
-  rollout orchestration, and swept 3D separation metrics.
+- `simulation.py`: operating-domain projection, configurable hidden plant
+  disturbances, sustained-goal evaluation, rollout orchestration, and swept
+  3D separation metrics.
 - `config.py`: strict `config/harbor.yaml` loading and model construction.
 - `plotting.py`: safety envelopes, successful-rollout samples, pose-goal
   headings, ROV depth/attitude diagnostics, and a coordinated GIF.
-- `experiments.py`: communication robustness and matched-horizon MPC/LMPC sweeps.
+- `experiments.py`: communication robustness, matched-horizon MPC/LMPC sweeps,
+  and nominal-versus-residual-adaptive model-mismatch trials.
 - `mpc.py`: platform-specific per-agent CasADi optimizers using local state and
   received messages, with hard collision constraints.
 - `learning.py`: verified guidance seed, plain MPC baseline, clean-rollout
@@ -51,3 +53,12 @@ The ROV guidance loop uses finite velocity/attitude response gains and
 configurable command smoothing instead of one-step saturated pose correction.
 The animation shows yaw in the top-down panel and ROV pitch in side elevation;
 the static diagnostic includes roll, pitch, and yaw histories.
+
+`python run.py harbor-robustness` executes every controller against the same
+hidden current and actuator-effectiveness settings from `disturbance_study`.
+The residual estimator is local and causal: it compares measured position
+after one step with the platform model's prediction from that agent's previous
+state and command, then inserts the filtered world-velocity residual into its
+own prediction model. It does not receive the configured disturbance or any
+other agent's state. The hold window prevents transient tolerance crossings
+from being reported as successful station keeping.

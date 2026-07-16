@@ -6,7 +6,13 @@ from dataclasses import dataclass, replace
 
 from .communication import LinkConfig
 from .mpc import DistributedHarborMPC, HarborMPCConfig
-from .simulation import HarborAgent, HarborResult, HarborSimulationConfig, run_harbor_simulation
+from .simulation import (
+    HarborAgent,
+    HarborDisturbanceConfig,
+    HarborResult,
+    HarborSimulationConfig,
+    run_harbor_simulation,
+)
 
 
 @dataclass(frozen=True)
@@ -26,6 +32,7 @@ class HarborLearningIteration:
     fallback_count_by_agent: dict[str, int]
     failure_steps_by_agent: dict[str, list[int]]
     failure_status_counts: dict[str, int]
+    final_residual_estimates: dict[str, list[float]]
 
 
 def run_distributed_harbor_lmpc(
@@ -33,13 +40,16 @@ def run_distributed_harbor_lmpc(
     simulation: HarborSimulationConfig,
     communication: LinkConfig,
     mpc_config: HarborMPCConfig,
+    disturbance: HarborDisturbanceConfig | None = None,
 ) -> list[HarborLearningIteration]:
     """Run guidance, plain MPC, and repeated safe-set LMPC experiments."""
     optimized_simulation = replace(
         simulation,
         guidance_update_interval_steps=mpc_config.replan_interval_steps,
     )
-    guidance = run_harbor_simulation(agents, simulation, communication)
+    guidance = run_harbor_simulation(
+        agents, simulation, communication, disturbance=disturbance
+    )
     if not _admissible(guidance):
         raise RuntimeError("harbor iteration-0 guidance rollout is not safe and complete")
     iterations = [
@@ -67,6 +77,7 @@ def run_distributed_harbor_lmpc(
         optimized_simulation,
         communication,
         control_provider=mpc_controller,
+        disturbance=disturbance,
     )
     mpc_admitted = _controller_admissible(mpc_result, mpc_controller)
     mpc_cost = _completion_cost(mpc_result, simulation.horizon)
@@ -98,6 +109,7 @@ def run_distributed_harbor_lmpc(
             optimized_simulation,
             communication,
             control_provider=controller,
+            disturbance=disturbance,
         )
         cost = _completion_cost(result, simulation.horizon)
         admitted = _controller_admissible(result, controller) and cost <= best_cost
@@ -139,6 +151,10 @@ def _controller_record(
         fallback_count_by_agent=controller.fallback_count_by_agent,
         failure_steps_by_agent=controller.failure_steps_by_agent,
         failure_status_counts=controller.failure_status_counts,
+        final_residual_estimates={
+            name: values.tolist()
+            for name, values in controller.position_drift_estimates.items()
+        },
     )
 
 
@@ -157,6 +173,7 @@ def _record(
     fallback_count_by_agent=None,
     failure_steps_by_agent=None,
     failure_status_counts=None,
+    final_residual_estimates=None,
 ) -> HarborLearningIteration:
     return HarborLearningIteration(
         label=label,
@@ -172,6 +189,7 @@ def _record(
         fallback_count_by_agent=fallback_count_by_agent or {},
         failure_steps_by_agent=failure_steps_by_agent or {},
         failure_status_counts=failure_status_counts or {},
+        final_residual_estimates=final_residual_estimates or {},
     )
 
 

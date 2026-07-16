@@ -11,7 +11,12 @@ import yaml
 
 from .communication import LinkConfig
 from .models import make_platform_model
-from .simulation import HarborAgent, HarborSimulationConfig, OperatingDomain
+from .simulation import (
+    HarborAgent,
+    HarborDisturbanceConfig,
+    HarborSimulationConfig,
+    OperatingDomain,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_HARBOR_CONFIG = PROJECT_ROOT / "config" / "harbor.yaml"
@@ -82,6 +87,22 @@ def load_harbor_config(
         if agent.model.kind == "rov" and agent.domain.z_bounds[1] >= 0.0:
             raise ValueError("ROV domain must remain below the water surface")
     return agents, simulation, communication
+
+
+def load_harbor_disturbance_config(
+    path: str | Path = DEFAULT_HARBOR_CONFIG,
+) -> HarborDisturbanceConfig:
+    """Load the strict optional ``disturbance_study`` YAML section."""
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / config_path
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw = yaml.safe_load(stream) or {}
+    return _dataclass_from_mapping(
+        HarborDisturbanceConfig,
+        raw.get("disturbance_study", {}),
+        "disturbance_study",
+    )
 
 
 def _dataclass_from_mapping(cls, data: dict[str, Any], section: str):

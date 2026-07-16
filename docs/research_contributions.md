@@ -127,6 +127,30 @@ At `N=12`, distributed LMPC improves completion cost from MPC's `173` to
 `163`; at `N=8`, it restores completion where plain MPC is incomplete. All
 reported horizon-study runs remain swept-safe and solver-clean.
 
+### Local residual adaptation under model mismatch
+
+The robustness experiment separates the nominal planning model from the
+execution plant. A configurable current and per-platform actuator
+effectiveness act only during execution. Each distributed controller may fit a
+bounded exponentially filtered position-velocity residual using its own prior
+state, prior command, and current onboard state. The estimate enters that
+agent's horizon dynamics as an additive world-frame position drift; the true
+disturbance remains hidden.
+
+```text
+python run.py harbor-robustness
+```
+
+With the configured physically feasible opposing current and a 12-step goal
+hold, nominal MPC, adaptive MPC, and adaptive LMPC are all complete,
+swept-safe, slack-free, and fallback-free. Adaptive MPC reduces combined marine
+terminal error by 66.6%; adaptive LMPC reduces it by 84.0% (0.196 m to 0.031
+m), while increasing completion-step sum from 169 to 176. This is an objective
+robust-regulation improvement, not a universal superiority claim. Cross-current
+station keeping at a fixed USV yaw can be physically infeasible for the
+underactuated no-sway-thruster model and is intentionally not presented as a
+controller benchmark.
+
 The strongest manta-specific case remains `manta_crossover`:
 
 ```text
