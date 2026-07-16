@@ -43,7 +43,7 @@ class HarborTests(unittest.TestCase):
             [agent.model.kind for agent in agents], ["ugv", "ugv", "usv", "rov"]
         )
         self.assertEqual([agent.model.state_dim for agent in agents], [5, 5, 6, 12])
-        self.assertEqual([agent.model.control_dim for agent in agents], [2, 2, 2, 6])
+        self.assertEqual([agent.model.control_dim for agent in agents], [2, 2, 2, 8])
         self.assertEqual([agent.model.pose_dim for agent in agents], [3, 3, 3, 6])
         self.assertEqual(
             [agent.model.variant for agent in agents],
@@ -72,6 +72,8 @@ class HarborTests(unittest.TestCase):
             "max_yaw_rate",
             "max_force",
             "max_yaw_moment",
+            "effective_track",
+            "drivetrain",
             "linear_drag",
             "quadratic_drag",
             "yaw_linear_drag",
@@ -83,6 +85,8 @@ class HarborTests(unittest.TestCase):
                 f"RobEn and Inspector-Gadget must retain distinct {parameter}",
             )
         self.assertNotEqual(agents[0].radius, agents[1].radius)
+        self.assertEqual(agents[0].model.drivetrain, "four_wheel_skid_steer")
+        self.assertEqual(agents[1].model.drivetrain, "two_motor_skid_steer")
         self.assertEqual(agents[-1].route.shape, (3, 6))
         self.assertEqual(communication.delay_steps, 1)
         self.assertEqual(communication.message_ttl_steps, 12)
@@ -92,6 +96,33 @@ class HarborTests(unittest.TestCase):
         self.assertEqual(disturbance.usv_control_effectiveness, 0.88)
         self.assertEqual(disturbance.rov_control_effectiveness, 0.88)
         self.assertEqual(disturbance.evaluation_hold_steps, 12)
+
+    def test_distinct_ugv_drive_sides_allocate_surge_and_yaw(self) -> None:
+        agents, _, _ = load_harbor_config()
+        for agent in agents[:2]:
+            model = agent.model
+            side_force = 0.4 * model.max_side_force
+            np.testing.assert_allclose(
+                model.generalized_wrench([side_force, side_force]),
+                [2.0 * side_force, 0.0],
+            )
+            np.testing.assert_allclose(
+                model.generalized_wrench([-side_force, side_force]),
+                [0.0, model.effective_track * side_force],
+            )
+
+    def test_heron_waterjets_allocate_surge_and_yaw(self) -> None:
+        agents, _, _ = load_harbor_config()
+        model = agents[2].model
+        jet_thrust = 0.4 * model.max_jet_thrust
+        np.testing.assert_allclose(
+            model.generalized_wrench([jet_thrust, jet_thrust]),
+            [2.0 * jet_thrust, 0.0],
+        )
+        np.testing.assert_allclose(
+            model.generalized_wrench([-jet_thrust, jet_thrust]),
+            [0.0, model.waterjet_separation * jet_thrust],
+        )
 
     def test_local_effectiveness_estimator_recovers_every_platform_loss(self) -> None:
         agents, simulation, _ = load_harbor_config()
@@ -127,22 +158,39 @@ class HarborTests(unittest.TestCase):
         )
         for agent in agents:
             truth = np.linspace(0.65, 0.95, agent.model.control_dim)
-            command = 0.02 * agent.model.control_scale()
-            measured = agent.model.step(
-                agent.start,
-                truth * command,
-                simulation.dt,
-            )
-            estimate = _estimate_diagonal_control_effectiveness(
-                agent.model,
-                agent.start,
-                command,
-                measured,
-                simulation.dt,
-                np.ones(agent.model.control_dim),
-                config,
-            )
+            estimate = np.ones(agent.model.control_dim)
+            for channel in range(agent.model.control_dim):
+                command = np.zeros(agent.model.control_dim)
+                command[channel] = 0.02 * agent.model.control_scale()[channel]
+                measured = agent.model.step(
+                    agent.start,
+                    truth * command,
+                    simulation.dt,
+                )
+                estimate = _estimate_diagonal_control_effectiveness(
+                    agent.model,
+                    agent.start,
+                    command,
+                    measured,
+                    simulation.dt,
+                    estimate,
+                    config,
+                )
             np.testing.assert_allclose(estimate, truth, atol=1e-9)
+
+    def test_bluerov2_heavy_allocation_is_full_rank_and_bounded(self) -> None:
+        agents, _, _ = load_harbor_config()
+        model = agents[-1].model
+        self.assertEqual(np.linalg.matrix_rank(model.allocation_matrix), 6)
+        self.assertEqual(model.allocation_matrix.shape, (6, 8))
+        requested = np.array([20.0, -15.0, 30.0, 4.0, -3.0, 5.0])
+        command = model.allocate_wrench(requested)
+        self.assertTrue(
+            np.all(np.abs(command) <= model.thruster_limit_vector + 1e-12)
+        )
+        np.testing.assert_allclose(
+            model.generalized_wrench(command), requested, atol=1e-10
+        )
 
     def test_fault_config_applies_named_channel_vectors(self) -> None:
         agents, _, _ = load_harbor_config()
@@ -151,7 +199,7 @@ class HarborTests(unittest.TestCase):
             "ground_rover_1": [0.68, 0.94],
             "ground_rover_2": [0.90, 0.70],
             "surface_vessel": [0.58, 0.93],
-            "underwater_rov": [0.84, 0.95, 0.62, 0.96, 0.72, 0.90],
+            "underwater_rov": [0.84, 0.95, 0.62, 0.96, 0.72, 0.90, 0.86, 0.68],
         }
         for agent in agents:
             np.testing.assert_allclose(
@@ -211,7 +259,7 @@ class HarborTests(unittest.TestCase):
             dt=simulation.dt,
             learning=False,
         )
-        probe = np.array([0.0, 0.12 * agent.model.max_yaw_moment])
+        probe = np.array([0.0, 0.12 * agent.model.max_side_force])
         mask = np.array([0.0, 1.0])
         state = agent.start.copy()
         result = optimizer.solve(

@@ -497,7 +497,7 @@ class UGVModel(PlatformModel):
 
 @dataclass(frozen=True)
 class SkidSteerUGVModel(PlatformModel):
-    """Planar dynamic skid-steer model with force and yaw-moment inputs."""
+    """Planar skid-steer dynamics driven by left/right side forces."""
 
     mass: float = 17.0
     yaw_inertia: float = 0.65
@@ -507,6 +507,8 @@ class SkidSteerUGVModel(PlatformModel):
     max_yaw_rate: float = 1.5
     max_force: float = 120.0
     max_yaw_moment: float = 35.0
+    effective_track: float = 0.5
+    drivetrain: str = "skid_steer"
     linear_drag: float = 8.0
     quadratic_drag: float = 8.0
     yaw_linear_drag: float = 1.0
@@ -530,6 +532,7 @@ class SkidSteerUGVModel(PlatformModel):
             self.max_yaw_rate,
             self.max_force,
             self.max_yaw_moment,
+            self.effective_track,
             self.velocity_response_gain,
             self.heading_gain,
             self.yaw_response_gain,
@@ -545,6 +548,31 @@ class SkidSteerUGVModel(PlatformModel):
             self.yaw_quadratic_drag,
         ) < 0.0:
             raise ValueError("skid-steer UGV damping must be nonnegative")
+        if not self.drivetrain.strip():
+            raise ValueError("skid-steer UGV drivetrain must be named")
+        if (
+            self.max_yaw_moment
+            > self.effective_track * self.max_side_force + 1e-12
+        ):
+            raise ValueError(
+                "UGV max_yaw_moment exceeds the left/right drive-side authority"
+            )
+
+    @property
+    def max_side_force(self) -> float:
+        """Return the symmetric force bound for either drive side."""
+        return self.max_force / 2.0
+
+    def generalized_wrench(self, control: np.ndarray) -> np.ndarray:
+        """Map left/right drive-side forces to surge force and yaw moment."""
+        left, right = np.clip(
+            np.asarray(control, dtype=float),
+            -self.max_side_force,
+            self.max_side_force,
+        )
+        return np.array(
+            [left + right, 0.5 * self.effective_track * (right - left)]
+        )
 
     def position(self, state: np.ndarray) -> np.ndarray:
         return np.array([state[0], state[1], self.ground_z], dtype=float)
@@ -592,17 +620,17 @@ class SkidSteerUGVModel(PlatformModel):
             + self.yaw_linear_drag * state[4]
             + self.yaw_quadratic_drag * abs(state[4]) * state[4]
         )
-        return np.array(
-            [
-                np.clip(force, -self.max_force, self.max_force),
-                np.clip(moment, -self.max_yaw_moment, self.max_yaw_moment),
-            ]
+        force = np.clip(force, -self.max_force, self.max_force)
+        moment = np.clip(moment, -self.max_yaw_moment, self.max_yaw_moment)
+        left = 0.5 * force - moment / self.effective_track
+        right = 0.5 * force + moment / self.effective_track
+        return np.clip(
+            np.array([left, right]), -self.max_side_force, self.max_side_force
         )
 
     def step(self, state: np.ndarray, control: np.ndarray, dt: float) -> np.ndarray:
         value = np.asarray(state, dtype=float).copy()
-        force = np.clip(control[0], -self.max_force, self.max_force)
-        moment = np.clip(control[1], -self.max_yaw_moment, self.max_yaw_moment)
+        force, moment = self.generalized_wrench(control)
         speed = value[3] + dt * (
             force
             - self.linear_drag * value[3]
@@ -621,13 +649,15 @@ class SkidSteerUGVModel(PlatformModel):
         return value
 
     def symbolic_step(self, ca, state, control, dt: float):
+        force = control[0] + control[1]
+        moment = 0.5 * self.effective_track * (control[1] - control[0])
         speed = state[3] + dt * (
-            control[0]
+            force
             - self.linear_drag * state[3]
             - self.quadratic_drag * ca.fabs(state[3]) * state[3]
         ) / self.mass
         yaw_rate = state[4] + dt * (
-            control[1]
+            moment
             - self.yaw_linear_drag * state[4]
             - self.yaw_quadratic_drag * ca.fabs(state[4]) * state[4]
         ) / self.yaw_inertia
@@ -644,12 +674,12 @@ class SkidSteerUGVModel(PlatformModel):
         return state[3:5]
 
     def control_scale(self) -> np.ndarray:
-        return np.array([self.max_force, self.max_yaw_moment])
+        return np.full(2, self.max_side_force)
 
 
 @dataclass(frozen=True)
 class USVModel(PlatformModel):
-    """Underactuated 3-DOF body-frame surge, sway, and yaw model."""
+    """Underactuated 3-DOF marine model with twin waterjet inputs."""
 
     max_speed: float = 0.9
     mission_speed: float | None = None
@@ -657,6 +687,7 @@ class USVModel(PlatformModel):
     max_yaw_rate: float = 0.8
     max_thrust: float = 40.0
     max_yaw_moment: float = 12.0
+    waterjet_separation: float = 0.74
     mass_diagonal: tuple[float, float, float] = (35.0, 45.0, 8.0)
     linear_damping: tuple[float, float, float] = (8.0, 12.0, 4.0)
     quadratic_damping: tuple[float, float, float] = (4.0, 8.0, 2.0)
@@ -678,6 +709,7 @@ class USVModel(PlatformModel):
             self.max_yaw_rate,
             self.max_thrust,
             self.max_yaw_moment,
+            self.waterjet_separation,
             self.velocity_response_gain,
             self.heading_gain,
             self.yaw_response_gain,
@@ -689,6 +721,27 @@ class USVModel(PlatformModel):
             raise ValueError("USV mission_speed must be in (0, max_speed]")
         if min(self.linear_damping) < 0.0 or min(self.quadratic_damping) < 0.0:
             raise ValueError("USV damping must be nonnegative")
+        if (
+            self.max_yaw_moment
+            > self.waterjet_separation * self.max_jet_thrust + 1e-12
+        ):
+            raise ValueError("USV max_yaw_moment exceeds twin-waterjet authority")
+
+    @property
+    def max_jet_thrust(self) -> float:
+        """Return the symmetric thrust bound for either waterjet."""
+        return self.max_thrust / 2.0
+
+    def generalized_wrench(self, control: np.ndarray) -> np.ndarray:
+        """Map port/starboard waterjet thrust to surge force and yaw moment."""
+        port, starboard = np.clip(
+            np.asarray(control, dtype=float),
+            -self.max_jet_thrust,
+            self.max_jet_thrust,
+        )
+        return np.array(
+            [port + starboard, 0.5 * self.waterjet_separation * (starboard - port)]
+        )
 
     def position(self, state: np.ndarray) -> np.ndarray:
         return np.array([state[0], state[1], self.surface_z], dtype=float)
@@ -745,23 +798,19 @@ class USVModel(PlatformModel):
             + coriolis[2]
             + damping[2]
         )
-        return np.array(
-            [
-                np.clip(thrust, -self.max_thrust, self.max_thrust),
-                np.clip(moment, -self.max_yaw_moment, self.max_yaw_moment),
-            ]
+        thrust = np.clip(thrust, -self.max_thrust, self.max_thrust)
+        moment = np.clip(moment, -self.max_yaw_moment, self.max_yaw_moment)
+        port = 0.5 * thrust - moment / self.waterjet_separation
+        starboard = 0.5 * thrust + moment / self.waterjet_separation
+        return np.clip(
+            np.array([port, starboard]), -self.max_jet_thrust, self.max_jet_thrust
         )
 
     def step(self, state: np.ndarray, control: np.ndarray, dt: float) -> np.ndarray:
         value = np.asarray(state, dtype=float).copy()
         nu = value[3:6]
-        tau = np.array(
-            [
-                np.clip(control[0], -self.max_thrust, self.max_thrust),
-                0.0,
-                np.clip(control[1], -self.max_yaw_moment, self.max_yaw_moment),
-            ]
-        )
+        thrust, moment = self.generalized_wrench(control)
+        tau = np.array([thrust, 0.0, moment])
         rhs = tau - _marine_coriolis_product(
             nu, self.mass_diagonal
         ) - _damping_product(nu, self.linear_damping, self.quadratic_damping)
@@ -783,7 +832,9 @@ class USVModel(PlatformModel):
         damping = _symbolic_damping_product(
             ca, nu, self.linear_damping, self.quadratic_damping
         )
-        tau = ca.vertcat(control[0], 0.0, control[1])
+        thrust = control[0] + control[1]
+        moment = 0.5 * self.waterjet_separation * (control[1] - control[0])
+        tau = ca.vertcat(thrust, 0.0, moment)
         next_nu = nu + dt * ca.rdivide(tau - coriolis - damping, mass)
         yaw = state[2]
         return ca.vertcat(
@@ -799,12 +850,12 @@ class USVModel(PlatformModel):
         return state[3:6]
 
     def control_scale(self) -> np.ndarray:
-        return np.array([self.max_thrust, self.max_yaw_moment])
+        return np.full(2, self.max_jet_thrust)
 
 
 @dataclass(frozen=True)
 class ROVModel(PlatformModel):
-    """Body-frame 6-DOF marine craft with damping and hydrostatics."""
+    """Body-frame 6-DOF marine craft with eight-thruster allocation."""
 
     max_horizontal_speed: float = 0.75
     mission_speed: float | None = None
@@ -814,6 +865,7 @@ class ROVModel(PlatformModel):
     max_torque: float = 8.0
     force_limits: tuple[float, float, float] | None = None
     torque_limits: tuple[float, float, float] | None = None
+    thruster_limits: tuple[float, ...] | None = None
     mass_diagonal: tuple[float, ...] = (18.0, 18.0, 22.0, 1.2, 1.4, 1.5)
     linear_damping: tuple[float, ...] = (8.0, 10.0, 12.0, 1.2, 1.4, 1.5)
     quadratic_damping: tuple[float, ...] = (12.0, 16.0, 18.0, 0.6, 0.8, 0.8)
@@ -828,7 +880,7 @@ class ROVModel(PlatformModel):
     kind: str = field(default="rov", init=False)
     variant: str = field(default="marine_6dof", init=False)
     state_dim: int = field(default=12, init=False)
-    control_dim: int = field(default=6, init=False)
+    control_dim: int = field(default=8, init=False)
     pose_dim: int = field(default=6, init=False)
 
     def __post_init__(self) -> None:
@@ -844,6 +896,8 @@ class ROVModel(PlatformModel):
             _freeze_vectors(self, "force_limits")
         if self.torque_limits is not None:
             _freeze_vectors(self, "torque_limits")
+        if self.thruster_limits is not None:
+            _freeze_vectors(self, "thruster_limits")
         if not (
             len(self.mass_diagonal)
             == len(self.linear_damping)
@@ -855,6 +909,8 @@ class ROVModel(PlatformModel):
             raise ValueError("ROV mass and buoyancy centers must have three entries")
         if len(self.force_limit_vector) != 3 or len(self.torque_limit_vector) != 3:
             raise ValueError("ROV force and torque limits must have three entries")
+        if len(self.thruster_limit_vector) != 8:
+            raise ValueError("ROV thruster_limits must have eight entries")
         positive = (
             self.max_horizontal_speed,
             self.max_vertical_speed,
@@ -870,6 +926,7 @@ class ROVModel(PlatformModel):
             *self.mass_diagonal,
             *self.force_limit_vector,
             *self.torque_limit_vector,
+            *self.thruster_limit_vector,
         )
         if min(positive) <= 0.0 or self.control_smoothing > 1.0:
             raise ValueError("ROV marine parameters must be positive and bounded")
@@ -900,6 +957,76 @@ class ROVModel(PlatformModel):
             else (self.max_torque,) * 3,
             dtype=float,
         )
+
+    @property
+    def thruster_limit_vector(self) -> np.ndarray:
+        """Return the eight symmetric physical thruster-force bounds."""
+        if self.thruster_limits is not None:
+            return np.asarray(self.thruster_limits, dtype=float)
+        horizontal = self.force_limit_vector[0] / (2.0 * np.sqrt(2.0))
+        vertical = self.force_limit_vector[2] / 4.0
+        return np.array([horizontal] * 4 + [vertical] * 4)
+
+    @property
+    def allocation_matrix(self) -> np.ndarray:
+        """Return the calibrated BlueROV2 Heavy 6x8 thruster allocation."""
+        horizontal_total = float(np.sum(self.thruster_limit_vector[:4]))
+        vertical_total = float(np.sum(self.thruster_limit_vector[4:]))
+        x_gain = self.force_limit_vector[0] / horizontal_total
+        y_gain = self.force_limit_vector[1] / horizontal_total
+        z_gain = self.force_limit_vector[2] / vertical_total
+        roll_gain = self.torque_limit_vector[0] / vertical_total
+        pitch_gain = self.torque_limit_vector[1] / vertical_total
+        yaw_gain = self.torque_limit_vector[2] / horizontal_total
+        return np.array(
+            [
+                [-x_gain, -x_gain, x_gain, x_gain, 0.0, 0.0, 0.0, 0.0],
+                [y_gain, -y_gain, y_gain, -y_gain, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, z_gain, z_gain, z_gain, z_gain],
+                [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    roll_gain,
+                    -roll_gain,
+                    roll_gain,
+                    -roll_gain,
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    -pitch_gain,
+                    -pitch_gain,
+                    pitch_gain,
+                    pitch_gain,
+                ],
+                [yaw_gain, -yaw_gain, -yaw_gain, yaw_gain, 0.0, 0.0, 0.0, 0.0],
+            ]
+        )
+
+    def generalized_wrench(self, control: np.ndarray) -> np.ndarray:
+        """Map eight bounded T200 forces to body force and moment."""
+        bounded = np.clip(
+            np.asarray(control, dtype=float),
+            -self.thruster_limit_vector,
+            self.thruster_limit_vector,
+        )
+        return self.allocation_matrix @ bounded
+
+    def allocate_wrench(self, wrench: np.ndarray) -> np.ndarray:
+        """Allocate a desired body wrench and uniformly desaturate thrusters."""
+        command = np.linalg.pinv(self.allocation_matrix) @ np.asarray(
+            wrench, dtype=float
+        )
+        ratio = float(
+            np.max(np.abs(command) / self.thruster_limit_vector, initial=0.0)
+        )
+        if ratio > 1.0:
+            command /= ratio
+        return command
 
     def position(self, state: np.ndarray) -> np.ndarray:
         return np.asarray(state[:3], dtype=float).copy()
@@ -965,17 +1092,11 @@ class ROVModel(PlatformModel):
         tau[3:] = np.clip(
             tau[3:], -self.torque_limit_vector, self.torque_limit_vector
         )
-        return tau
+        return self.allocate_wrench(tau)
 
     def step(self, state: np.ndarray, control: np.ndarray, dt: float) -> np.ndarray:
         value = np.asarray(state, dtype=float).copy()
-        tau = np.asarray(control, dtype=float).copy()
-        tau[:3] = np.clip(
-            tau[:3], -self.force_limit_vector, self.force_limit_vector
-        )
-        tau[3:] = np.clip(
-            tau[3:], -self.torque_limit_vector, self.torque_limit_vector
-        )
+        tau = self.generalized_wrench(control)
         nu = value[6:12]
         rhs = (
             tau
@@ -1012,9 +1133,8 @@ class ROVModel(PlatformModel):
             ca, nu, self.linear_damping, self.quadratic_damping
         )
         restoring = _symbolic_restoring_vector(ca, state[3:6], self)
-        next_nu = nu + dt * ca.rdivide(
-            control - coriolis - damping - restoring, mass
-        )
+        tau = ca.DM(self.allocation_matrix) @ control
+        next_nu = nu + dt * ca.rdivide(tau - coriolis - damping - restoring, mass)
         rotation = _symbolic_rotation_matrix(ca, state[3:6])
         euler_rates = _symbolic_euler_rate_matrix(ca, state[3:6]) @ next_nu[3:]
         return ca.vertcat(
@@ -1027,7 +1147,7 @@ class ROVModel(PlatformModel):
         return state[6:12]
 
     def control_scale(self) -> np.ndarray:
-        return np.concatenate((self.force_limit_vector, self.torque_limit_vector))
+        return self.thruster_limit_vector
 
 
 def make_platform_model(kind: str, parameters: dict[str, float]) -> PlatformModel:

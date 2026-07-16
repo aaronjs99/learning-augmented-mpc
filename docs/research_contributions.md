@@ -117,8 +117,8 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
 
 14. **Constraint-aware active fault identification inside distributed LMPC**
     - Each named platform can carry a hidden diagonal effectiveness vector over
-      its generalized controls; RobEn and Inspector-Gadget retain independent
-      UGV models, routes, force/yaw-moment faults, and estimates.
+      its physical actuator channels; RobEn and Inspector-Gadget retain independent
+      UGV models, routes, left/right drive-side faults, and estimates.
     - A causal finite-difference sensitivity matrix and bounded least-squares
       update identify excited channels from only local state transition and
       prior command data. No controller reads the configured plant fault.
@@ -128,18 +128,29 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       domains, actuator limits, and communicated collision constraints remain
       active. Infeasible probes trigger a nominal re-solve and bounded channel
       rejection rather than a guidance fallback.
-    - Active diagonal MPC lowers completion cost from `146` to `140` and gain
-      RMSE from `0.123` to `0.083` versus passive diagonal MPC. Retaining each
-      run's own local model and safe rollout, active-ID LMPC lowers RMSE from
-      `0.099` to `0.034` versus retained passive LMPC at a `141 -> 142` cost.
-    - All six matched trials are complete, swept-safe, fallback-free, and use
-      numerical-zero collision slack. The claim is improved identification and
-      one MPC task-cost result, not universal dominance.
+    - Active diagonal MPC lowers gain RMSE from `0.0195` to `0.0100` (`48.6%`)
+      versus passive diagonal MPC at a `163 -> 169` completion-cost tradeoff.
+      Retaining each run's own local model and safe rollout, active-ID LMPC
+      lowers RMSE from `0.0285` to `0.0189` (`33.6%`) at a `160 -> 161` cost.
+    - All six matched trials are complete and swept-safe with numerical-zero
+      collision slack. The four actuator-wise trials are fallback-free; nominal
+      and scalar baselines are not admitted because they require fallbacks.
+      The claim is improved actuator identification with an explicit task-cost
+      tradeoff, not universal dominance.
     - Active fault-diagnosis input design is established literature. The
       defensible contribution is its local constraint-aware integration and
       retained-model ablation in this untethered heterogeneous distributed-LMPC
-      setting. Individual wheel, waterjet, and thruster identification still
-      requires explicit allocation models.
+      setting.
+
+15. **Actuator-resolved heterogeneous control allocation**
+    - RobEn/Jackal and Inspector-Gadget/Husky retain independent body parameters,
+      effective tracks, drivetrain metadata, left/right commands, and fault states.
+    - Heron maps port/starboard waterjet thrust into surge and yaw while preserving
+      underactuated sway dynamics.
+    - BlueROV2 Heavy maps eight bounded T200 channels through a full-rank 6x8
+      allocation into its 12-state 6-DOF marine model. The overactuated 8-to-6
+      contract creates a genuine passive-identification ambiguity that the active
+      channel probes measurably reduce.
 
 ## Current Evidence
 

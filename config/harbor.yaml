@@ -40,7 +40,7 @@ actuator_fault_study:
     ground_rover_1: [0.68, 0.94]
     ground_rover_2: [0.90, 0.70]
     surface_vessel: [0.58, 0.93]
-    underwater_rov: [0.84, 0.95, 0.62, 0.96, 0.72, 0.90]
+    underwater_rov: [0.84, 0.95, 0.62, 0.96, 0.72, 0.90, 0.86, 0.68]
 
 actuator_fault_mpc:
   prediction_horizon: 15
@@ -60,7 +60,7 @@ harbor_mpc:
   velocity_weight: 0.15
   control_weight: 0.04
   control_rate_weight: 0.25
-  terminal_goal_weight: 200.0
+  terminal_goal_weight: 250.0
   terminal_safe_cost_weight: 10.0
   terminal_slack_weight: 500.0
   terminal_slack_bound: 1.0
@@ -98,7 +98,9 @@ platform_profiles:
       max_reverse_speed: 1.0
       max_yaw_rate: 1.5
       max_force: 80.0
-      max_yaw_moment: 18.0
+      max_yaw_moment: 17.2
+      effective_track: 0.43
+      drivetrain: four_wheel_skid_steer
       linear_drag: 10.0
       quadratic_drag: 15.0
       yaw_linear_drag: 3.0
@@ -119,7 +121,9 @@ platform_profiles:
       max_reverse_speed: 0.5
       max_yaw_rate: 1.0
       max_force: 180.0
-      max_yaw_moment: 50.0
+      max_yaw_moment: 49.95
+      effective_track: 0.555
+      drivetrain: two_motor_skid_steer
       linear_drag: 40.0
       quadratic_drag: 140.0
       yaw_linear_drag: 10.0
@@ -134,11 +138,12 @@ platform_profiles:
     parameters:
       model: marine_3dof
       max_speed: 1.7
-      mission_speed: 0.9
+      mission_speed: 0.95
       max_sway_speed: 0.55
       max_yaw_rate: 0.7
       max_thrust: 40.0
       max_yaw_moment: 14.8
+      waterjet_separation: 0.74
       mass_diagonal: [43.0, 59.0, 10.5]
       linear_damping: [5.0, 12.0, 3.0]
       quadratic_damping: [10.9, 20.0, 4.0]
@@ -159,6 +164,7 @@ platform_profiles:
       max_torque: 35.0
       force_limits: [88.3, 88.3, 137.3]
       torque_limits: [35.0, 28.0, 30.0]
+      thruster_limits: [31.2, 31.2, 31.2, 31.2, 34.325, 34.325, 34.325, 34.325]
       mass_diagonal: [17.0, 24.2, 26.07, 0.28, 0.28, 0.28]
       linear_damping: [4.03, 6.22, 5.18, 0.07, 0.07, 0.07]
       quadratic_damping: [18.18, 21.66, 36.99, 1.55, 1.55, 1.55]

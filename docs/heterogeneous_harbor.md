@@ -22,13 +22,14 @@ dynamics, control bounds, position/velocity extraction, and operating domain.
 Shared coordination sees only world-frame position, velocity, and desired
 velocity.
 
-- UGV: dynamic skid-steer force/yaw-moment model with a 3-DOF `[x, y, yaw]`
+- UGV: dynamic skid-steer model with left/right drive-side inputs and a 3-DOF `[x, y, yaw]`
   pose goal. RobEn (Jackal) and Inspector-Gadget (Husky) use separate named
   mass, inertia, damping, speed, actuation, and footprint profiles.
-- USV: underactuated body-frame surge/sway/yaw marine dynamics, thrust/yaw-
-  moment controls, and a 3-DOF pose goal at the water surface.
+- USV: underactuated body-frame surge/sway/yaw marine dynamics, port/starboard
+  waterjet controls, and a 3-DOF pose goal at the water surface.
 - ROV: body-frame 6-DOF marine dynamics with inertia, Coriolis, linear and
-  quadratic damping, hydrostatic restoring forces, six wrench controls, and
+  quadratic damping, hydrostatic restoring forces, eight T200 controls through
+  a full-rank 6x8 allocation, and
   `[x, y, z, roll, pitch, yaw]` goals inside the underwater volume.
 
 The configured shoreline separates the operating media. The UGV remains on the
@@ -77,7 +78,7 @@ violations and zero solver fallback.
 
 The fault study applies a different hidden effectiveness vector to every named
 platform. RobEn and Inspector-Gadget remain separate UGVs: each has its own
-physical parameters, route, `[force, yaw moment]` fault, and local estimate.
+physical parameters, route, left/right drive fault, and local estimate.
 The controller receives no configured fault value.
 
 ```text
@@ -86,22 +87,24 @@ python run.py harbor-fault-study
 
 | Controller | Step sum | Effectiveness RMSE | Fallbacks |
 | --- | ---: | ---: | ---: |
-| Nominal MPC | 153 | 0.233 | 0 |
-| Scalar-adaptive MPC | **138** | 0.175 | 0 |
-| Passive diagonal MPC | 146 | 0.123 | 0 |
-| Active diagonal MPC | 140 | **0.083** | 0 |
-| Retained passive LMPC | 141 | 0.099 | 0 |
-| Retained active-ID LMPC | 142 | **0.034** | 0 |
+| Nominal MPC | 178 | 0.235 | 13 |
+| Scalar-adaptive MPC | **156** | 0.166 | 7 |
+| Passive diagonal MPC | 163 | 0.0195 | 0 |
+| Active diagonal MPC | 169 | **0.0100** | 0 |
+| Retained passive LMPC | 160 | 0.0285 | 0 |
+| Retained active-ID LMPC | 161 | **0.0189** | 0 |
 
-All six rollouts are complete, swept-safe, fallback-free, and use numerical-
-zero collision slack. Active diagonal MPC reduces task cost by `4.1%` and gain
-RMSE by `32.4%` relative to passive diagonal MPC. Across repeated runs, the
-LMPC controllers retain their own prior local gain estimates and clean rollout.
-Retained active-ID LMPC lowers RMSE by `65.7%` relative to retained passive
-LMPC, while increasing completion cost by one step (`0.7%`).
+All six rollouts are complete and swept-safe with numerical-zero collision
+slack. The nominal and scalar baselines require solver fallbacks and therefore
+are not admitted; all four actuator-wise trials are fallback-free and valid.
+Active diagonal MPC reduces gain RMSE by `48.6%` relative to passive diagonal
+MPC, while increasing completion cost by six steps (`3.7%`). Across repeated
+runs, the LMPC controllers retain their own prior local gain estimates and
+clean rollout. Retained active-ID LMPC lowers RMSE by `33.6%` relative to
+retained passive LMPC, while increasing completion cost by one step (`0.6%`).
 
 The active controller tracks normalized command energy and a minimum direct-
-probe quota for each generalized channel. A small alternating pulse is imposed
+probe quota for each physical actuator channel. A small alternating pulse is imposed
 as a first-step equality inside the platform's own NLP only while moving and
 clear of nearby agents. Dynamics, domain, actuator, and communicated collision
 constraints therefore see the requested pulse. If it is infeasible, the same
@@ -109,11 +112,15 @@ agent immediately re-solves without it; repeatedly rejected channels are
 disabled. The rejected probe attempt is reported separately; a successful
 ordinary re-solve remains a clean control solve and is not an execution fallback.
 
-The diagnostic still exposes observability limits. ROV roll/pitch/yaw pulses
-were rejected by the terminal problem in this route, but their natural motion
-was informative; ROV horizontal gains remain the largest residual error. The
-current model identifies generalized force/moment channels, not individual
-wheel motors or thrusters.
+The diagnostic exposes the intended observability limit. Every physical channel
+receives two accepted direct probes in the active MPC trial, including all eight
+BlueROV2 Heavy thrusters. The
+UGV model identifies physical left/right drive-side channels, the Heron model
+identifies port/starboard waterjet channels, and the BlueROV2 Heavy model
+identifies all eight thruster channels. Because eight actuator gains affect six
+dynamic-rate observations, simultaneous passive identification is
+underdetermined; channel-isolating active probes resolve that ambiguity over
+multiple transitions.
 
 ## Initial Evidence
 

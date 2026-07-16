@@ -99,7 +99,7 @@ the remaining position drift. Add `--no-gif` for a faster metrics-and-PNG
 iteration.
 
 The fault-study command keeps RobEn and Inspector-Gadget as distinct UGVs,
-estimates their force/yaw-moment losses separately, and compares passive versus
+estimates their physical left/right drive losses separately, and compares passive versus
 constraint-aware active identification. Repeated LMPC trials retain only their
 own preceding local model estimate and clean rollout.
 

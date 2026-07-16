@@ -32,8 +32,10 @@ replaces guidance as the first learned safe trajectory. It is enabled for the
 physical experiment and disabled only in the frozen reduced benchmark.
 
 `actuator_fault_study` defines hidden effectiveness vectors by agent name, so
-RobEn and Inspector-Gadget can have different force and yaw-moment faults even
-though both use skid-steer dynamics. `actuator_fault_mpc` contains only the
+RobEn and Inspector-Gadget can have different left/right drive faults even
+though both use skid-steer dynamics. Their profiles retain distinct drivetrain
+metadata, effective tracks, masses, damping, speed, and force limits.
+`actuator_fault_mpc` contains only the
 horizon and terminal settings used by that controlled comparison. Scalar
 values remain supported for kind-wide robustness experiments; a vector must
 match the selected platform's control dimension.
@@ -51,7 +53,9 @@ Gadget; they do not share mass, inertia, damping, limits, or footprint. Heron
 and BlueROV2 Heavy profiles likewise own their parameters. Manufacturer maximum
 speed and `mission_speed` are separate. Physical model mass/inertia, damping,
 buoyancy, body centers, axis-specific wrench limits, and speed limits are all
-YAML values. Unidentified payload and hydrodynamic values remain documented
+YAML values. The physical ROV profile also configures eight thruster-force
+limits; its 6x8 allocation is constructed from those and the axis limits.
+Unidentified payload and hydrodynamic values remain documented
 engineering estimates. Control costs are
 normalized by each platform's actuator limits so steering angles, newtons, and
 newton-meters remain comparable in the shared objective.

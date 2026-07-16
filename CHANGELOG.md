@@ -15,6 +15,11 @@ All notable repository-level changes are tracked here.
   physically meaningful UGV/USV/ROV harbor scenarios.
 - Two independent quay UGVs and a depth-changing, 12-state 6-DOF ROV route.
 - Separate 3-DOF planar and 6-DOF underwater pose-goal validation.
+- Distinct RobEn/Jackal four-wheel-skid and Inspector-Gadget/Husky two-motor
+  profiles with physical left/right drive-side control and fault channels.
+- Port/starboard Heron waterjet allocation and waterjet-level fault channels.
+- Full-rank 6x8 BlueROV2 Heavy T200 allocation, thruster-level fault injection,
+  estimation, active probing, and diagnostics.
 - Harbor safety envelopes, successful-rollout samples, goal headings, depth,
   and roll/pitch/yaw diagnostics.
 - Per-agent distributed harbor MPC and LMPC with hard communicated collision

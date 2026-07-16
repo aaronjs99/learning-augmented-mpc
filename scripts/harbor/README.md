@@ -47,6 +47,8 @@ full 3-DOF/6-DOF orientation remains in tracking and final acceptance.
 
 Named YAML profiles distinguish SRI Lab's Jackal-based RobEn from its Husky-
 based Inspector-Gadget and configure a full-payload Heron and BlueROV2 Heavy.
+Controllers operate on left/right UGV drive sides, port/starboard Heron
+waterjets, and all eight BlueROV2 Heavy T200 channels.
 Manufacturer limits are separated from conservative mission cruise speeds;
 unidentified payload and hydrodynamic coefficients are documented assumptions.
 `config/harbor_reduced.yaml` preserves the previous reduced models.
@@ -70,9 +72,9 @@ reported as successful station keeping.
 current. It compares nominal, scalar-adaptive, and diagonal-adaptive distributed
 MPC plus diagonal-adaptive LMPC. Each named platform owns its hidden vector and
 local estimate. In particular, RobEn and Inspector-Gadget are separate UGVs
-with separate model parameters and `[force, yaw moment]` effectiveness vectors.
-The resulting estimate is at the generalized-control level, not the individual
-wheel, waterjet, or thruster level. Active trials request bounded alternating
+with separate model parameters and left/right effectiveness vectors. Heron and
+BlueROV2 estimates are likewise waterjet- and thruster-specific. Active trials
+request bounded alternating
 first-step pulses for under-observed channels inside the normal NLP. Unsafe or
 infeasible requests are skipped or retried without the pulse, and repeated-task
 LMPC retains its own preceding local estimate and clean rollout.

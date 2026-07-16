@@ -417,13 +417,17 @@ class HarborAgentOptimizer:
                     opti.bounded(-model.max_yaw_rate, states[4, :], model.max_yaw_rate)
                 )
                 opti.subject_to(
-                    opti.bounded(-model.max_force, controls[0, :], model.max_force)
+                    opti.bounded(
+                        -model.max_side_force,
+                        controls[0, :],
+                        model.max_side_force,
+                    )
                 )
                 opti.subject_to(
                     opti.bounded(
-                        -model.max_yaw_moment,
+                        -model.max_side_force,
                         controls[1, :],
-                        model.max_yaw_moment,
+                        model.max_side_force,
                     )
                 )
             else:
@@ -457,18 +461,21 @@ class HarborAgentOptimizer:
                         -model.max_yaw_rate, states[5, :], model.max_yaw_rate
                     )
                 )
-            opti.subject_to(
-                opti.bounded(-model.max_thrust, controls[0, :], model.max_thrust)
+            thrust_bound = (
+                model.max_jet_thrust
+                if model.variant == "marine_3dof"
+                else model.max_thrust
             )
-            yaw_control_bound = (
-                model.max_yaw_moment
+            opti.subject_to(
+                opti.bounded(-thrust_bound, controls[0, :], thrust_bound)
+            )
+            second_control_bound = (
+                model.max_jet_thrust
                 if model.variant == "marine_3dof"
                 else model.max_yaw_rate
             )
             opti.subject_to(
-                opti.bounded(
-                    -yaw_control_bound, controls[1, :], yaw_control_bound
-                )
+                opti.bounded(-second_control_bound, controls[1, :], second_control_bound)
             )
         else:
             opti.subject_to(
@@ -495,11 +502,7 @@ class HarborAgentOptimizer:
                     model.max_angular_rate,
                 )
             )
-            for index, limit in enumerate(model.force_limit_vector):
-                opti.subject_to(
-                    opti.bounded(-limit, controls[index, :], limit)
-                )
-            for index, limit in enumerate(model.torque_limit_vector, start=3):
+            for index, limit in enumerate(model.control_scale()):
                 opti.subject_to(
                     opti.bounded(-limit, controls[index, :], limit)
                 )

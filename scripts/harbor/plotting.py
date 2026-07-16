@@ -909,10 +909,10 @@ def _flatten_effectiveness(estimates, agents: list[HarborAgent]) -> np.ndarray:
 
 def _control_channel_labels(agent: HarborAgent) -> tuple[str, ...]:
     if agent.model.kind == "ugv":
-        return ("F", "N")
+        return ("left drive", "right drive")
     if agent.model.kind == "usv":
-        return ("T", "N")
-    return ("X", "Y", "Z", "K", "M", "N")
+        return ("port jet", "starboard jet")
+    return tuple(f"T{index}" for index in range(1, 9))
 
 
 def _short_platform_name(agent: HarborAgent) -> str:

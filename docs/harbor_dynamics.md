@@ -16,7 +16,16 @@ mechanistically structured simulation*, not hardware-validated high fidelity.
 
 RobEn and Inspector-Gadget are different UGVs. The default profiles model the
 [SRI Lab RobEn as a Jackal and Inspector-Gadget as a Husky](https://sri-lab.seas.ucla.edu/robotic-infrastructure-inspection/).
-Each uses state `q = [x, y, psi, v, r]` and input `tau = [F, N]`:
+Each uses state `q = [x, y, psi, v, r]`. The optimizer commands physical
+left/right drive-side forces `u = [F_L, F_R]`, mapped through the platform's
+effective track `b`:
+
+```text
+F = F_L + F_R
+N = (b / 2) (F_R - F_L)
+```
+
+The resulting body dynamics are:
 
 ```text
 x_dot   = v cos(psi)
@@ -31,22 +40,28 @@ Ladybug/lidar mast mass is not available. Inspector-Gadget uses a 65 kg working-
 mass estimate around the 50 kg Husky A200 base. Their inertia, damping, force,
 moment, mission-speed, and footprint values are independent. Public base values
 come from the [Jackal specification](https://clearpathrobotics.com/jackal-small-unmanned-ground-vehicle/)
-and [Husky A200 manual](https://www.clearpathrobotics.com/wp-content/uploads/2013/08/Husky-A200-UGV-UserManual-0.20.pdf).
+and [Husky A200 manual](https://www.clearpathrobotics.com/wp-content/uploads/2013/02/Husky-A200-UGV-UserManual-0.12.pdf).
 
-This lumped model omits individual wheel speeds, longitudinal/lateral slip,
-terrain-dependent traction, suspension, and motor current dynamics. Those are
-the next identification layer for hardware transfer.
+RobEn uses Jackal's compact four-wheel-skid drivetrain and a 0.43 m track;
+Inspector-Gadget uses Husky A200's two-motor drivetrain and documented 0.555 m
+effective track. The lumped side-force model omits individual wheel speeds,
+longitudinal/lateral slip, terrain-dependent traction, suspension, and motor
+current dynamics. Those are the next identification layer for hardware transfer.
 
 ## USV: underactuated 3-DOF marine craft
 
-Earth-fixed pose `eta = [x, y, psi]`, body velocity `nu = [u, v, r]`, and
-underactuated input `tau = [T, 0, N]` satisfy:
+Earth-fixed pose `eta = [x, y, psi]` and body velocity `nu = [u, v, r]` satisfy:
 
 ```text
 eta_dot = R(psi) nu
 M nu_dot + C(nu) nu + D(nu) nu = tau
 D(nu)nu = D_linear nu + D_quadratic |nu| nu
 ```
+
+The optimizer commands port/starboard waterjet thrust `u_c = [T_P, T_S]`.
+With jet separation `b_j`, `T = T_P + T_S` and
+`N = (b_j/2)(T_S - T_P)`, producing the underactuated body input
+`tau = [T, 0, N]`.
 
 `M = diag(m_u, m_v, I_z)` includes effective surge/sway mass and yaw inertia.
 The Coriolis product used by both simulator and optimizer is:
@@ -61,10 +76,10 @@ Unlike the former scalar-surge model, this state includes sway and yaw-rate
 dynamics. Its nominal transition remains a calm-water model. The robustness
 study applies current outside that transition as execution-plant mismatch;
 the Heron profile retains the 1.7 m/s hardware limit, 40 N total thrust, and a
-39 kg full-payload rigid-mass basis. A separate 0.9 m/s mission speed keeps
+39 kg full-payload rigid-mass basis. A separate 0.95 m/s mission speed keeps
 inspection control away from the hardware ceiling. Effective mass and damping
 are documented engineering estimates. Wind, waves, off-diagonal added mass,
-and individual waterjet allocation remain future identification targets. See
+and waterjet thrust curves remain future identification targets. See
 the [Heron manual](https://www.generationrobots.com/media/clearpath_heron_usermanual.pdf).
 
 ## ROV: 6-DOF marine craft
@@ -89,12 +104,23 @@ requires independently controlled 6-DOF goals; the standard six-thruster
 BlueROV2 is only 5-DOF. Its center of buoyancy is above its center of gravity,
 producing roll/pitch restoring moments.
 
-The ROV has a real 12-state trajectory, six bounded wrench inputs, 6-DOF pose
-goal, body-frame velocity, depth limits, and attitude dynamics. It does not yet
-model off-diagonal added mass, Euler-angle singularity avoidance, wave forces,
-or an explicit thruster allocation `tau = B f_thruster`. The next fidelity step
-is to identify the actual eight-thruster allocation and coefficients on the lab
-vehicle. Public dimensions, mass, speed, and thrust are from the
+The ROV has a real 12-state trajectory, eight bounded T200 force inputs, 6-DOF
+pose goal, body-frame velocity, depth limits, and attitude dynamics. Its
+allocation is
+
+```text
+tau = B f_thruster,    B in R^(6 x 8),    rank(B) = 6
+```
+
+The horizontal vectored thrusters provide surge, sway, and yaw; the four Heavy
+vertical thrusters provide heave, roll, and pitch. The coefficient signs follow
+[ArduSub's `VECTORED_6DOF` motor matrix](https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_Motors/AP_Motors6DOF.cpp),
+while row magnitudes are calibrated to the configured BlueROV2 Heavy bollard-
+force and moment limits. Guidance uses a
+pseudoinverse allocation followed by uniform desaturation, and MPC optimizes
+the eight bounded forces directly. The model does not yet include asymmetric
+forward/reverse T200 curves, off-diagonal added mass, Euler-angle singularity
+avoidance, or wave forces. Public dimensions, mass, speed, and thrust are from the
 [BlueROV2 page](https://bluerobotics.com/store/rov/bluerov2/) and
 [Heavy retrofit](https://bluerobotics.com/store/rov/bluerov2-accessories/brov2-heavy-kit/).
 
@@ -112,16 +138,16 @@ The USV uses only horizontal current; the ROV uses all three components. The
 UGV is not advected. Optional actuator effectiveness is also applied only in
 execution. The controller does not read either value. The scalar robustness
 experiment uses one shared gain per platform. The asymmetric fault experiment
-instead uses a diagonal gain matrix over each platform's generalized controls:
+instead uses a diagonal gain matrix over each platform's physical actuator channels:
 
 ```text
 u_applied = diag(alpha_1, ..., alpha_nu) u_commanded
 ```
 
-For RobEn and Inspector-Gadget, these are separate `[force, yaw moment]`
+For RobEn and Inspector-Gadget, these are separate `[left drive, right drive]`
 vectors; the two UGVs neither share an estimate nor share hidden fault values.
-For Heron they are `[surge force, yaw moment]`, and for BlueROV2 Heavy they are
-the six generalized wrench channels `[X, Y, Z, K, M, N]`.
+For Heron they are `[port jet, starboard jet]`, and for BlueROV2 Heavy they are
+the eight physical channels `[T1, ..., T8]`.
 
 Let `z` denote velocity/rate states, which are unaffected by current advection.
 The scalar estimator uses a finite-difference sensitivity around the prior
