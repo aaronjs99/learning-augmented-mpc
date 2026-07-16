@@ -12,7 +12,11 @@ from typing import Any
 import numpy as np
 
 from scripts.config import ProjectConfig
-from scripts.learning import MantaLMPCRunResult, summarize_optimizer_slack
+from scripts.learning import (
+    MantaLMPCRunResult,
+    summarize_optimizer_slack,
+    summarize_optimizer_slack_by_agent,
+)
 from scripts.metrics import (
     compute_rollout_metrics,
     cost_by_iteration,
@@ -75,6 +79,14 @@ def prepare_manta_report(
         "dt": lmpc.dt,
         "prediction_horizon": lmpc.prediction_horizon,
         "k_hull": lmpc.k_hull,
+        "optimizer_relaxations": {
+            "terminal_slack_bound": lmpc.terminal_slack_bound,
+            "terminal_slack_weight": lmpc.terminal_slack_weight,
+            "static_slack_bound": lmpc.static_slack_bound,
+            "static_slack_weight": lmpc.static_slack_weight,
+            "hyperplane_slack_bound": lmpc.hyperplane_slack_bound,
+            "hyperplane_slack_weight": lmpc.hyperplane_slack_weight,
+        },
         "max_steps": lmpc.max_steps,
         "apf_max_steps": project_config.apf.max_steps,
         "goal_tolerance": lmpc.goal_tolerance,
@@ -95,6 +107,15 @@ def prepare_manta_report(
             summarize_optimizer_slack(np.zeros((0, len(scenario.starts), 3)))
         ]
         + [summarize_optimizer_slack(values) for values in result.slack_by_iteration],
+        "optimizer_slack_by_agent_by_iteration": [
+            summarize_optimizer_slack_by_agent(
+                np.zeros((0, len(scenario.starts), 3))
+            )
+        ]
+        + [
+            summarize_optimizer_slack_by_agent(values)
+            for values in result.slack_by_iteration
+        ],
         "cost_by_iteration": {
             str(agent): values for agent, values in costs.items()
         },

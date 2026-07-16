@@ -28,7 +28,7 @@ class MantaLMPCConfig:
     static_slack_bound: float = 2.0
     terminal_slack_bound: float = 4.0
     terminal_position_only: bool = True
-    terminal_slack_weight: float = 1000.0
+    terminal_slack_weight: float = 10000.0
     hyperplane_slack_weight: float = 10000.0
     static_slack_weight: float = 1000000.0
     safe_cost_weight: float = 10.0

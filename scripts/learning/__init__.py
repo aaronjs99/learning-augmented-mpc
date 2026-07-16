@@ -12,7 +12,12 @@ from scripts.metrics import cost_by_iteration
 
 from .policies import priority_margins, warm_start_from_safe_set
 from .recovery import RecoveryResult, repair_incomplete_with_apf, safe_fallback_apf_step
-from .runner import MantaLMPCRunResult, run_manta_lmpc, summarize_optimizer_slack
+from .runner import (
+    MantaLMPCRunResult,
+    run_manta_lmpc,
+    summarize_optimizer_slack,
+    summarize_optimizer_slack_by_agent,
+)
 from .safety import SafetyFilterResult, filter_unsafe_transitions
 from .safe_sets import (
     build_staggered_safe_sets,
@@ -38,6 +43,7 @@ __all__ = [
     "repair_incomplete_with_apf",
     "run_manta_lmpc",
     "summarize_optimizer_slack",
+    "summarize_optimizer_slack_by_agent",
     "safe_fallback_apf_step",
     "sample_terminal_safe_set",
     "simulate_manta_autopilot",

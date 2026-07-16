@@ -5,6 +5,14 @@
   "dt": 0.2,
   "prediction_horizon": 20,
   "k_hull": 10,
+  "optimizer_relaxations": {
+    "terminal_slack_bound": 4.0,
+    "terminal_slack_weight": 10000.0,
+    "static_slack_bound": 0.02,
+    "static_slack_weight": 1000000.0,
+    "hyperplane_slack_bound": 2.0,
+    "hyperplane_slack_weight": 10000.0
+  },
   "max_steps": 230,
   "apf_max_steps": 800,
   "goal_tolerance": 0.65,
@@ -34,23 +42,12 @@
       "solver_clean": true,
       "usable_for_learning": true,
       "all_goals_reached": true,
-      "min_pairwise_distance": 2.558938475427258,
+      "min_pairwise_distance": 2.558850222593574,
       "pairwise_violation_count": 0,
       "min_obstacle_clearance": 1.1040765177346203,
       "obstacle_violation_count": 0,
-      "fallback_count": 0
-    },
-    {
-      "valid": true,
-      "safe": true,
-      "solver_clean": false,
-      "usable_for_learning": true,
-      "all_goals_reached": true,
-      "min_pairwise_distance": 3.7806307961519017,
-      "pairwise_violation_count": 0,
-      "min_obstacle_clearance": 0.44609310173288486,
-      "obstacle_violation_count": 0,
-      "fallback_count": 2
+      "fallback_count": 0,
+      "safety_intervention_count": 0
     },
     {
       "valid": true,
@@ -58,30 +55,135 @@
       "solver_clean": true,
       "usable_for_learning": true,
       "all_goals_reached": true,
-      "min_pairwise_distance": 3.4764514040464842,
+      "min_pairwise_distance": 3.897551017423064,
       "pairwise_violation_count": 0,
-      "min_obstacle_clearance": 1.4025718531041065e-07,
+      "min_obstacle_clearance": 0.4737791476424069,
       "obstacle_violation_count": 0,
-      "fallback_count": 0
+      "fallback_count": 0,
+      "safety_intervention_count": 0
+    },
+    {
+      "valid": true,
+      "safe": true,
+      "solver_clean": false,
+      "usable_for_learning": true,
+      "all_goals_reached": true,
+      "min_pairwise_distance": 3.70427076072187,
+      "pairwise_violation_count": 0,
+      "min_obstacle_clearance": 0.017538769391296505,
+      "obstacle_violation_count": 0,
+      "fallback_count": 0,
+      "safety_intervention_count": 1
     }
   ],
   "status_counts_by_iteration": [
     {},
     {
-      "fallback_apf": 2,
       "hold": 137,
-      "ok": 265
+      "ok": 267
     },
     {
-      "hold": 129,
-      "ok": 233
+      "hold": 132,
+      "ok": 229,
+      "safety_filter_apf": 1
+    }
+  ],
+  "optimizer_slack_by_iteration": [
+    {
+      "solved_agent_steps": 0,
+      "max_static_slack": null,
+      "nonzero_static_slack_steps": 0,
+      "max_hyperplane_slack": null,
+      "nonzero_hyperplane_slack_steps": 0,
+      "max_terminal_slack": null,
+      "nonzero_terminal_slack_steps": 0
+    },
+    {
+      "solved_agent_steps": 267,
+      "max_static_slack": 0.0,
+      "nonzero_static_slack_steps": 0,
+      "max_hyperplane_slack": 0.0,
+      "nonzero_hyperplane_slack_steps": 0,
+      "max_terminal_slack": 0.06967847982266882,
+      "nonzero_terminal_slack_steps": 267
+    },
+    {
+      "solved_agent_steps": 230,
+      "max_static_slack": 0.0,
+      "nonzero_static_slack_steps": 0,
+      "max_hyperplane_slack": 0.0,
+      "nonzero_hyperplane_slack_steps": 0,
+      "max_terminal_slack": 0.07834805701524651,
+      "nonzero_terminal_slack_steps": 230
+    }
+  ],
+  "optimizer_slack_by_agent_by_iteration": [
+    {
+      "0": {
+        "solved_agent_steps": 0,
+        "max_static_slack": null,
+        "nonzero_static_slack_steps": 0,
+        "max_hyperplane_slack": null,
+        "nonzero_hyperplane_slack_steps": 0,
+        "max_terminal_slack": null,
+        "nonzero_terminal_slack_steps": 0
+      },
+      "1": {
+        "solved_agent_steps": 0,
+        "max_static_slack": null,
+        "nonzero_static_slack_steps": 0,
+        "max_hyperplane_slack": null,
+        "nonzero_hyperplane_slack_steps": 0,
+        "max_terminal_slack": null,
+        "nonzero_terminal_slack_steps": 0
+      }
+    },
+    {
+      "0": {
+        "solved_agent_steps": 65,
+        "max_static_slack": 0.0,
+        "nonzero_static_slack_steps": 0,
+        "max_hyperplane_slack": 0.0,
+        "nonzero_hyperplane_slack_steps": 0,
+        "max_terminal_slack": 0.006786492859616487,
+        "nonzero_terminal_slack_steps": 65
+      },
+      "1": {
+        "solved_agent_steps": 202,
+        "max_static_slack": 0.0,
+        "nonzero_static_slack_steps": 0,
+        "max_hyperplane_slack": 0.0,
+        "nonzero_hyperplane_slack_steps": 0,
+        "max_terminal_slack": 0.06967847982266882,
+        "nonzero_terminal_slack_steps": 202
+      }
+    },
+    {
+      "0": {
+        "solved_agent_steps": 49,
+        "max_static_slack": 0.0,
+        "nonzero_static_slack_steps": 0,
+        "max_hyperplane_slack": 0.0,
+        "nonzero_hyperplane_slack_steps": 0,
+        "max_terminal_slack": 0.005737353997103036,
+        "nonzero_terminal_slack_steps": 49
+      },
+      "1": {
+        "solved_agent_steps": 181,
+        "max_static_slack": 0.0,
+        "nonzero_static_slack_steps": 0,
+        "max_hyperplane_slack": 0.0,
+        "nonzero_hyperplane_slack_steps": 0,
+        "max_terminal_slack": 0.07834805701524651,
+        "nonzero_terminal_slack_steps": 181
+      }
     }
   ],
   "cost_by_iteration": {
     "0": [
       84,
       65,
-      52
+      49
     ],
     "1": [
       223,
@@ -93,7 +195,7 @@
     "0": [
       84,
       65,
-      52
+      49
     ],
     "1": [
       223,
@@ -102,14 +204,14 @@
     ]
   },
   "final_goal_error_by_agent": {
-    "0": 0.648039573924831,
-    "1": 0.6498161305098329
+    "0": 0.6463001986828085,
+    "1": 0.6421693301265518
   },
   "metrics_final_iteration": {
-    "total_cost_proxy": 6112.814166069341,
-    "minimum_pairwise_distance": 3.4764514040464842,
+    "total_cost_proxy": 6596.228538528278,
+    "minimum_pairwise_distance": 3.70427076072187,
     "collision_count": 0,
     "time_to_goal": 36.2,
-    "control_effort": 478.6053885952434
+    "control_effort": 490.9911684990262
   }
 }

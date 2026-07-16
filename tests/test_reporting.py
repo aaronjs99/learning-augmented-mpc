@@ -65,6 +65,10 @@ class ReportingTests(unittest.TestCase):
         self.assertEqual(report.summary["scenario"], "manta_crossover")
         self.assertEqual(report.summary["selected_iteration"], 1)
         self.assertEqual(
+            report.summary["optimizer_relaxations"]["terminal_slack_weight"],
+            10000.0,
+        )
+        self.assertEqual(
             report.summary["status_counts_by_iteration"],
             [{}, {"fallback_apf": 1, "ok": 1}],
         )
@@ -80,6 +84,10 @@ class ReportingTests(unittest.TestCase):
                 "nonzero_terminal_slack_steps": 2,
             },
         )
+        per_agent = report.summary["optimizer_slack_by_agent_by_iteration"][1]
+        self.assertEqual(per_agent["0"]["max_terminal_slack"], 0.3)
+        self.assertEqual(per_agent["1"]["max_terminal_slack"], 0.4)
+        self.assertEqual(per_agent["0"]["solved_agent_steps"], 1)
         self.assertEqual(report.summary["cost_by_iteration"], {"0": [1, 1], "1": [1, 1]})
         self.assertEqual(report.final_states.shape, (2, 2, 7))
         self.assertEqual(report.pairwise_distances.shape, (2, 1))

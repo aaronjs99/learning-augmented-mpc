@@ -113,7 +113,7 @@ lmpc:
   static_slack_bound: 0.02
   terminal_slack_bound: 4.0
   terminal_position_only: true
-  terminal_slack_weight: 1000.0
+  terminal_slack_weight: 10000.0
   hyperplane_slack_weight: 10000.0
   static_slack_weight: 1000000.0
   safe_cost_weight: 10.0

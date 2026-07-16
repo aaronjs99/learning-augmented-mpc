@@ -65,8 +65,8 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       pairwise-hyperplane, and absolute terminal slack instead of reducing
       solver behavior to `ok`.
     - Reports preserve maxima and nonzero-use counts per learning iteration,
-      enabling safety interventions and performance changes to be tied back to
-      the optimizer's actual relaxation usage.
+      globally and per agent, enabling safety interventions and performance
+      changes to be tied back to the optimizer's actual relaxation usage.
 
 ## Current Evidence
 
@@ -76,15 +76,16 @@ The strongest current success case is `manta_crossover`:
 python run.py sweep --scenario manta_crossover --iterations 2 --max-steps 230
 ```
 
-The latest curated run selects LMPC iteration 2, stays swept-collision-free,
-and improves first-hit step proxies from `84/223` to `49/182`. It uses no IPOPT
+The latest verified run selects LMPC iteration 2, stays swept-collision-free,
+and improves first-hit step proxies from `84/223` to `49/181`. It uses no IPOPT
 fallbacks and one recorded execution-time safety intervention near the inflated
 obstacle boundary. The selected rollout retains `0.018` minimum swept obstacle
 clearance, and the intervention is visible rather than being silently admitted
 as a safe optimization result. Slack telemetry reports zero static and
-hyperplane relaxation throughout that selected iteration, isolating the
-remaining intervention to finite intersample collocation rather than soft-slack
-use.
+hyperplane relaxation throughout that selected iteration. Terminal slack peaks
+at `0.00574` for agent 0 and `0.0783` for agent 1, localizing the remaining
+terminal mismatch instead of conflating it with collision relaxation. Runtime
+is `351` seconds.
 
 A short `manta_triangle` probe remains safe but incomplete:
 
@@ -112,26 +113,41 @@ terminal relaxation is therefore continuously active but not saturated; simply
 raising its bound or retuning collision penalties is not supported by this
 evidence.
 
+A pruned discrete-terminal experiment was also rejected. Fixing the terminal
+to the nominal sampled point took `120.6` seconds, slightly worsened agent 0's
+60-step goal error from `4.114` to `4.257`, and left maximum terminal slack at
+`0.114`. Solving nominal and future candidates took `229.5` seconds, recovered
+the original goal error, and increased maximum terminal slack to `0.190`. The
+convex-hull implementation remains the default because discrete enumeration did
+not buy reachability or relaxation improvement commensurate with its runtime.
+
+Increasing the convex-hull terminal slack penalty from `1000` to `10000` was
+more effective. In a 20-step triangle A/B test, waiting-agent displacement fell
+from `0.159/0.113` m to `0.0166/0.0119` m and maximum terminal slack fell by
+roughly one order of magnitude, while all solves remained clean and runtime was
+unchanged. A 60-step crossover A/B similarly reduced maximum terminal slack
+from `0.0904` to `0.00963`, preserved the active agent's progress, and kept the
+staged waiting agent near its start.
+
 ## High-Value Next Experiments
 
-1. **Priority-aware hyperplanes**
-   - Give right-of-way to agents closer to their goals or with fewer escape
-     options.
-   - Expected benefit: fewer traffic jams in 3-agent crossing scenarios.
+1. **Compact concurrent APF initialization**
+   - Replace strictly sequential staging with delay-scheduled overlapping APF
+     routes that are admitted only after swept validation.
+   - Expected benefit: shorten the current 3-agent seed makespan before LMPC
+     inherits its conservative timing.
 
-2. **Adaptive slack penalties**
-   - Increase hyperplane/static slack penalties when observed violations or
-     near-contact events occur.
-   - Expected benefit: preserve feasibility early while tightening safety later.
+2. **Adaptive per-agent terminal regularization**
+   - Increase terminal weight for agents expected to hold and relax it only for
+     agents whose measured terminal mismatch grows during active motion.
+   - Expected benefit: retain staged coordination without over-regularizing the
+     agent currently earning task-time improvement.
 
-3. **Terminal reachability filtering**
-   - Compare the current single convex-hull terminal relaxation with a pruned
-     bank of discrete safe-set candidates. The source paper's numerical method
-     solves one FHOCP per terminal safe-set element, while this adaptation uses
-     one relaxed convex-hull problem for runtime reasons.
-   - Expected benefit: avoid convex combinations that are inexpensive but do
-     not correspond to a dynamically reachable stored state, while controlling
-     runtime through reachability and cost pruning.
+3. **Control-rate constraints**
+   - Add configurable fin-command slew limits and measure completion time,
+     fallback rate, and control effort.
+   - Expected benefit: suppress abrupt optimizer commands that are feasible in
+     the model but difficult for physical manta actuators to track.
 
 4. **Waypoint terminal repair**
    - A capped APF repair phase exists behind `repair_incomplete_with_apf`, but

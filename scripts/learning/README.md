@@ -26,7 +26,7 @@ separates these interventions from IPOPT fallback events.
 Successful optimizer steps retain maximum static, hyperplane, and absolute
 terminal slack telemetry. Run summaries distinguish unavailable APF/fallback
 telemetry from solved zero-slack steps and report both maxima and nonzero-use
-counts.
+counts, both globally and per agent.
 
 LMPC warm starts use stored safe-set controls blended with a nominal constant
 control, which keeps IPOPT close to dynamically plausible prior motion without

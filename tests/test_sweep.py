@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import redirect_stdout
 import csv
+import json
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -18,6 +19,7 @@ class SweepTests(unittest.TestCase):
             "scenario": "probe",
             "iterations": 1,
             "max_steps": 10,
+            "terminal_slack_weight": 10000.0,
             "elapsed_seconds": 12.3456,
             "selected_iteration": 0,
             "selected_valid": True,
@@ -39,6 +41,8 @@ class SweepTests(unittest.TestCase):
             "latest_nonzero_static_slack_steps": 0,
             "latest_nonzero_hyperplane_slack_steps": 0,
             "latest_nonzero_terminal_slack_steps": 1,
+            "selected_slack_by_agent": {"0": {"max_terminal_slack": None}},
+            "latest_slack_by_agent": {"0": {"max_terminal_slack": 0.25}},
             "latest_valid": False,
             "latest_safe": True,
             "latest_solver_clean": False,
@@ -54,7 +58,12 @@ class SweepTests(unittest.TestCase):
                 row = next(csv.DictReader(handle))
 
         self.assertEqual(row["elapsed_seconds"], "12.3456")
+        self.assertEqual(row["terminal_slack_weight"], "10000.0")
         self.assertEqual(row["latest_solver_clean"], "False")
+        self.assertEqual(
+            json.loads(row["latest_slack_by_agent"])["0"]["max_terminal_slack"],
+            0.25,
+        )
 
         output = StringIO()
         with redirect_stdout(output):

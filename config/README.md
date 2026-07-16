@@ -24,6 +24,12 @@ floating-point tangency without changing the obstacle drawn in reports.
 used in IPOPT initialization. `0.0` means constant nominal controls only, while
 `1.0` means raw stored controls only.
 
+`terminal_slack_weight` is intentionally high enough to keep agents close to
+the staged learned route while retaining bounded slack for nonlinear manta
+reachability. The default `10000` reduced unintended waiting-agent drift and
+terminal relaxation by about one order of magnitude in short A/B probes without
+adding solver failures or runtime.
+
 `static_agent_radius_scales` controls the APF staging search. Recovery behavior
 is configured with `fallback_control_levels`, `fallback_diagonal_levels`, and
 the three `fallback_*_weight` values; these preserve the original candidate

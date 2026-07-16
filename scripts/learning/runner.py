@@ -404,6 +404,18 @@ def summarize_optimizer_slack(values: np.ndarray) -> dict[str, float | int | Non
     return summary
 
 
+def summarize_optimizer_slack_by_agent(
+    values: np.ndarray,
+) -> dict[str, dict[str, float | int | None]]:
+    """Summarize optimizer slack independently for each agent column."""
+    telemetry = np.asarray(values, dtype=float)
+    summarize_optimizer_slack(telemetry)
+    return {
+        str(agent): summarize_optimizer_slack(telemetry[:, agent : agent + 1, :])
+        for agent in range(telemetry.shape[1])
+    }
+
+
 def _snapshot_safe_sets(
     safe_sets: dict[int, list[np.ndarray]],
 ) -> dict[int, np.ndarray]:

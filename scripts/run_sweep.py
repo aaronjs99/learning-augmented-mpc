@@ -20,7 +20,11 @@ from scripts.config import (
     load_project_config,
     override_project_config,
 )
-from scripts.learning import run_manta_lmpc, summarize_optimizer_slack
+from scripts.learning import (
+    run_manta_lmpc,
+    summarize_optimizer_slack,
+    summarize_optimizer_slack_by_agent,
+)
 from scripts.metrics import cost_by_iteration
 
 
@@ -131,11 +135,23 @@ def _record_for_result(
         if result.slack_by_iteration
         else summarize_optimizer_slack(np.zeros((0, len(goals), 3)))
     )
+    empty_slack = np.zeros((0, len(goals), 3))
+    selected_slack_by_agent = (
+        summarize_optimizer_slack_by_agent(result.slack_by_iteration[selected - 1])
+        if selected is not None and selected > 0
+        else summarize_optimizer_slack_by_agent(empty_slack)
+    )
+    latest_slack_by_agent = (
+        summarize_optimizer_slack_by_agent(result.slack_by_iteration[-1])
+        if result.slack_by_iteration
+        else summarize_optimizer_slack_by_agent(empty_slack)
+    )
 
     return {
         "scenario": result.scenario_name,
         "iterations": lmpc.iterations,
         "max_steps": lmpc.max_steps,
+        "terminal_slack_weight": lmpc.terminal_slack_weight,
         "elapsed_seconds": elapsed_seconds,
         "selected_iteration": selected,
         "selected_valid": selected_validation.valid if selected_validation else False,
@@ -183,6 +199,8 @@ def _record_for_result(
         "latest_nonzero_terminal_slack_steps": latest_slack[
             "nonzero_terminal_slack_steps"
         ],
+        "selected_slack_by_agent": selected_slack_by_agent,
+        "latest_slack_by_agent": latest_slack_by_agent,
         "latest_valid": latest_validation.valid,
         "latest_safe": latest_validation.safe,
         "latest_solver_clean": latest_validation.solver_clean,
@@ -198,6 +216,7 @@ def _write_csv(path: Path, records: list[dict[str, object]]) -> None:
         "scenario",
         "iterations",
         "max_steps",
+        "terminal_slack_weight",
         "elapsed_seconds",
         "selected_iteration",
         "selected_valid",
@@ -219,6 +238,8 @@ def _write_csv(path: Path, records: list[dict[str, object]]) -> None:
         "latest_nonzero_static_slack_steps",
         "latest_nonzero_hyperplane_slack_steps",
         "latest_nonzero_terminal_slack_steps",
+        "selected_slack_by_agent",
+        "latest_slack_by_agent",
         "latest_valid",
         "latest_safe",
         "latest_solver_clean",
@@ -232,6 +253,10 @@ def _write_csv(path: Path, records: list[dict[str, object]]) -> None:
         for record in records:
             row = {field: record[field] for field in fields}
             row["selected_costs"] = json.dumps(row["selected_costs"])
+            row["selected_slack_by_agent"] = json.dumps(
+                row["selected_slack_by_agent"]
+            )
+            row["latest_slack_by_agent"] = json.dumps(row["latest_slack_by_agent"])
             writer.writerow(row)
 
 
