@@ -42,14 +42,30 @@ interval, delay, message time-to-live, dropout probability, and random seed. No
 model reads another platform's state during integration, and no constraint
 binds one platform's pose to another.
 
-## Scope Boundary
+## Distributed MPC and LMPC
 
-This harbor package is currently a distributed communication and guidance
-baseline, not distributed learning MPC. It has no per-platform receding-horizon
-optimizer, and successful rollout samples are not yet used as terminal safe
-sets or learned cost-to-go data. The manta package contains those LMPC
-mechanisms; generalizing them behind this platform-neutral contract is the next
-controller milestone.
+Each platform now solves its own CasADi receding-horizon problem from local
+state and received messages. Other agents enter as timestamped communicated
+constant-velocity predictions, never as direct global-state reads. Plain MPC
+uses terminal goal tracking. LMPC adds a convex hull of sampled positions from
+the prior admitted rollout and its time-to-go values. Full orientation remains
+in the objective and final 3-DOF/6-DOF goal validator.
+
+The default deterministic benchmark is complete, swept-safe, and solver-clean:
+
+| Controller | Step sum | Min distance | Fallbacks | Collision slack |
+| --- | ---: | ---: | ---: | ---: |
+| Guidance seed | 205 | 1.568 m | 0 | 0 |
+| Distributed MPC | 171 | 0.874 m | 0 | 0 |
+| Distributed LMPC 1 | 171 | 1.078 m | 0 | 0 |
+| Distributed LMPC 2 | 169 | 0.921 m | 0 | 0 |
+
+Plain MPC reduces completion cost by `16.6%` versus guidance. The second LMPC
+iteration reaches `17.6%`, with terminal slack falling from `0.258` in LMPC 1
+to `0.099` in LMPC 2. This is controlled evidence for the configured scenario,
+not a general guarantee. The simulator and optimizer use matching reduced-order
+equations; `harbor_dynamics.md` documents their limitations and the
+higher-fidelity migration.
 
 ## Initial Evidence
 
@@ -84,6 +100,12 @@ Generate an ignored comparison plot and coordinated GIF while experimenting:
 python run.py harbor --plot-dir results/tmp/harbor_eta
 ```
 
+Generate the curated MPC/LMPC telemetry, dashboard, and GIF:
+
+```text
+python run.py harbor-lmpc
+```
+
 Sweep delay and dropout over five deterministic seeds and generate a robustness
 heatmap:
 
@@ -110,5 +132,5 @@ block size remains an explicit experimental variable.
    compare safety, makespan, and communication load.
 3. Add platform-specific static geometry and currents/slip disturbances while
    preserving the shared observation contract.
-4. Add genuine communication-conditioned LMPC safe sets and learned cost-to-go
-   values, tagged with the network state under which they were demonstrated.
+4. Tag admitted LMPC safe trajectories with the network and model parameters
+   under which they were demonstrated, then test transfer across conditions.

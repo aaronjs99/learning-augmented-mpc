@@ -21,6 +21,12 @@ supports update-load versus safety ablations.
 ROV response gains and `control_smoothing` tune finite-rate 6-DOF pose tracking
 without changing the UGV/USV controllers.
 
+`harbor_mpc` configures the per-agent distributed optimizer and LMPC terminal
+safe set. `terminal_position_only` avoids invalid Euclidean convex combinations
+of wrapped angles while full pose tracking and final orientation tolerances
+remain active. A rollout is learned only when it is complete, swept-safe,
+solver-clean, and uses no collision slack.
+
 It owns the scenario states/goals, obstacle, dynamics constants, APF initializer
 tuning, LMPC horizons/weights/slacks, and output defaults. CLI flags in
 `run.py` are intended for quick overrides only.

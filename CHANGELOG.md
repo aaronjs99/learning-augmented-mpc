@@ -16,7 +16,11 @@ All notable repository-level changes are tracked here.
 - Two independent quay UGVs and a depth-changing, 12-state 6-DOF ROV route.
 - Separate 3-DOF planar and 6-DOF underwater pose-goal validation.
 - Harbor safety envelopes, successful-rollout samples, goal headings, depth,
-  and roll/pitch/yaw diagnostics with an explicit non-LMPC scope boundary.
+  and roll/pitch/yaw diagnostics.
+- Per-agent distributed harbor MPC and LMPC with hard communicated collision
+  constraints, safe-trajectory terminal hulls, time-to-go costs, strict clean
+  rollout admission, and curated progress PNG/GIF telemetry.
+- Explicit current-versus-target UGV/USV/ROV dynamics documentation.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.

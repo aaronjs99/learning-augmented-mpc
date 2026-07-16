@@ -1,0 +1,120 @@
+[
+  {
+    "label": "guidance_iter_0",
+    "admitted": true,
+    "all_goals_reached": true,
+    "pairwise_violation_count": 0,
+    "min_pairwise_distance": 1.5681647850698217,
+    "completion_step_sum": 205,
+    "first_goal_steps": {
+      "ground_rover_1": 45,
+      "ground_rover_2": 45,
+      "surface_vessel": 54,
+      "underwater_rov": 61
+    },
+    "solver_calls": 0,
+    "solver_fallbacks": 0,
+    "solve_time_seconds": 0.0,
+    "max_collision_slack": 0.0,
+    "max_terminal_slack": 0.0,
+    "solve_count_by_agent": {},
+    "fallback_count_by_agent": {},
+    "failure_status_counts": {}
+  },
+  {
+    "label": "distributed_mpc",
+    "admitted": true,
+    "all_goals_reached": true,
+    "pairwise_violation_count": 0,
+    "min_pairwise_distance": 0.8742260163789015,
+    "completion_step_sum": 171,
+    "first_goal_steps": {
+      "ground_rover_1": 41,
+      "ground_rover_2": 41,
+      "surface_vessel": 43,
+      "underwater_rov": 46
+    },
+    "solver_calls": 174,
+    "solver_fallbacks": 0,
+    "solve_time_seconds": 1.6937304999446496,
+    "max_collision_slack": 0.0,
+    "max_terminal_slack": 0.0,
+    "solve_count_by_agent": {
+      "ground_rover_1": 42,
+      "ground_rover_2": 42,
+      "surface_vessel": 44,
+      "underwater_rov": 46
+    },
+    "fallback_count_by_agent": {
+      "ground_rover_1": 0,
+      "ground_rover_2": 0,
+      "surface_vessel": 0,
+      "underwater_rov": 0
+    },
+    "failure_status_counts": {}
+  },
+  {
+    "label": "distributed_lmpc_1",
+    "admitted": true,
+    "all_goals_reached": true,
+    "pairwise_violation_count": 0,
+    "min_pairwise_distance": 1.0775552622619355,
+    "completion_step_sum": 171,
+    "first_goal_steps": {
+      "ground_rover_1": 41,
+      "ground_rover_2": 41,
+      "surface_vessel": 45,
+      "underwater_rov": 44
+    },
+    "solver_calls": 174,
+    "solver_fallbacks": 0,
+    "solve_time_seconds": 2.2573380005778745,
+    "max_collision_slack": 0.0,
+    "max_terminal_slack": 0.25791589226243244,
+    "solve_count_by_agent": {
+      "ground_rover_1": 42,
+      "ground_rover_2": 42,
+      "surface_vessel": 45,
+      "underwater_rov": 45
+    },
+    "fallback_count_by_agent": {
+      "ground_rover_1": 0,
+      "ground_rover_2": 0,
+      "surface_vessel": 0,
+      "underwater_rov": 0
+    },
+    "failure_status_counts": {}
+  },
+  {
+    "label": "distributed_lmpc_2",
+    "admitted": true,
+    "all_goals_reached": true,
+    "pairwise_violation_count": 0,
+    "min_pairwise_distance": 0.9208195792214157,
+    "completion_step_sum": 169,
+    "first_goal_steps": {
+      "ground_rover_1": 41,
+      "ground_rover_2": 41,
+      "surface_vessel": 44,
+      "underwater_rov": 43
+    },
+    "solver_calls": 172,
+    "solver_fallbacks": 0,
+    "solve_time_seconds": 2.091717899427749,
+    "max_collision_slack": 0.0,
+    "max_terminal_slack": 0.09949373629580374,
+    "solve_count_by_agent": {
+      "ground_rover_1": 42,
+      "ground_rover_2": 42,
+      "surface_vessel": 44,
+      "underwater_rov": 44
+    },
+    "fallback_count_by_agent": {
+      "ground_rover_1": 0,
+      "ground_rover_2": 0,
+      "surface_vessel": 0,
+      "underwater_rov": 0
+    },
+    "failure_status_counts": {}
+  }
+]

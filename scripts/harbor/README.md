@@ -1,7 +1,8 @@
 # Harbor Package
 
 The harbor package is independent from the manta-specific seven-state LMPC
-stack. It is a distributed guidance baseline, not yet an LMPC controller.
+stack. It contains guidance, per-agent distributed MPC, and safe-set LMPC
+controllers behind the same simulation and communication boundary.
 
 - `models.py`: 3-DOF-pose UGV/USV models and a 6-DOF-pose, 12-state untethered
   ROV behind one guidance contract.
@@ -13,6 +14,10 @@ stack. It is a distributed guidance baseline, not yet an LMPC controller.
 - `plotting.py`: safety envelopes, successful-rollout samples, pose-goal
   headings, ROV depth/attitude diagnostics, and a coordinated GIF.
 - `experiments.py`: seeded communication delay/dropout robustness sweeps.
+- `mpc.py`: platform-specific per-agent CasADi optimizers using local state and
+  received messages, with hard collision constraints.
+- `learning.py`: verified guidance seed, plain MPC baseline, clean-rollout
+  admission, terminal safe-set hull, and learned time-to-go iterations.
 
 `reciprocal` coordination makes both agents maneuver around a closing conflict.
 `eta_priority` estimates each agent's remaining travel time from communicated
@@ -32,9 +37,14 @@ temporary artifacts by default.
 from the audited legacy `distmpc` prototype. Controls are held between guidance
 updates, and `guidance_update_count` makes the computational reduction explicit.
 
-Successful rollout samples in the plots are diagnostic candidates only. They
-do not become a learned safe set until a future per-agent MPC uses them in a
-terminal constraint and cost-to-go approximation.
+`python run.py harbor-lmpc` turns the successful guidance rollout into the
+initial safe trajectory, compares plain distributed MPC, and then runs LMPC.
+Only complete, swept-safe, zero-fallback, zero-collision-slack rollouts can
+replace the learned trajectory. The terminal hull uses position coordinates;
+full 3-DOF/6-DOF orientation remains in tracking and final acceptance.
+
+The current platform equations are reduced-order and are listed alongside the
+target bicycle and marine-craft equations in `docs/harbor_dynamics.md`.
 
 The ROV guidance loop uses finite velocity/attitude response gains and
 configurable command smoothing instead of one-step saturated pose correction.

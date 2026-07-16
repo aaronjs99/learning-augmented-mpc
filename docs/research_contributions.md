@@ -92,9 +92,13 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
     - A 150-trial seeded delay/dropout sweep remains safe throughout the tested
       grid but exposes a separate final-completion boundary. This is scoped
       empirical evidence, not a safety guarantee.
-    - This package is currently a distributed guidance baseline. Successful
-      rollout samples are visualized but are not yet used by an LMPC terminal
-      set or learned cost-to-go.
+    - Per-agent distributed MPC and LMPC now use local state plus received
+      messages. A prior clean rollout supplies a position-safe terminal hull
+      and learned time-to-go; full platform pose remains part of task success.
+    - In the default deterministic case, MPC reduces completion-step sum from
+      `205` to `171`, and LMPC iteration 2 reaches `169` (`17.6%`), with zero
+      swept violations, collision slack, or solver fallbacks. Learned terminal
+      slack falls from `0.258` in iteration 1 to `0.099` in iteration 2.
 
 13. **Configurable block guidance execution**
     - The useful block-replanning concept from the legacy `distmpc` prototype is

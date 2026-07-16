@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 
 import numpy as np
 
@@ -165,10 +166,28 @@ class HarborResult:
     messages_dropped: int
     guidance_update_count: int
 
+
+class HarborControlProvider(Protocol):
+    """Controller boundary that exposes only local state, intent, and inbox."""
+
+    def control(
+        self,
+        *,
+        agent: HarborAgent,
+        state: np.ndarray,
+        navigation_goal: np.ndarray,
+        desired_velocity: np.ndarray,
+        inbox: dict,
+        step: int,
+        dt: float,
+    ) -> np.ndarray:
+        """Return one bounded platform control for the current update."""
+
 def run_harbor_simulation(
     agents: list[HarborAgent],
     config: HarborSimulationConfig,
     communication: LinkConfig,
+    control_provider: HarborControlProvider | None = None,
 ) -> HarborResult:
     """Simulate independent platforms coordinated only by received messages."""
     if len(agents) < 2:
@@ -210,8 +229,12 @@ def run_harbor_simulation(
             route = agent.route
             while (
                 route_indices[name] < len(route) - 1
-                and _goal_reached(
-                    agent, current[name], route[route_indices[name]], config
+                and _intermediate_waypoint_complete(
+                    agent,
+                    current[name],
+                    route,
+                    route_indices[name],
+                    config,
                 )
             ):
                 route_indices[name] += 1
@@ -254,13 +277,27 @@ def run_harbor_simulation(
             if not at_goal and step % config.guidance_update_interval_steps == 0:
                 update_guidance = True
             if update_guidance:
-                proposed_control = agent.model.guidance_control(
-                    current[name],
-                    desired_velocity,
-                    config.dt,
-                    desired_pose=navigation_goal,
-                )
-                smoothing = float(getattr(agent.model, "control_smoothing", 1.0))
+                if control_provider is None:
+                    proposed_control = agent.model.guidance_control(
+                        current[name],
+                        desired_velocity,
+                        config.dt,
+                        desired_pose=navigation_goal,
+                    )
+                    smoothing = float(
+                        getattr(agent.model, "control_smoothing", 1.0)
+                    )
+                else:
+                    proposed_control = control_provider.control(
+                        agent=agent,
+                        state=current[name],
+                        navigation_goal=navigation_goal,
+                        desired_velocity=desired_velocity,
+                        inbox=inboxes[name],
+                        step=step,
+                        dt=config.dt,
+                    )
+                    smoothing = 1.0
                 control = (
                     proposed_control
                     if name not in last_controls
@@ -387,6 +424,23 @@ def _goal_reached(agent, state, goal, config) -> bool:
         position_error <= config.goal_tolerance
         and orientation_error <= config.orientation_tolerance
     )
+
+
+def _intermediate_waypoint_complete(agent, state, route, index, config) -> bool:
+    """Advance a waypoint when reached or crossed toward the next route pose."""
+    position = agent.model.position(state)
+    waypoint = agent.model.goal_position(route[index])
+    if np.linalg.norm(position - waypoint) <= config.goal_tolerance:
+        return True
+    next_position = agent.model.goal_position(route[index + 1])
+    outgoing = next_position - waypoint
+    length_sq = float(np.dot(outgoing, outgoing))
+    if length_sq <= np.finfo(float).eps:
+        return False
+    progress = float(np.dot(position - waypoint, outgoing) / length_sq)
+    projection = waypoint + np.clip(progress, 0.0, 1.0) * outgoing
+    cross_track = float(np.linalg.norm(position - projection))
+    return progress >= 0.0 and cross_track <= 2.0 * config.goal_tolerance
 
 
 def _pairwise_metrics(position_arrays, agents):

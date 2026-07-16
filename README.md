@@ -7,10 +7,10 @@ heterogeneous harbor research testbed. The manta state is:
 
 The default run is controlled by `config/manta.yaml`.
 
-The harbor testbed currently supplies distributed communication/guidance
-baselines and heterogeneous dynamics. It does not yet claim learning MPC:
-UGV/USV goals are 3-DOF planar poses, ROV goals are 6-DOF poses, and the next
-research step is a platform-neutral receding-horizon safe-set controller.
+The harbor testbed supplies guidance, distributed MPC, and distributed LMPC
+controllers over heterogeneous reduced-order dynamics. UGV/USV goals are
+3-DOF planar poses and ROV goals are 6-DOF poses. See
+`docs/harbor_dynamics.md` for the exact equations and fidelity boundary.
 
 ## Workflow
 1. Generate iteration-0 safe trajectories with a staged APF autopilot.
@@ -70,6 +70,14 @@ Harbor comparison PNG and coordinated GIF under ignored temporary results:
 Seeded communication delay/dropout sweep and robustness heatmap:
 
 `python3 run.py harbor-sweep`
+
+Distributed harbor MPC/LMPC with a rolling research dashboard and GIF:
+
+`python3 run.py harbor-lmpc`
+
+This overwrites only `results/latest/harbor/metrics.json`,
+`research_progress.png`, and `harbor_lmpc.gif`. Add `--no-gif` for a faster
+metrics-and-PNG iteration.
 
 Useful overrides:
 

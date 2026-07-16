@@ -110,6 +110,7 @@ def save_harbor_animation(
     path: str | Path,
     *,
     fps: int = 15,
+    label: str = "ETA-priority coordination",
 ) -> Path:
     """Save XY-yaw and ROV x-z-pitch views of a coordinated rollout."""
     output = Path(path)
@@ -187,7 +188,7 @@ def save_harbor_animation(
                     s=38,
                     alpha=0.8,
                 )
-        map_axis.set_title(f"ETA-priority coordination, step {frame}")
+        map_axis.set_title(f"{label}, step {frame}")
         map_axis.set_xlabel("x [m]")
         map_axis.set_ylabel("y [m]")
         map_axis.grid(True, alpha=0.3)
@@ -252,6 +253,104 @@ def save_harbor_animation(
 
     animation = FuncAnimation(fig, update, frames=frames, interval=1000 / fps)
     animation.save(output, writer=PillowWriter(fps=fps))
+    plt.close(fig)
+    return output
+
+
+def save_harbor_learning_progress(
+    iterations,
+    agents: list[HarborAgent],
+    simulation_config,
+    path: str | Path,
+) -> Path:
+    """Save one compact trajectory, performance, and solver-health dashboard."""
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    count = len(iterations)
+    fig = plt.figure(figsize=(5.4 * count, 9.0))
+    grid = fig.add_gridspec(2, count, height_ratios=(2.5, 1.0))
+    colors = _agent_colors(agents)
+    display_labels = {
+        "guidance_iter_0": "Guidance seed",
+        "distributed_mpc": "Distributed MPC",
+    }
+    for index, iteration in enumerate(iterations):
+        axis = fig.add_subplot(grid[0, index])
+        _draw_harbor_map(axis, simulation_config)
+        if iteration.label.startswith("distributed_lmpc_"):
+            prior = next(
+                (
+                    candidate
+                    for candidate in reversed(iterations[:index])
+                    if candidate.admitted
+                ),
+                None,
+            )
+            if prior is not None:
+                for agent_index, agent in enumerate(agents):
+                    safe_positions = prior.result.positions[agent.name]
+                    axis.plot(
+                        safe_positions[:, 0],
+                        safe_positions[:, 1],
+                        color=colors[agent.name],
+                        linewidth=1.4,
+                        linestyle=":",
+                        alpha=0.55,
+                        label=("prior admitted safe trajectory" if agent_index == 0 else None),
+                    )
+        _draw_paths(axis, iteration.result, agents, colors)
+        label = display_labels.get(
+            iteration.label,
+            iteration.label.replace("distributed_lmpc_", "Distributed LMPC "),
+        )
+        axis.set_title(
+            f"{label}\nsteps={iteration.completion_step_sum}, "
+            f"min={iteration.result.min_pairwise_distance:.3f} m"
+        )
+        if index == count - 1:
+            axis.legend(loc="upper left", fontsize=7, framealpha=0.92)
+
+    labels = [
+        display_labels.get(
+            item.label,
+            item.label.replace("distributed_lmpc_", "LMPC "),
+        )
+        for item in iterations
+    ]
+    x = np.arange(count)
+    cost_axis = fig.add_subplot(grid[1, : max(1, count // 2)])
+    costs = [item.completion_step_sum for item in iterations]
+    bars = cost_axis.bar(x, costs, color="#377eb8")
+    cost_axis.bar_label(bars, padding=3)
+    baseline = costs[0]
+    for index, cost in enumerate(costs[1:], start=1):
+        improvement = 100.0 * (baseline - cost) / baseline
+        cost_axis.text(index, cost * 0.55, f"{improvement:.1f}% faster", ha="center", color="white")
+    cost_axis.set_xticks(x, labels=labels, rotation=12, ha="right")
+    cost_axis.set_ylabel("sum of first-goal steps")
+    cost_axis.set_title("Task Completion Cost (lower is better)")
+    cost_axis.grid(axis="y", alpha=0.25)
+
+    health_axis = fig.add_subplot(grid[1, max(1, count // 2) :])
+    separations = [item.result.min_pairwise_distance for item in iterations]
+    health_bars = health_axis.bar(x - 0.18, separations, width=0.36, color="#4daf4a")
+    health_axis.bar_label(health_bars, fmt="%.3f", padding=3)
+    health_axis.set_ylabel("minimum swept separation [m]")
+    health_axis.set_xticks(x, labels=labels, rotation=12, ha="right")
+    health_axis.set_title("Safety and Solver Reliability")
+    fallback_axis = health_axis.twinx()
+    fallbacks = [item.solver_fallbacks for item in iterations]
+    fallback_bars = fallback_axis.bar(
+        x + 0.18, fallbacks, width=0.36, color="#e41a1c", alpha=0.75
+    )
+    fallback_axis.bar_label(fallback_bars, padding=3)
+    fallback_axis.set_ylabel("solver fallbacks")
+    fallback_axis.set_ylim(0.0, max(1.0, max(fallbacks, default=0) + 0.5))
+    health_axis.grid(axis="y", alpha=0.25)
+
+    fig.suptitle("Distributed Harbor LMPC Research Progress", fontsize=17)
+    fig.subplots_adjust(top=0.91, bottom=0.12, hspace=0.35, wspace=0.28)
+    fig.savefig(output, dpi=180, bbox_inches="tight")
     plt.close(fig)
     return output
 

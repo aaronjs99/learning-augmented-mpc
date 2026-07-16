@@ -12,7 +12,12 @@ from PIL import Image
 
 from scripts.harbor import load_harbor_config, run_harbor_simulation
 from scripts.harbor.experiments import sweep_network_robustness
-from scripts.harbor.plotting import save_network_robustness_heatmap
+from scripts.harbor.learning import run_distributed_harbor_lmpc
+from scripts.harbor.mpc import load_harbor_mpc_config
+from scripts.harbor.plotting import (
+    save_harbor_learning_progress,
+    save_network_robustness_heatmap,
+)
 
 
 class HarborTests(unittest.TestCase):
@@ -145,6 +150,35 @@ class HarborTests(unittest.TestCase):
             )
             image = Image.open(path).convert("RGB")
             self.assertGreater(image.width, 500)
+            self.assertGreater(len(image.getcolors(maxcolors=1_000_000)), 10)
+
+    def test_distributed_lmpc_is_safe_clean_and_faster_than_guidance(self) -> None:
+        agents, simulation, communication = load_harbor_config()
+        mpc_config = replace(load_harbor_mpc_config(), learning_iterations=1)
+        iterations = run_distributed_harbor_lmpc(
+            agents, simulation, communication, mpc_config
+        )
+
+        guidance, mpc, lmpc = iterations
+        self.assertTrue(mpc.admitted)
+        self.assertTrue(lmpc.admitted)
+        self.assertLess(mpc.completion_step_sum, guidance.completion_step_sum)
+        self.assertLessEqual(lmpc.completion_step_sum, guidance.completion_step_sum)
+        for record in (mpc, lmpc):
+            self.assertTrue(record.result.all_goals_reached)
+            self.assertEqual(record.result.pairwise_violation_count, 0)
+            self.assertEqual(record.solver_fallbacks, 0)
+            self.assertEqual(record.max_collision_slack, 0.0)
+
+        with TemporaryDirectory() as directory:
+            path = save_harbor_learning_progress(
+                iterations,
+                agents,
+                simulation,
+                Path(directory) / "progress.png",
+            )
+            image = Image.open(path).convert("RGB")
+            self.assertGreater(image.width, 1000)
             self.assertGreater(len(image.getcolors(maxcolors=1_000_000)), 10)
 
 
