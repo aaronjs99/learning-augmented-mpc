@@ -87,25 +87,27 @@ python run.py harbor-fault-study
 
 | Controller | Step sum | Effectiveness RMSE | Fallbacks |
 | --- | ---: | ---: | ---: |
-| Nominal MPC | 178 | 0.235 | 13 |
-| Scalar-adaptive MPC | **156** | 0.166 | 7 |
-| Passive diagonal MPC | 162 | 0.0212 | 0 |
-| Active diagonal MPC | 169 | **0.0100** | 0 |
-| One-pass active MPC | 163 | 0.0297 | 0 |
-| Information-aware MPC | 163 | **0.0160** | 0 |
-| Retained passive LMPC | 160 | 0.0184 | 0 |
-| Retained active-ID LMPC | 161 | 0.0189 | 0 |
-| Retained information-ID LMPC | 162 | **0.0120** | 0 |
+| Nominal MPC | 182 | 0.235 | 13 |
+| Scalar-adaptive MPC | 168 | 0.158 | 7 |
+| Passive diagonal MPC | **159** | 0.0137 | 0 |
+| Active diagonal MPC | 166 | **0.0100** | 0 |
+| One-pass active MPC | 160 | 0.0297 | 0 |
+| Information-aware MPC | 160 | **0.0218** | 0 |
+| Retained passive LMPC | 168 | 0.0137 | 0 |
+| Retained active-ID LMPC | 168 | **0.0100** | 0 |
+| Retained information-ID LMPC | 168 | 0.0218 | 0 |
 
 All nine rollouts are complete and swept-safe with numerical-zero collision
 slack. The nominal and scalar baselines require solver fallbacks and therefore
 are not admitted; all seven actuator-wise trials are fallback-free and valid.
-Round-robin active MPC reduces gain RMSE by `52.6%` relative to passive
-diagonal MPC, while increasing completion cost by seven steps (`4.3%`). More
-importantly, information-aware MPC reduces RMSE by `46.0%` relative to the
-equal-budget one-pass comparator: both execute 14 direct probes and cost 163
-steps. Across repeated runs, retained information-ID LMPC lowers RMSE by
-`34.9%` relative to retained passive LMPC at a two-step (`1.3%`) cost increase.
+Round-robin active MPC reduces gain RMSE by `26.6%` relative to passive
+diagonal MPC, while increasing completion cost by seven steps (`4.4%`). The
+equal-budget information-aware MPC reduces RMSE by `26.8%` relative to
+one-pass probing: both execute 14 direct probes and cost 160 steps. Retained
+LMPC trials freeze the preceding local actuator estimate, so each retained
+trial preserves its source RMSE exactly instead of conflating model transfer
+with a second low-excitation identification process. Their equal cost of 168
+does not establish a task-time learning improvement in this fixed fault case.
 
 The active controllers track normalized command energy, local transition
 information, and a minimum direct-probe quota for each physical actuator
@@ -128,6 +130,36 @@ dynamic-rate observations, simultaneous passive identification is
 underdetermined; channel-isolating active probes resolve that ambiguity over
 multiple transitions. Probe counts, per-agent channel order, rejection counts,
 and the linearized posterior-standard-deviation trace are saved in JSON.
+
+## Stratified Fault Generalization
+
+The generalization command replaces one hand-selected vector with five
+deterministic per-channel Latin-hypercube draws over effectiveness `[0.55,
+0.98]`. Every one of the 14 physical channels occupies each severity stratum
+once, while each named platform retains a separate hidden vector.
+
+```text
+python run.py harbor-fault-generalization
+```
+
+| Controller | Mean RMSE | Mean sustained cost | Valid | Complete / safe |
+| --- | ---: | ---: | ---: | ---: |
+| Passive diagonal MPC | 0.0394 | **149.6** | 3/5 | 5/5 |
+| One-pass active MPC | 0.0464 | 157.2 | 5/5 | 5/5 |
+| Information-aware MPC | **0.0262** | 157.4 | 5/5 | 5/5 |
+
+Fault-focused information scheduling beats equal-budget one-pass probing in
+all five paired cases. Mean paired relative RMSE reduction is `37.96%`; mean
+absolute reduction is `0.0201`, with a case-bootstrap 95% interval `[0.0080,
+0.0360]`. Mean sustained-completion cost changes by only `+0.2` steps and by at
+most two steps in any pair. Both active policies execute one probe per channel,
+complete every task, remain swept-safe, and use no solver fallbacks. Passive
+adaptation completes safely but incurs fallbacks in two cases.
+
+Five stratified cases are a controlled generalization check, not a population-
+level guarantee. The bootstrap interval describes this configured ensemble;
+hardware trials, more fault draws, sensor noise, and time-varying failures are
+still required for a broad statistical claim.
 
 ## Initial Evidence
 

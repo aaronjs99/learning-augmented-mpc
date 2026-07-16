@@ -72,6 +72,19 @@ C(nu)nu = [-m_v v r,
             (m_v - m_u) u v]
 ```
 
+Because the USV and skid-steer UGVs cannot command lateral velocity directly,
+their MPC approach pose uses the line-of-sight heading while translational
+guidance is active,
+
+```text
+psi_approach = atan2(v_des,y, v_des,x),  ||v_des|| > 0
+psi_approach = psi_goal,                  ||v_des|| = 0
+```
+
+then restores the requested final yaw for station keeping. This prevents the
+underactuated optimizer from settling at zero control just outside the position
+tolerance while trying to preserve final yaw throughout the approach.
+
 Unlike the former scalar-surge model, this state includes sway and yaw-rate
 dynamics. Its nominal transition remains a calm-water model. The robustness
 study applies current outside that transition as execution-plant mismatch;
@@ -214,15 +227,20 @@ Sigma_k = (Sigma_0^-1 + I_k / sigma_y^2)^-1
 ```
 
 For every admissible channel pulse, it predicts `Delta I_j` and chooses the
-channel with the largest uncertainty-weighted log-determinant gain
+channel with the largest fault-focused, uncertainty-weighted log-determinant
+gain
 
 ```text
-j* = argmax_j log det(Sigma_k^-1 + Delta I_j / sigma_y^2)
-                   - log det(Sigma_k^-1)
+Delta h_j = log det(Sigma_k^-1 + Delta I_j / sigma_y^2)
+            - log det(Sigma_k^-1)
+j* = argmax_j Delta h_j sigma_j
+                 (1 + w_f |1 - alpha_hat_j| / sigma_0)
 ```
 
 subject to the same direct-probe quotas, rejection limits, domain checks, and
-communicated clearance guard. The reported diagonal of `Sigma_k` is a
+communicated clearance guard. The final factor prioritizes channels whose local
+transition estimate already suggests a loss, without reading hidden plant
+parameters. The reported diagonal of `Sigma_k` is a
 linearized scheduling proxy: model mismatch and correlated finite-difference
 errors mean it is not a calibrated statistical confidence interval.
 

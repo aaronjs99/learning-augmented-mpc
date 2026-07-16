@@ -3,10 +3,12 @@
 from .communication import AgentMessage, CommunicationNetwork, LinkConfig
 from .config import (
     DEFAULT_HARBOR_CONFIG,
+    HarborFaultEnsembleConfig,
     HarborFaultStudyConfig,
     load_harbor_config,
     load_harbor_disturbance_config,
     load_harbor_fault_config,
+    load_harbor_fault_ensemble_config,
     load_harbor_fault_study_config,
 )
 from .models import (
@@ -32,6 +34,7 @@ __all__ = [
     "CommunicationNetwork",
     "DEFAULT_HARBOR_CONFIG",
     "HarborAgent",
+    "HarborFaultEnsembleConfig",
     "HarborFaultStudyConfig",
     "HarborDisturbanceConfig",
     "HarborResult",
@@ -47,6 +50,7 @@ __all__ = [
     "load_harbor_config",
     "load_harbor_disturbance_config",
     "load_harbor_fault_config",
+    "load_harbor_fault_ensemble_config",
     "load_harbor_fault_study_config",
     "load_harbor_mpc_config",
     "make_platform_model",

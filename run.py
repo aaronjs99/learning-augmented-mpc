@@ -63,6 +63,11 @@ def main() -> None:
         from scripts.run_harbor_fault_study import main as run_fault_study
 
         run_fault_study()
+    elif command == "harbor-fault-generalization":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_fault_generalization import main as run_generalization
+
+        run_generalization()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

@@ -16,13 +16,18 @@ from scripts.harbor import (
     HarborDisturbanceConfig,
     load_harbor_config,
     load_harbor_disturbance_config,
+    load_harbor_fault_ensemble_config,
     load_harbor_fault_config,
     run_harbor_simulation,
 )
-from scripts.harbor.experiments import sweep_network_robustness
+from scripts.harbor.experiments import (
+    generate_fault_ensemble,
+    sweep_network_robustness,
+)
 from scripts.harbor.learning import run_distributed_harbor_lmpc
 from scripts.harbor.mpc import (
     HarborAgentOptimizer,
+    _approach_pose_goal,
     _estimate_control_effectiveness,
     _estimate_diagonal_control_effectiveness,
     _identification_channel,
@@ -34,9 +39,94 @@ from scripts.harbor.plotting import (
     save_harbor_learning_progress,
     save_network_robustness_heatmap,
 )
+from scripts.run_harbor_fault_generalization import summarize_fault_generalization
 
 
 class HarborTests(unittest.TestCase):
+    def test_planar_mpc_uses_line_of_sight_yaw_then_final_heading(self) -> None:
+        agents, _, _ = load_harbor_config()
+        for agent in (agents[0], agents[2]):
+            goal = np.asarray(agent.goal, dtype=float)
+            moving = _approach_pose_goal(
+                agent.model, goal, np.array([0.0, 1.0, 0.0])
+            )
+            stopped = _approach_pose_goal(agent.model, goal, np.zeros(3))
+            self.assertAlmostEqual(moving[2], np.pi / 2.0)
+            self.assertAlmostEqual(stopped[2], goal[2])
+
+    def test_fault_ensemble_is_reproducible_and_stratified_per_channel(self) -> None:
+        agents, _, _ = load_harbor_config()
+        base = load_harbor_fault_config()
+        config = load_harbor_fault_ensemble_config()
+        first = generate_fault_ensemble(agents, base, config)
+        second = generate_fault_ensemble(agents, base, config)
+
+        self.assertEqual([seed for seed, _ in first], list(config.seeds))
+        first_matrix = np.asarray(
+            [
+                np.concatenate(
+                    [disturbance.effectiveness(agent.model, agent.name) for agent in agents]
+                )
+                for _, disturbance in first
+            ]
+        )
+        second_matrix = np.asarray(
+            [
+                np.concatenate(
+                    [disturbance.effectiveness(agent.model, agent.name) for agent in agents]
+                )
+                for _, disturbance in second
+            ]
+        )
+        np.testing.assert_allclose(first_matrix, second_matrix)
+        self.assertTrue(np.all(first_matrix >= config.effectiveness_min))
+        self.assertTrue(np.all(first_matrix <= config.effectiveness_max))
+        strata = np.floor(
+            (first_matrix - config.effectiveness_min)
+            / (config.effectiveness_max - config.effectiveness_min)
+            * len(config.seeds)
+        ).astype(int)
+        for channel in range(first_matrix.shape[1]):
+            np.testing.assert_array_equal(
+                np.sort(strata[:, channel]), np.arange(len(config.seeds))
+            )
+        for _, disturbance in first:
+            self.assertNotEqual(
+                disturbance.agent_control_effectiveness[agents[0].name],
+                disturbance.agent_control_effectiveness[agents[1].name],
+            )
+
+    def test_fault_generalization_summary_is_paired_by_seed(self) -> None:
+        records = []
+        for seed, one_pass, information, cost_delta in (
+            (11, 0.04, 0.02, 0),
+            (23, 0.03, 0.025, 1),
+            (37, 0.05, 0.03, -1),
+        ):
+            for label, rmse, cost in (
+                ("Passive diagonal MPC", 0.06, 160),
+                ("One-pass active MPC", one_pass, 162),
+                ("Information-aware MPC", information, 162 + cost_delta),
+            ):
+                records.append(
+                    {
+                        "seed": seed,
+                        "controller": label,
+                        "effectiveness_rmse": rmse,
+                        "first_hit_step_sum": cost,
+                        "sustained_completion_cost": cost,
+                        "valid": True,
+                        "all_goals_reached": True,
+                        "pairwise_violation_count": 0,
+                    }
+                )
+        paired = summarize_fault_generalization(records, 500)[
+            "equal_budget_information_vs_one_pass"
+        ]
+        self.assertEqual(paired["information_wins"], 3)
+        self.assertAlmostEqual(paired["mean_rmse_reduction"], 0.015)
+        self.assertAlmostEqual(paired["mean_completion_cost_delta"], 0.0)
+
     def test_yaml_loads_four_independent_platform_contracts(self) -> None:
         agents, _, communication = load_harbor_config()
 
@@ -280,6 +370,23 @@ class HarborTests(unittest.TestCase):
             np.zeros(3, dtype=int),
             np.array([2, 0, 0]),
             config,
+        )
+        self.assertEqual(channel, 1)
+
+    def test_information_scheduler_prioritizes_locally_suspected_fault(self) -> None:
+        config = replace(
+            load_harbor_mpc_config(),
+            identification_min_probes_per_channel=1,
+            identification_fault_focus_weight=2.0,
+        )
+        increments = np.repeat(np.eye(3)[None, :, :], 3, axis=0)
+        channel = _information_identification_channel(
+            np.zeros((3, 3)),
+            increments,
+            np.zeros(3, dtype=int),
+            np.zeros(3, dtype=int),
+            config,
+            effectiveness_estimate=np.array([0.98, 0.60, 0.95]),
         )
         self.assertEqual(channel, 1)
 

@@ -129,12 +129,13 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       domains, actuator limits, and communicated collision constraints remain
       active. Infeasible probes trigger a nominal re-solve and bounded channel
       rejection rather than a guidance fallback.
-    - Round-robin active MPC lowers gain RMSE from `0.0212` to `0.0100`
-      (`52.6%`) at a `162 -> 169` completion-cost tradeoff. At an equal budget
+    - Round-robin active MPC lowers gain RMSE from `0.0137` to `0.0100`
+      (`26.6%`) at a `159 -> 166` completion-cost tradeoff. At an equal budget
       of 14 direct probes, information-aware ordering lowers RMSE from `0.0297`
-      to `0.0160` (`46.0%`) with identical completion cost `163`.
-    - Retaining each run's own local model and safe rollout, information-ID LMPC
-      lowers RMSE from `0.0184` to `0.0120` (`34.9%`) at a `160 -> 162` cost.
+      to `0.0218` (`26.8%`) with identical completion cost `160`.
+    - Retained LMPC freezes the preceding local gain estimate and therefore
+      preserves each source RMSE exactly. Its equal cost `168` across retained
+      variants does not support a task-time learning-improvement claim here.
     - All nine matched trials are complete and swept-safe with numerical-zero
       collision slack. The seven actuator-wise trials are fallback-free; nominal
       and scalar baselines are not admitted because they require fallbacks.
@@ -158,14 +159,30 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
 16. **Equal-budget information-aware probe scheduling**
     - Each agent accumulates its own normalized finite-difference Fisher
       information matrix and ranks safe direct probes by expected log-determinant
-      gain weighted by current channel uncertainty.
+      gain, current channel uncertainty, and locally estimated departure from
+      nominal effectiveness. Hidden plant values never enter the score.
     - The saved telemetry includes the physical channel sequence, accepted and
       rejected counts, and posterior-standard-deviation history, so scheduling
       decisions can be audited independently of final RMSE.
+    - A five-case per-channel Latin-hypercube ensemble spans effectiveness
+      `[0.55, 0.98]`. Information-aware probing wins all five equal-budget
+      pairs, reducing paired mean relative RMSE by `37.96%` with `+0.2` mean
+      sustained-completion steps. Its paired absolute reduction is `0.0201`
+      with case-bootstrap 95% interval `[0.0080, 0.0360]`.
+    - Both active policies are complete, swept-safe, and solver-clean in all
+      five cases. Passive diagonal MPC is complete and safe but solver-valid in
+      only three. The five-case result is a controlled generalization check,
+      not a hardware or population-level guarantee.
     - The posterior is explicitly treated as a linearized ranking proxy rather
-      than a calibrated confidence interval. The defensible result is the
-      matched 14-probe improvement over one-pass scheduling, not a universal
-      statistical guarantee.
+      than a calibrated confidence interval.
+
+17. **Line-of-sight terminal recovery for underactuated harbor agents**
+    - Planar UGV/USV MPC tracks the velocity line-of-sight yaw while moving and
+      restores final requested yaw only for station keeping.
+    - This removes a zero-control local solution that left Heron at `0.315 m`
+      against a `0.300 m` goal tolerance under a severe asymmetric waterjet
+      fault. After the correction, all ten active ensemble rollouts complete
+      and remain swept-safe without fallback.
 
 ## Current Evidence
 

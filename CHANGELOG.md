@@ -44,6 +44,13 @@ All notable repository-level changes are tracked here.
 - Equal-budget Fisher-information probe scheduling with cumulative local
   information telemetry, physical-channel sequence logging, and matched
   one-pass/round-robin ablations.
+- Fault-focused value-of-information scheduling and a five-case per-channel
+  Latin-hypercube benchmark with paired bootstrap, safety, validity, and
+  sustained-completion evidence.
+- Line-of-sight approach yaw for planar underactuated MPC, with final yaw
+  restored for station keeping, eliminating a severe-waterjet-fault stall.
+- Frozen actuator-model transfer in retained LMPC trials so repeated-task
+  comparisons do not silently re-identify under low excitation.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.

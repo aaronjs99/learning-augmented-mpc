@@ -54,6 +54,7 @@ class HarborMPCConfig:
     identification_prior_std: float = 0.25
     identification_measurement_noise: float = 0.005
     identification_target_std: float = 0.15
+    identification_fault_focus_weight: float = 2.0
     identification_probe_interval_steps: int = 1
     identification_min_probes_per_channel: int = 2
     identification_max_rejections: int = 2
@@ -98,6 +99,7 @@ class HarborMPCConfig:
             self.identification_prior_std,
             self.identification_measurement_noise,
             self.identification_target_std,
+            self.identification_fault_focus_weight,
             self.identification_clearance_buffer,
         )
         if any(value < 0.0 for value in nonnegative):
@@ -674,7 +676,11 @@ class DistributedHarborMPC:
         started = perf_counter()
         solve_arguments = dict(
             state=np.asarray(state, dtype=float),
-            goal=np.asarray(navigation_goal, dtype=float),
+            goal=_approach_pose_goal(
+                agent.model,
+                navigation_goal,
+                desired_velocity,
+            ),
             obstacle_predictions=predictions,
             safe_states=safe_sample_states,
             safe_costs=safe_costs,
@@ -857,6 +863,9 @@ class DistributedHarborMPC:
                 self.identification_probe_channel_counts[agent.name],
                 self.identification_probe_rejection_counts[agent.name],
                 self.config,
+                effectiveness_estimate=self.control_effectiveness_estimates[
+                    agent.name
+                ],
             )
         else:
             channel = _identification_channel(
@@ -1044,8 +1053,9 @@ def _information_identification_channel(
     probe_counts: np.ndarray,
     rejection_counts: np.ndarray,
     config: HarborMPCConfig,
+    effectiveness_estimate: np.ndarray | None = None,
 ) -> int | None:
-    """Select the safe probe with greatest expected local information gain."""
+    """Select a safe probe by fault-focused expected information gain."""
     information = np.asarray(information_matrix, dtype=float)
     dimension = len(information)
     increments = np.asarray(candidate_increments, dtype=float)
@@ -1059,6 +1069,12 @@ def _information_identification_channel(
     rejections = np.asarray(rejection_counts, dtype=int).reshape(dimension)
     available = rejections < config.identification_max_rejections
     posterior_std = _posterior_effectiveness_std(information, config)
+    estimate = (
+        np.ones(dimension, dtype=float)
+        if effectiveness_estimate is None
+        else np.asarray(effectiveness_estimate, dtype=float).reshape(dimension)
+    )
+    fault_evidence = np.abs(1.0 - estimate) / config.identification_prior_std
     calibration = np.flatnonzero(
         available & (counts < config.identification_min_probes_per_channel)
     )
@@ -1081,7 +1097,10 @@ def _information_identification_channel(
     for channel in candidates:
         sign, logdet = np.linalg.slogdet(precision + increments[channel])
         gain = -np.inf if sign <= 0.0 else logdet - base_logdet
-        scores.append(gain * posterior_std[channel])
+        focus = 1.0 + config.identification_fault_focus_weight * fault_evidence[
+            channel
+        ]
+        scores.append(gain * posterior_std[channel] * focus)
     return int(candidates[int(np.argmax(scores))])
 
 
@@ -1203,6 +1222,19 @@ def _estimate_diagonal_control_effectiveness(
     )
     gain = config.effectiveness_estimator_gain
     return (1.0 - gain) * prior + gain * instantaneous
+
+
+def _approach_pose_goal(
+    model: PlatformModel,
+    navigation_goal: np.ndarray,
+    desired_velocity: np.ndarray,
+) -> np.ndarray:
+    """Use line-of-sight yaw while a planar underactuated agent is moving."""
+    goal = np.asarray(navigation_goal, dtype=float).copy()
+    desired = np.asarray(desired_velocity, dtype=float)
+    if model.kind in {"ugv", "usv"} and np.linalg.norm(desired[:2]) > 1e-6:
+        goal[2] = np.arctan2(desired[1], desired[0])
+    return goal
 
 
 def _nearest_reference_index(

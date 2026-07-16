@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 from .communication import LinkConfig
-from .config import HarborFaultStudyConfig
+from .config import HarborFaultEnsembleConfig, HarborFaultStudyConfig
 from .learning import run_distributed_harbor_lmpc
 from .mpc import DistributedHarborMPC, HarborMPCConfig
 from .simulation import (
@@ -41,6 +41,15 @@ class HarborRobustnessTrial:
     probe_channel_counts: dict[str, np.ndarray]
     probe_sequence_by_agent: dict[str, list[int]]
     probe_rejection_counts: dict[str, np.ndarray]
+
+
+@dataclass(frozen=True)
+class HarborFaultEnsembleCase:
+    """One hidden actuator-loss draw and its matched controller trials."""
+
+    seed: int
+    disturbance: HarborDisturbanceConfig
+    trials: tuple[HarborRobustnessTrial, ...]
 
 
 def sweep_network_robustness(
@@ -355,7 +364,7 @@ def run_actuator_fault_study(
         ),
         (
             "Retained diagonal LMPC",
-            True,
+            False,
             "diagonal",
             True,
             False,
@@ -365,7 +374,7 @@ def run_actuator_fault_study(
         ),
         (
             "Retained active-ID LMPC",
-            True,
+            False,
             "diagonal",
             True,
             False,
@@ -375,7 +384,7 @@ def run_actuator_fault_study(
         ),
         (
             "Retained information-ID LMPC",
-            True,
+            False,
             "diagonal",
             True,
             False,
@@ -384,6 +393,142 @@ def run_actuator_fault_study(
             1,
         ),
     )
+    return _run_fault_trials(
+        agents,
+        simulation,
+        evaluation,
+        communication,
+        study_mpc,
+        disturbance,
+        seed.result,
+        definitions,
+    )
+
+
+def generate_fault_ensemble(
+    agents: list[HarborAgent],
+    base_disturbance: HarborDisturbanceConfig,
+    config: HarborFaultEnsembleConfig,
+) -> list[tuple[int, HarborDisturbanceConfig]]:
+    """Generate deterministic Latin-hypercube actuator losses by channel."""
+    channel_count = sum(agent.model.control_dim for agent in agents)
+    case_count = len(config.seeds)
+    rng = np.random.default_rng(np.random.SeedSequence(config.seeds))
+    unit_samples = np.empty((case_count, channel_count), dtype=float)
+    for channel in range(channel_count):
+        strata = rng.permutation(case_count)
+        unit_samples[:, channel] = (strata + rng.random(case_count)) / case_count
+    samples = config.effectiveness_min + unit_samples * (
+        config.effectiveness_max - config.effectiveness_min
+    )
+
+    cases = []
+    for row, seed_value in zip(samples, config.seeds, strict=True):
+        offset = 0
+        effectiveness = {}
+        for agent in agents:
+            dimension = agent.model.control_dim
+            effectiveness[agent.name] = tuple(row[offset : offset + dimension])
+            offset += dimension
+        cases.append(
+            (
+                seed_value,
+                replace(
+                    base_disturbance,
+                    agent_control_effectiveness=effectiveness,
+                ),
+            )
+        )
+    return cases
+
+
+def run_actuator_fault_generalization(
+    agents: list[HarborAgent],
+    simulation: HarborSimulationConfig,
+    communication: LinkConfig,
+    mpc_config: HarborMPCConfig,
+    base_disturbance: HarborDisturbanceConfig,
+    study_config: HarborFaultStudyConfig,
+    ensemble_config: HarborFaultEnsembleConfig,
+) -> list[HarborFaultEnsembleCase]:
+    """Compare equal-budget probe policies over stratified hidden faults."""
+    study_mpc = replace(
+        mpc_config,
+        prediction_horizon=study_config.prediction_horizon,
+        terminal_goal_weight=study_config.terminal_goal_weight,
+        terminal_slack_bound=study_config.terminal_slack_bound,
+        terminal_slack_weight=study_config.terminal_slack_weight,
+    )
+    seed_iterations = run_distributed_harbor_lmpc(
+        agents,
+        simulation,
+        communication,
+        replace(
+            study_mpc,
+            learning_iterations=1,
+            residual_adaptation=False,
+            control_effectiveness_adaptation=False,
+        ),
+    )
+    seed = min(
+        (record for record in seed_iterations if record.admitted),
+        key=lambda record: record.completion_step_sum,
+    )
+    definitions = (
+        ("Passive diagonal MPC", True, "diagonal", False, False, None, "energy", 1),
+        ("One-pass active MPC", True, "diagonal", False, True, None, "energy", 1),
+        (
+            "Information-aware MPC",
+            True,
+            "diagonal",
+            False,
+            True,
+            None,
+            "information",
+            1,
+        ),
+    )
+    cases = []
+    for seed_value, disturbance in generate_fault_ensemble(
+        agents, base_disturbance, ensemble_config
+    ):
+        evaluation = replace(
+            simulation,
+            guidance_update_interval_steps=study_mpc.replan_interval_steps,
+            goal_hold_steps=disturbance.evaluation_hold_steps,
+        )
+        print(f"Fault ensemble seed {seed_value}", flush=True)
+        trials = _run_fault_trials(
+            agents,
+            simulation,
+            evaluation,
+            communication,
+            study_mpc,
+            disturbance,
+            seed.result,
+            definitions,
+        )
+        cases.append(
+            HarborFaultEnsembleCase(
+                seed=seed_value,
+                disturbance=disturbance,
+                trials=tuple(trials),
+            )
+        )
+    return cases
+
+
+def _run_fault_trials(
+    agents,
+    simulation,
+    evaluation,
+    communication,
+    study_mpc,
+    disturbance,
+    seed_result,
+    definitions,
+) -> list[HarborRobustnessTrial]:
+    """Run matched fault definitions from one common safe trajectory."""
     trials = []
     for (
         label,
@@ -400,7 +545,7 @@ def run_actuator_fault_study(
             if source_label is not None
             else None
         )
-        safe_result = source.result if source is not None else seed.result
+        safe_result = source.result if source is not None else seed_result
         controller = DistributedHarborMPC(
             agents=agents,
             config=replace(

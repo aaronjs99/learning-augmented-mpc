@@ -42,6 +42,37 @@ class HarborFaultStudyConfig:
             raise ValueError("fault-study MPC weights and bounds must be nonnegative")
 
 
+@dataclass(frozen=True)
+class HarborFaultEnsembleConfig:
+    """Seeded actuator-loss ensemble for fault-identification generalization."""
+
+    seeds: tuple[int, ...] = (11, 23, 37, 53, 71)
+    effectiveness_min: float = 0.55
+    effectiveness_max: float = 0.98
+    bootstrap_samples: int = 5000
+
+    def __post_init__(self) -> None:
+        seeds = tuple(int(seed) for seed in self.seeds)
+        if (
+            not seeds
+            or len(set(seeds)) != len(seeds)
+            or any(seed < 0 for seed in seeds)
+        ):
+            raise ValueError(
+                "fault-ensemble seeds must be nonnegative, nonempty, and unique"
+            )
+        if not all(0.0 < value <= 1.0 for value in (
+            self.effectiveness_min,
+            self.effectiveness_max,
+        )):
+            raise ValueError("fault-ensemble effectiveness bounds must be in (0, 1]")
+        if self.effectiveness_min >= self.effectiveness_max:
+            raise ValueError("fault-ensemble effectiveness bounds must increase")
+        if self.bootstrap_samples <= 0:
+            raise ValueError("fault-ensemble bootstrap_samples must be positive")
+        object.__setattr__(self, "seeds", seeds)
+
+
 def load_harbor_config(
     path: str | Path = DEFAULT_HARBOR_CONFIG,
 ) -> tuple[list[HarborAgent], HarborSimulationConfig, LinkConfig]:
@@ -170,6 +201,22 @@ def load_harbor_fault_study_config(
         HarborFaultStudyConfig,
         raw.get("actuator_fault_mpc", {}),
         "actuator_fault_mpc",
+    )
+
+
+def load_harbor_fault_ensemble_config(
+    path: str | Path = DEFAULT_HARBOR_CONFIG,
+) -> HarborFaultEnsembleConfig:
+    """Load the strict seeded actuator-fault ensemble section."""
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / config_path
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw = yaml.safe_load(stream) or {}
+    return _dataclass_from_mapping(
+        HarborFaultEnsembleConfig,
+        raw.get("actuator_fault_ensemble", {}),
+        "actuator_fault_ensemble",
     )
 
 

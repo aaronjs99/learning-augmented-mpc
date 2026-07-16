@@ -91,6 +91,11 @@ diagonal local adaptation:
 
 `python3 run.py harbor-fault-study`
 
+Five-case stratified actuator-fault generalization with paired equal-budget
+probe scheduling:
+
+`python3 run.py harbor-fault-generalization`
+
 These commands overwrite curated artifacts in `results/latest/harbor/`. The
 robustness command writes one metrics JSON, one combined diagnostic, and one
 GIF. Plant parameters are hidden from the controllers. Joint adaptation first
@@ -102,7 +107,9 @@ The fault-study command keeps RobEn and Inspector-Gadget as distinct UGVs,
 estimates their physical left/right drive losses separately, and compares
 passive, round-robin, equal-budget one-pass, and information-aware active
 identification. Repeated LMPC trials retain only their own preceding local
-model estimate and clean rollout.
+model estimate and clean rollout. The generalization command samples every
+physical actuator channel across the configured effectiveness range and writes
+aggregate paired statistics without generating redundant animations.
 
 Useful overrides:
 

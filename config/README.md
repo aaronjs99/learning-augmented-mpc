@@ -40,6 +40,12 @@ horizon and terminal settings used by that controlled comparison. Scalar
 values remain supported for kind-wide robustness experiments; a vector must
 match the selected platform's control dimension.
 
+`actuator_fault_ensemble` configures reproducible per-channel Latin-hypercube
+coverage for `python run.py harbor-fault-generalization`: unique case seeds,
+effectiveness bounds, and paired-bootstrap sample count. It does not replace
+the fixed `actuator_fault_study`; the two sections support single-case tracing
+and multi-case generalization respectively.
+
 `active_identification` enables local constraint-aware calibration. Probe
 fraction, normalized energy target, interval, minimum successful probes per
 channel, maximum rejected probes, and extra communication-clearance guard are
@@ -51,6 +57,8 @@ cannot silently become an executed fallback.
 `information` scheduling. The latter uses `identification_prior_std`,
 `identification_measurement_noise`, and `identification_target_std` to rank
 candidate actuator pulses by expected local log-determinant information gain.
+`identification_fault_focus_weight` additionally prioritizes channels whose
+local transition estimate has departed from nominal effectiveness.
 These values tune a linearized scheduling proxy, not a calibrated confidence
 interval.
 

@@ -79,4 +79,10 @@ inside the normal NLP. The information-aware trial ranks admissible pulses by
 local expected Fisher-information gain and is compared against an equal-count
 one-pass schedule. Unsafe or
 infeasible requests are skipped or retried without the pulse, and repeated-task
-LMPC retains its own preceding local estimate and clean rollout.
+LMPC freezes its own preceding local estimate and retains the clean rollout.
+
+`python run.py harbor-fault-generalization` runs only passive diagonal,
+equal-budget one-pass, and fault-focused information-aware MPC over the YAML
+Latin-hypercube ensemble. It saves paired RMSE, sustained-completion, validity,
+safety, hidden-fault coverage, and physical probe-order evidence as one JSON
+file and one nonredundant four-panel figure.
