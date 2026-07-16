@@ -55,6 +55,8 @@ def main() -> None:
             "fallback_count_by_agent": item.fallback_count_by_agent,
             "failure_steps_by_agent": item.failure_steps_by_agent,
             "failure_status_counts": item.failure_status_counts,
+            "final_residual_estimates": item.final_residual_estimates,
+            "final_effectiveness_estimates": item.final_effectiveness_estimates,
         }
         for item in iterations
     ]

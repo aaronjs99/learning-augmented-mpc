@@ -20,13 +20,16 @@ All notable repository-level changes are tracked here.
 - Per-agent distributed harbor MPC and LMPC with hard communicated collision
   constraints, safe-trajectory terminal hulls, time-to-go costs, strict clean
   rollout admission, and curated progress PNG/GIF telemetry.
-- Configurable kinematic-bicycle UGV, 3-DOF marine USV, and 6-DOF marine ROV
+- Configurable dynamic skid-steer UGV, 3-DOF marine USV, and 6-DOF marine ROV
   dynamics with matching NumPy/CasADi transitions and a frozen reduced baseline.
+- Named platform profiles for SRI Lab's Jackal-based RobEn and Husky-based
+  Inspector-Gadget, a full-payload Clearpath Heron, and BlueROV2 Heavy, with
+  separate hardware bounds and inspection mission speeds.
 - Matched-horizon MPC/LMPC study and horizon-efficiency plot demonstrating
   learned-terminal-set liveness and completion-cost gains.
-- Hidden execution-plant current/actuator mismatch, local causal residual
-  adaptation, sustained-goal evaluation, and nominal-versus-adaptive
-  robustness diagnostics.
+- Hidden execution-plant current/actuator mismatch, separated local causal
+  effectiveness and residual adaptation, sustained-goal evaluation, and
+  nominal-versus-adaptive robustness diagnostics.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.
@@ -37,7 +40,8 @@ All notable repository-level changes are tracked here.
 - External MPC providers now continue station-keeping updates after first goal
   entry, preventing stale nonzero UGV controls while slower agents finish.
 - Physical harbor models are now the default; all masses, damping, hydrostatics,
-  steering geometry, and actuator limits live in `config/harbor.yaml`.
+  platform profiles, and axis-specific actuator limits live in
+  `config/harbor.yaml`.
 - Harbor learning seeds from the best clean MPC rollout and rejects later safe
   iterations that regress completion cost.
 - Triangle APF initialization now compares compact concurrent schedules against

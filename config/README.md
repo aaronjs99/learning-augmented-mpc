@@ -31,9 +31,14 @@ solver-clean, and uses no collision slack.
 replaces guidance as the first learned safe trajectory. It is enabled for the
 physical experiment and disabled only in the frozen reduced benchmark.
 
-Physical model mass/inertia, damping, buoyancy, body centers, wheelbase,
-steering, force, moment, and speed limits are all YAML values. They are
-illustrative until identified for a specific vehicle. Control costs are
+`platform_profiles` lets each agent select an independent named model. The
+default UGV profiles are SRI Lab's Jackal-based RobEn and Husky-based Inspector-
+Gadget; they do not share mass, inertia, damping, limits, or footprint. Heron
+and BlueROV2 Heavy profiles likewise own their parameters. Manufacturer maximum
+speed and `mission_speed` are separate. Physical model mass/inertia, damping,
+buoyancy, body centers, axis-specific wrench limits, and speed limits are all
+YAML values. Unidentified payload and hydrodynamic values remain documented
+engineering estimates. Control costs are
 normalized by each platform's actuator limits so steering angles, newtons, and
 newton-meters remain comparable in the shared objective.
 

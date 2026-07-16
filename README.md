@@ -8,8 +8,10 @@ heterogeneous harbor research testbed. The manta state is:
 The default run is controlled by `config/manta.yaml`.
 
 The harbor testbed supplies guidance, distributed MPC, and distributed LMPC
-controllers over bicycle, 3-DOF surface-marine, and 6-DOF underwater-marine
-dynamics. UGV/USV goals are 3-DOF planar poses and ROV goals are 6-DOF poses. See
+controllers over dynamic skid-steer, 3-DOF surface-marine, and 6-DOF underwater-
+marine dynamics. Named profiles distinguish RobEn/Jackal, Inspector-Gadget/
+Husky, full-payload Heron, and BlueROV2 Heavy. UGV/USV goals are 3-DOF planar
+poses and ROV goals are 6-DOF poses. See
 `docs/harbor_dynamics.md` for the exact equations and fidelity boundary.
 
 ## Workflow
@@ -79,16 +81,17 @@ Matched-horizon MPC/LMPC efficiency study:
 
 `python3 run.py harbor-horizon-study`
 
-Unmodeled-current study with nominal MPC, locally residual-adaptive MPC, and
-residual-adaptive LMPC:
+Combined current/actuator-mismatch study with nominal, residual-only, and
+joint-adaptive distributed MPC/LMPC:
 
 `python3 run.py harbor-robustness`
 
 These commands overwrite curated artifacts in `results/latest/harbor/`. The
 robustness command writes one metrics JSON, one combined diagnostic, and one
-GIF. The current is hidden from the controllers; each adaptive agent estimates
-only its own one-step position residual from local state and previous control.
-Add `--no-gif` for a faster metrics-and-PNG iteration.
+GIF. Plant parameters are hidden from the controllers. Joint adaptation first
+fits scalar control effectiveness from local velocity/rate response, then fits
+the remaining position drift. Add `--no-gif` for a faster metrics-and-PNG
+iteration.
 
 Useful overrides:
 

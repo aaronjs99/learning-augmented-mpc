@@ -41,6 +41,11 @@ class HarborMPCConfig:
     residual_adaptation: bool = False
     residual_estimator_gain: float = 0.35
     residual_max_speed: float = 0.35
+    control_effectiveness_adaptation: bool = False
+    effectiveness_estimator_gain: float = 0.25
+    effectiveness_min: float = 0.5
+    effectiveness_max: float = 1.2
+    effectiveness_excitation_threshold: float = 0.05
     ipopt_max_iter: int = 120
     ipopt_print_level: int = 0
 
@@ -69,11 +74,19 @@ class HarborMPCConfig:
             self.collision_slack_bound,
             self.residual_estimator_gain,
             self.residual_max_speed,
+            self.effectiveness_estimator_gain,
+            self.effectiveness_min,
+            self.effectiveness_max,
+            self.effectiveness_excitation_threshold,
         )
         if any(value < 0.0 for value in nonnegative):
             raise ValueError("harbor_mpc weights and slack bounds must be nonnegative")
         if self.residual_estimator_gain > 1.0:
             raise ValueError("residual_estimator_gain must be in [0, 1]")
+        if self.effectiveness_estimator_gain > 1.0:
+            raise ValueError("effectiveness_estimator_gain must be in [0, 1]")
+        if not self.effectiveness_min <= 1.0 <= self.effectiveness_max:
+            raise ValueError("effectiveness bounds must contain the nominal value 1")
 
 
 @dataclass(frozen=True)
@@ -142,12 +155,14 @@ class HarborAgentOptimizer:
         warm_controls: np.ndarray,
         previous_control: np.ndarray,
         position_drift: np.ndarray,
+        control_effectiveness: float,
     ) -> HarborMPCStep:
         opti = self.opti
         opti.set_value(self.p_initial, state)
         opti.set_value(self.p_goal, goal)
         opti.set_value(self.p_previous_control, previous_control)
         opti.set_value(self.p_position_drift, position_drift)
+        opti.set_value(self.p_control_effectiveness, control_effectiveness)
         for index, other in enumerate(self.other_agents):
             opti.set_value(
                 self.p_obstacles[index], obstacle_predictions[other.name].T
@@ -201,6 +216,7 @@ class HarborAgentOptimizer:
         p_goal = opti.parameter(pose_dim, 1)
         p_previous_control = opti.parameter(nu, 1)
         p_position_drift = opti.parameter(3, 1)
+        p_control_effectiveness = opti.parameter()
         p_obstacles = [opti.parameter(3, horizon) for _ in self.other_agents]
 
         opti.subject_to(states[:, 0] == p_initial)
@@ -219,7 +235,11 @@ class HarborAgentOptimizer:
                     ca,
                     model,
                     _symbolic_step(
-                        ca, model, states[:, index], controls[:, index], self.dt
+                        ca,
+                        model,
+                        states[:, index],
+                        p_control_effectiveness * controls[:, index],
+                        self.dt,
                     ),
                     p_position_drift,
                     self.dt,
@@ -303,6 +323,7 @@ class HarborAgentOptimizer:
         self.p_goal = p_goal
         self.p_previous_control = p_previous_control
         self.p_position_drift = p_position_drift
+        self.p_control_effectiveness = p_control_effectiveness
         self.p_obstacles = p_obstacles
 
     def _tracking_cost(self, state, goal):
@@ -337,25 +358,43 @@ class HarborAgentOptimizer:
             opti.bounded(domain.y_bounds[0], states[1, :], domain.y_bounds[1])
         )
         if model.kind == "ugv":
-            minimum_speed = (
-                -model.max_reverse_speed
-                if model.variant == "kinematic_bicycle"
-                else 0.0
-            )
+            minimum_speed = -model.max_reverse_speed if model.variant in {
+                "kinematic_bicycle",
+                "dynamic_skid_steer",
+            } else 0.0
             opti.subject_to(
                 opti.bounded(minimum_speed, states[3, :], model.max_speed)
             )
-            opti.subject_to(
-                opti.bounded(-model.max_acceleration, controls[0, :], model.max_acceleration)
-            )
-            steering_bound = (
-                model.max_steering_angle
-                if model.variant == "kinematic_bicycle"
-                else model.max_yaw_rate
-            )
-            opti.subject_to(
-                opti.bounded(-steering_bound, controls[1, :], steering_bound)
-            )
+            if model.variant == "dynamic_skid_steer":
+                opti.subject_to(
+                    opti.bounded(-model.max_yaw_rate, states[4, :], model.max_yaw_rate)
+                )
+                opti.subject_to(
+                    opti.bounded(-model.max_force, controls[0, :], model.max_force)
+                )
+                opti.subject_to(
+                    opti.bounded(
+                        -model.max_yaw_moment,
+                        controls[1, :],
+                        model.max_yaw_moment,
+                    )
+                )
+            else:
+                opti.subject_to(
+                    opti.bounded(
+                        -model.max_acceleration,
+                        controls[0, :],
+                        model.max_acceleration,
+                    )
+                )
+                steering_bound = (
+                    model.max_steering_angle
+                    if model.variant == "kinematic_bicycle"
+                    else model.max_yaw_rate
+                )
+                opti.subject_to(
+                    opti.bounded(-steering_bound, controls[1, :], steering_bound)
+                )
         elif model.kind == "usv":
             opti.subject_to(opti.bounded(0.0, states[3, :], model.max_speed))
             if model.variant == "marine_3dof":
@@ -409,12 +448,14 @@ class HarborAgentOptimizer:
                     model.max_angular_rate,
                 )
             )
-            opti.subject_to(
-                opti.bounded(-model.max_force, controls[:3, :], model.max_force)
-            )
-            opti.subject_to(
-                opti.bounded(-model.max_torque, controls[3:6, :], model.max_torque)
-            )
+            for index, limit in enumerate(model.force_limit_vector):
+                opti.subject_to(
+                    opti.bounded(-limit, controls[index, :], limit)
+                )
+            for index, limit in enumerate(model.torque_limit_vector, start=3):
+                opti.subject_to(
+                    opti.bounded(-limit, controls[index, :], limit)
+                )
 
     def _terminal_rows(self, states: np.ndarray) -> np.ndarray:
         terminal_dim = (
@@ -460,6 +501,10 @@ class DistributedHarborMPC:
             agent.name: np.zeros(3) for agent in agents
         }
         self.residual_history = {agent.name: [] for agent in agents}
+        self.control_effectiveness_estimates = {
+            agent.name: 1.0 for agent in agents
+        }
+        self.effectiveness_history = {agent.name: [] for agent in agents}
         self.solve_count = 0
         self.fallback_count = 0
         self.solve_time_seconds = 0.0
@@ -483,7 +528,7 @@ class DistributedHarborMPC:
         step: int,
         dt: float,
     ) -> np.ndarray:
-        self._update_residual_estimate(agent, state)
+        self._update_model_estimates(agent, state)
         safe_states = self.safe_states[agent.name]
         safe_controls = self.safe_controls[agent.name]
         nearest = _nearest_reference_index(agent.model, safe_states, state)
@@ -512,6 +557,7 @@ class DistributedHarborMPC:
                 warm_controls=warm_controls,
                 previous_control=self.previous_controls[agent.name],
                 position_drift=self.position_drift_estimates[agent.name],
+                control_effectiveness=self.control_effectiveness_estimates[agent.name],
             )
         except RuntimeError:
             self.fallback_count += 1
@@ -541,17 +587,37 @@ class DistributedHarborMPC:
         self.residual_history[agent.name].append(
             self.position_drift_estimates[agent.name].copy()
         )
+        self.effectiveness_history[agent.name].append(
+            self.control_effectiveness_estimates[agent.name]
+        )
         return self.previous_controls[agent.name]
 
-    def _update_residual_estimate(
+    def _update_model_estimates(
         self, agent: HarborAgent, current_state: np.ndarray
     ) -> None:
-        """Estimate local one-step position-model error from onboard state history."""
-        if not self.config.residual_adaptation or agent.name not in self.previous_states:
+        """Update local actuator and position-residual estimates in sequence."""
+        if agent.name not in self.previous_states:
             return
+        previous_state = self.previous_states[agent.name]
+        previous_control = self.previous_controls[agent.name]
+        if self.config.control_effectiveness_adaptation:
+            self.control_effectiveness_estimates[agent.name] = (
+                _estimate_control_effectiveness(
+                    agent.model,
+                    previous_state,
+                    previous_control,
+                    np.asarray(current_state, dtype=float),
+                    self.dt,
+                    self.control_effectiveness_estimates[agent.name],
+                    self.config,
+                )
+            )
+        if not self.config.residual_adaptation:
+            return
+        effectiveness = self.control_effectiveness_estimates[agent.name]
         predicted = agent.model.step(
-            self.previous_states[agent.name],
-            self.previous_controls[agent.name],
+            previous_state,
+            effectiveness * previous_control,
             self.dt,
         )
         measured_velocity_error = (
@@ -566,7 +632,6 @@ class DistributedHarborMPC:
         if norm > self.config.residual_max_speed:
             estimate *= self.config.residual_max_speed / norm
         self.position_drift_estimates[agent.name] = estimate
-
     def _obstacle_predictions(
         self,
         agent: HarborAgent,
@@ -584,6 +649,46 @@ class DistributedHarborMPC:
             times = (age + np.arange(1, horizon + 1))[:, None] * self.dt
             predictions[other.name] = message.position + times * message.velocity
         return predictions
+
+
+def _estimate_control_effectiveness(
+    model: PlatformModel,
+    previous_state: np.ndarray,
+    previous_control: np.ndarray,
+    current_state: np.ndarray,
+    dt: float,
+    prior: float,
+    config: HarborMPCConfig,
+) -> float:
+    """Fit scalar actuator effectiveness from locally measured dynamic states."""
+    command = np.asarray(previous_control, dtype=float)
+    normalized_excitation = float(np.linalg.norm(command / model.control_scale()))
+    if normalized_excitation < config.effectiveness_excitation_threshold:
+        return prior
+    epsilon = 0.05
+    lower = max(config.effectiveness_min, prior - epsilon)
+    upper = min(config.effectiveness_max, prior + epsilon)
+    if upper - lower <= np.finfo(float).eps:
+        return prior
+    dynamic = slice(model.pose_dim, model.state_dim)
+    low_state = model.step(previous_state, lower * command, dt)[dynamic]
+    high_state = model.step(previous_state, upper * command, dt)[dynamic]
+    sensitivity = (high_state - low_state) / (upper - lower)
+    denominator = float(np.dot(sensitivity, sensitivity))
+    if denominator <= 1e-12:
+        return prior
+    predicted = model.step(previous_state, prior * command, dt)[dynamic]
+    measured = np.asarray(current_state, dtype=float)[dynamic]
+    instantaneous = prior + float(np.dot(sensitivity, measured - predicted)) / denominator
+    instantaneous = float(
+        np.clip(
+            instantaneous,
+            config.effectiveness_min,
+            config.effectiveness_max,
+        )
+    )
+    gain = config.effectiveness_estimator_gain
+    return float((1.0 - gain) * prior + gain * instantaneous)
 
 
 def _nearest_reference_index(

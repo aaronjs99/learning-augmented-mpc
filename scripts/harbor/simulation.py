@@ -58,10 +58,16 @@ class HarborAgent:
     radius: float
     domain: OperatingDomain
     waypoints: np.ndarray | None = None
+    profile: str | None = None
+    display_name: str | None = None
 
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("harbor agent name must not be empty")
+        if self.profile is not None and not self.profile.strip():
+            raise ValueError("harbor agent profile must not be empty")
+        if self.display_name is not None and not self.display_name.strip():
+            raise ValueError("harbor agent display_name must not be empty")
         if np.asarray(self.start).shape != (self.model.state_dim,):
             raise ValueError("harbor agent start does not match model state dimension")
         if np.asarray(self.goal).shape != (self.model.pose_dim,):
@@ -493,6 +499,9 @@ def _coordinate_velocity(
 
 
 def _platform_speed(model: PlatformModel) -> float:
+    mission_speed = getattr(model, "mission_speed", None)
+    if mission_speed is not None:
+        return float(mission_speed)
     if model.kind == "rov":
         return float(model.max_horizontal_speed)
     return float(model.max_speed)

@@ -496,10 +496,163 @@ class UGVModel(PlatformModel):
 
 
 @dataclass(frozen=True)
+class SkidSteerUGVModel(PlatformModel):
+    """Planar dynamic skid-steer model with force and yaw-moment inputs."""
+
+    mass: float = 17.0
+    yaw_inertia: float = 0.65
+    max_speed: float = 2.0
+    mission_speed: float | None = None
+    max_reverse_speed: float = 1.0
+    max_yaw_rate: float = 1.5
+    max_force: float = 120.0
+    max_yaw_moment: float = 35.0
+    linear_drag: float = 8.0
+    quadratic_drag: float = 8.0
+    yaw_linear_drag: float = 1.0
+    yaw_quadratic_drag: float = 0.5
+    velocity_response_gain: float = 2.0
+    heading_gain: float = 2.0
+    yaw_response_gain: float = 2.5
+    ground_z: float = 0.0
+    kind: str = field(default="ugv", init=False)
+    variant: str = field(default="dynamic_skid_steer", init=False)
+    state_dim: int = field(default=5, init=False)
+    control_dim: int = field(default=2, init=False)
+    pose_dim: int = field(default=3, init=False)
+
+    def __post_init__(self) -> None:
+        positive = (
+            self.mass,
+            self.yaw_inertia,
+            self.max_speed,
+            self.max_reverse_speed,
+            self.max_yaw_rate,
+            self.max_force,
+            self.max_yaw_moment,
+            self.velocity_response_gain,
+            self.heading_gain,
+            self.yaw_response_gain,
+        )
+        if min(positive) <= 0.0:
+            raise ValueError("skid-steer UGV parameters must be positive")
+        if self.mission_speed is not None and not 0.0 < self.mission_speed <= self.max_speed:
+            raise ValueError("UGV mission_speed must be in (0, max_speed]")
+        if min(
+            self.linear_drag,
+            self.quadratic_drag,
+            self.yaw_linear_drag,
+            self.yaw_quadratic_drag,
+        ) < 0.0:
+            raise ValueError("skid-steer UGV damping must be nonnegative")
+
+    def position(self, state: np.ndarray) -> np.ndarray:
+        return np.array([state[0], state[1], self.ground_z], dtype=float)
+
+    def velocity(self, state: np.ndarray) -> np.ndarray:
+        return np.array(
+            [state[3] * np.cos(state[2]), state[3] * np.sin(state[2]), 0.0]
+        )
+
+    def goal_position(self, goal: np.ndarray) -> np.ndarray:
+        return np.array([goal[0], goal[1], self.ground_z], dtype=float)
+
+    def orientation_error(self, state: np.ndarray, goal: np.ndarray) -> np.ndarray:
+        return np.array([wrap_angle(goal[2] - state[2])])
+
+    def guidance_control(
+        self,
+        state: np.ndarray,
+        desired_velocity: np.ndarray,
+        dt: float,
+        desired_pose: np.ndarray | None = None,
+    ) -> np.ndarray:
+        desired = np.asarray(desired_velocity, dtype=float)[:2]
+        requested_speed = min(float(np.linalg.norm(desired)), self.max_speed)
+        if requested_speed > 1e-9:
+            desired_heading = float(np.arctan2(desired[1], desired[0]))
+        elif desired_pose is not None:
+            desired_heading = float(desired_pose[2])
+        else:
+            desired_heading = float(state[2])
+        heading_error = wrap_angle(desired_heading - state[2])
+        signed_speed = requested_speed * max(0.0, np.cos(heading_error))
+        desired_yaw_rate = np.clip(
+            self.heading_gain * heading_error,
+            -self.max_yaw_rate,
+            self.max_yaw_rate,
+        )
+        force = (
+            self.mass * self.velocity_response_gain * (signed_speed - state[3])
+            + self.linear_drag * state[3]
+            + self.quadratic_drag * abs(state[3]) * state[3]
+        )
+        moment = (
+            self.yaw_inertia * self.yaw_response_gain * (desired_yaw_rate - state[4])
+            + self.yaw_linear_drag * state[4]
+            + self.yaw_quadratic_drag * abs(state[4]) * state[4]
+        )
+        return np.array(
+            [
+                np.clip(force, -self.max_force, self.max_force),
+                np.clip(moment, -self.max_yaw_moment, self.max_yaw_moment),
+            ]
+        )
+
+    def step(self, state: np.ndarray, control: np.ndarray, dt: float) -> np.ndarray:
+        value = np.asarray(state, dtype=float).copy()
+        force = np.clip(control[0], -self.max_force, self.max_force)
+        moment = np.clip(control[1], -self.max_yaw_moment, self.max_yaw_moment)
+        speed = value[3] + dt * (
+            force
+            - self.linear_drag * value[3]
+            - self.quadratic_drag * abs(value[3]) * value[3]
+        ) / self.mass
+        yaw_rate = value[4] + dt * (
+            moment
+            - self.yaw_linear_drag * value[4]
+            - self.yaw_quadratic_drag * abs(value[4]) * value[4]
+        ) / self.yaw_inertia
+        value[3] = np.clip(speed, -self.max_reverse_speed, self.max_speed)
+        value[4] = np.clip(yaw_rate, -self.max_yaw_rate, self.max_yaw_rate)
+        value[2] += dt * value[4]
+        value[0] += dt * value[3] * np.cos(value[2])
+        value[1] += dt * value[3] * np.sin(value[2])
+        return value
+
+    def symbolic_step(self, ca, state, control, dt: float):
+        speed = state[3] + dt * (
+            control[0]
+            - self.linear_drag * state[3]
+            - self.quadratic_drag * ca.fabs(state[3]) * state[3]
+        ) / self.mass
+        yaw_rate = state[4] + dt * (
+            control[1]
+            - self.yaw_linear_drag * state[4]
+            - self.yaw_quadratic_drag * ca.fabs(state[4]) * state[4]
+        ) / self.yaw_inertia
+        heading = state[2] + dt * yaw_rate
+        return ca.vertcat(
+            state[0] + dt * speed * ca.cos(heading),
+            state[1] + dt * speed * ca.sin(heading),
+            heading,
+            speed,
+            yaw_rate,
+        )
+
+    def symbolic_velocity(self, ca, state):
+        return state[3:5]
+
+    def control_scale(self) -> np.ndarray:
+        return np.array([self.max_force, self.max_yaw_moment])
+
+
+@dataclass(frozen=True)
 class USVModel(PlatformModel):
     """Underactuated 3-DOF body-frame surge, sway, and yaw model."""
 
     max_speed: float = 0.9
+    mission_speed: float | None = None
     max_sway_speed: float = 0.45
     max_yaw_rate: float = 0.8
     max_thrust: float = 40.0
@@ -532,6 +685,8 @@ class USVModel(PlatformModel):
         )
         if min(positive) <= 0.0:
             raise ValueError("USV marine parameters must be positive")
+        if self.mission_speed is not None and not 0.0 < self.mission_speed <= self.max_speed:
+            raise ValueError("USV mission_speed must be in (0, max_speed]")
         if min(self.linear_damping) < 0.0 or min(self.quadratic_damping) < 0.0:
             raise ValueError("USV damping must be nonnegative")
 
@@ -652,10 +807,13 @@ class ROVModel(PlatformModel):
     """Body-frame 6-DOF marine craft with damping and hydrostatics."""
 
     max_horizontal_speed: float = 0.75
+    mission_speed: float | None = None
     max_vertical_speed: float = 0.4
     max_angular_rate: float = 0.7
     max_force: float = 30.0
     max_torque: float = 8.0
+    force_limits: tuple[float, float, float] | None = None
+    torque_limits: tuple[float, float, float] | None = None
     mass_diagonal: tuple[float, ...] = (18.0, 18.0, 22.0, 1.2, 1.4, 1.5)
     linear_damping: tuple[float, ...] = (8.0, 10.0, 12.0, 1.2, 1.4, 1.5)
     quadratic_damping: tuple[float, ...] = (12.0, 16.0, 18.0, 0.6, 0.8, 0.8)
@@ -682,6 +840,10 @@ class ROVModel(PlatformModel):
             "center_of_gravity",
             "center_of_buoyancy",
         )
+        if self.force_limits is not None:
+            _freeze_vectors(self, "force_limits")
+        if self.torque_limits is not None:
+            _freeze_vectors(self, "torque_limits")
         if not (
             len(self.mass_diagonal)
             == len(self.linear_damping)
@@ -691,6 +853,8 @@ class ROVModel(PlatformModel):
             raise ValueError("ROV mass and damping vectors must have six entries")
         if len(self.center_of_gravity) != 3 or len(self.center_of_buoyancy) != 3:
             raise ValueError("ROV mass and buoyancy centers must have three entries")
+        if len(self.force_limit_vector) != 3 or len(self.torque_limit_vector) != 3:
+            raise ValueError("ROV force and torque limits must have three entries")
         positive = (
             self.max_horizontal_speed,
             self.max_vertical_speed,
@@ -704,11 +868,38 @@ class ROVModel(PlatformModel):
             self.angular_rate_response_gain,
             self.control_smoothing,
             *self.mass_diagonal,
+            *self.force_limit_vector,
+            *self.torque_limit_vector,
         )
         if min(positive) <= 0.0 or self.control_smoothing > 1.0:
             raise ValueError("ROV marine parameters must be positive and bounded")
+        if (
+            self.mission_speed is not None
+            and not 0.0 < self.mission_speed <= self.max_horizontal_speed
+        ):
+            raise ValueError("ROV mission_speed must be in (0, max_horizontal_speed]")
         if min(self.linear_damping) < 0.0 or min(self.quadratic_damping) < 0.0:
             raise ValueError("ROV damping must be nonnegative")
+
+    @property
+    def force_limit_vector(self) -> np.ndarray:
+        """Return axis-specific body-force limits, or the scalar fallback."""
+        return np.asarray(
+            self.force_limits
+            if self.force_limits is not None
+            else (self.max_force,) * 3,
+            dtype=float,
+        )
+
+    @property
+    def torque_limit_vector(self) -> np.ndarray:
+        """Return axis-specific body-moment limits, or the scalar fallback."""
+        return np.asarray(
+            self.torque_limits
+            if self.torque_limits is not None
+            else (self.max_torque,) * 3,
+            dtype=float,
+        )
 
     def position(self, state: np.ndarray) -> np.ndarray:
         return np.asarray(state[:3], dtype=float).copy()
@@ -768,15 +959,23 @@ class ROVModel(PlatformModel):
                 self.center_of_buoyancy,
             )
         )
-        tau[:3] = np.clip(tau[:3], -self.max_force, self.max_force)
-        tau[3:] = np.clip(tau[3:], -self.max_torque, self.max_torque)
+        tau[:3] = np.clip(
+            tau[:3], -self.force_limit_vector, self.force_limit_vector
+        )
+        tau[3:] = np.clip(
+            tau[3:], -self.torque_limit_vector, self.torque_limit_vector
+        )
         return tau
 
     def step(self, state: np.ndarray, control: np.ndarray, dt: float) -> np.ndarray:
         value = np.asarray(state, dtype=float).copy()
         tau = np.asarray(control, dtype=float).copy()
-        tau[:3] = np.clip(tau[:3], -self.max_force, self.max_force)
-        tau[3:] = np.clip(tau[3:], -self.max_torque, self.max_torque)
+        tau[:3] = np.clip(
+            tau[:3], -self.force_limit_vector, self.force_limit_vector
+        )
+        tau[3:] = np.clip(
+            tau[3:], -self.torque_limit_vector, self.torque_limit_vector
+        )
         nu = value[6:12]
         rhs = (
             tau
@@ -828,7 +1027,7 @@ class ROVModel(PlatformModel):
         return state[6:12]
 
     def control_scale(self) -> np.ndarray:
-        return np.array([self.max_force] * 3 + [self.max_torque] * 3)
+        return np.concatenate((self.force_limit_vector, self.torque_limit_vector))
 
 
 def make_platform_model(kind: str, parameters: dict[str, float]) -> PlatformModel:
@@ -838,6 +1037,7 @@ def make_platform_model(kind: str, parameters: dict[str, float]) -> PlatformMode
     models = {
         ("ugv", "physical"): UGVModel,
         ("ugv", "kinematic_bicycle"): UGVModel,
+        ("ugv", "dynamic_skid_steer"): SkidSteerUGVModel,
         ("ugv", "reduced"): ReducedUGVModel,
         ("ugv", "reduced_unicycle"): ReducedUGVModel,
         ("usv", "physical"): USVModel,

@@ -511,7 +511,7 @@ def save_horizon_efficiency(
         axis.margins(y=0.12)
         axis.grid(True, alpha=0.28)
         axis.legend()
-    fig.suptitle("Learning Terminal Sets Compress the Required Horizon", fontsize=15)
+    fig.suptitle("Horizon-Dependent MPC and LMPC Performance", fontsize=15)
     fig.tight_layout()
     fig.savefig(output, dpi=180, bbox_inches="tight")
     plt.close(fig)
@@ -525,19 +525,20 @@ def save_model_mismatch_diagnostics(
     disturbance: HarborDisturbanceConfig,
     path: str | Path,
 ) -> Path:
-    """Show robust paths, sustained terminal error, and residual convergence."""
+    """Show robust paths, terminal error, and both local estimate histories."""
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    fig = plt.figure(figsize=(14.5, 8.2))
-    grid = fig.add_gridspec(2, 2, width_ratios=(1.15, 1.0), hspace=0.34)
+    fig = plt.figure(figsize=(18.0, 8.2))
+    grid = fig.add_gridspec(
+        2, 3, width_ratios=(1.12, 1.0, 0.9), hspace=0.34, wspace=0.27
+    )
     map_axis = fig.add_subplot(grid[:, 0])
     error_axis = fig.add_subplot(grid[0, 1])
     residual_axis = fig.add_subplot(grid[1, 1])
+    effectiveness_axis = fig.add_subplot(grid[:, 2])
     colors = _agent_colors(agents)
     nominal = next(trial for trial in trials if trial.label == "Nominal MPC")
-    adaptive = next(
-        trial for trial in trials if trial.label == "Residual-adaptive LMPC"
-    )
+    adaptive = next(trial for trial in trials if trial.label == "Joint-adaptive LMPC")
     _draw_harbor_map(map_axis, simulation_config)
     for agent in agents:
         color = colors[agent.name]
@@ -570,7 +571,7 @@ def save_model_mismatch_diagnostics(
         scale=1.0,
         label="hidden water current",
     )
-    map_axis.set_title("Executed Paths Under the Same Hidden Current")
+    map_axis.set_title("Executed Paths Under the Same Hidden Plant Mismatch")
     map_axis.set_xlabel("x [m]")
     map_axis.set_ylabel("y [m]")
     map_axis.set_aspect("equal", adjustable="box")
@@ -578,18 +579,25 @@ def save_model_mismatch_diagnostics(
     map_axis.legend(loc="upper left", fontsize=8)
 
     marine = [agent for agent in agents if agent.model.kind in {"usv", "rov"}]
-    labels = [trial.label.replace("Residual-adaptive ", "Adaptive ") for trial in trials]
+    labels = [
+        trial.label.replace("-adaptive ", " ").replace("Nominal MPC", "Nominal")
+        for trial in trials
+    ]
     x_values = np.arange(len(labels))
     width = 0.34
     for index, agent in enumerate(marine):
         errors = [trial.result.final_goal_errors[agent.name] for trial in trials]
-        error_axis.bar(
+        bars = error_axis.bar(
             x_values + (index - 0.5) * width,
             errors,
             width,
             color=colors[agent.name],
             label=_display_name(agent),
         )
+        for trial, bar in zip(trials, bars, strict=True):
+            if not trial.valid:
+                bar.set_hatch("//")
+                bar.set_edgecolor("#333333")
     error_axis.axhline(
         simulation_config.goal_tolerance,
         color="#555555",
@@ -624,7 +632,47 @@ def save_model_mismatch_diagnostics(
     residual_axis.set_ylabel("estimated residual [m/s]")
     residual_axis.grid(True, alpha=0.25)
     residual_axis.legend(ncol=2, fontsize=8)
-    fig.suptitle("Distributed Harbor MPC Robustness to Unmodeled Current", fontsize=15)
+
+    true_effectiveness = {
+        "ugv": disturbance.ugv_control_effectiveness,
+        "usv": disturbance.usv_control_effectiveness,
+        "rov": disturbance.rov_control_effectiveness,
+    }
+    for agent in agents:
+        history = adaptive.effectiveness_history[agent.name]
+        effectiveness_axis.plot(
+            history,
+            color=colors[agent.name],
+            linewidth=2.0,
+            label=f"{_display_name(agent)} estimate",
+        )
+        effectiveness_axis.axhline(
+            true_effectiveness[agent.model.kind],
+            color=colors[agent.name],
+            linestyle=":",
+            linewidth=1.3,
+            alpha=0.7,
+        )
+    effectiveness_axis.set_title("Locally Estimated Control Effectiveness")
+    effectiveness_axis.set_xlabel("control update")
+    effectiveness_axis.set_ylabel("applied / commanded control")
+    effectiveness_axis.set_ylim(
+        min(true_effectiveness.values()) - 0.04,
+        1.03,
+    )
+    effectiveness_axis.grid(True, alpha=0.25)
+    effectiveness_axis.legend(fontsize=8)
+    effectiveness_axis.text(
+        0.03,
+        0.03,
+        "dotted lines: hidden plant values\nhatched bars: invalid trial",
+        transform=effectiveness_axis.transAxes,
+        fontsize=8,
+        color="#444444",
+    )
+    fig.suptitle(
+        "Distributed Harbor MPC Under Current and Actuator Mismatch", fontsize=15
+    )
     fig.savefig(output, dpi=180, bbox_inches="tight")
     plt.close(fig)
     return output
@@ -724,6 +772,8 @@ def _agent_colors(agents: list[HarborAgent]) -> dict[str, str]:
 
 
 def _display_name(agent: HarborAgent) -> str:
+    if agent.display_name is not None:
+        return agent.display_name
     suffix = agent.name.rsplit("_", 1)[-1]
     if suffix.isdigit():
         return f"{_LABELS[agent.model.kind]} {suffix}"

@@ -7,13 +7,13 @@ simulation:
   orientation_tolerance: 0.15
   approach_speed_gain: 0.8
   coordination_distance: 3.0
-  avoidance_gain: 2.8
+  avoidance_gain: 0.5
   yielding_speed_scale: 0.40
   coordination_policy: eta_priority
   priority_response_scale: 0.2
   predict_delayed_messages: false
   world_x_bounds: [-5.0, 5.0]
-  world_y_bounds: [-5.0, 5.0]
+  world_y_bounds: [-5.0, 5.8]
   shoreline_y: 3.0
   seabed_z: -4.0
 
@@ -28,9 +28,9 @@ communication:
 
 disturbance_study:
   water_current: [-0.10, 0.0, 0.03]
-  ugv_control_effectiveness: 1.0
-  usv_control_effectiveness: 1.0
-  rov_control_effectiveness: 1.0
+  ugv_control_effectiveness: 0.92
+  usv_control_effectiveness: 0.88
+  rov_control_effectiveness: 0.88
   evaluation_hold_steps: 12
 
 harbor_mpc:
@@ -45,7 +45,7 @@ harbor_mpc:
   velocity_weight: 0.15
   control_weight: 0.04
   control_rate_weight: 0.25
-  terminal_goal_weight: 40.0
+  terminal_goal_weight: 200.0
   terminal_safe_cost_weight: 10.0
   terminal_slack_weight: 500.0
   terminal_slack_bound: 1.0
@@ -55,75 +55,121 @@ harbor_mpc:
   residual_adaptation: false
   residual_estimator_gain: 0.35
   residual_max_speed: 0.35
+  control_effectiveness_adaptation: false
+  effectiveness_estimator_gain: 0.25
+  effectiveness_min: 0.5
+  effectiveness_max: 1.2
+  effectiveness_excitation_threshold: 0.05
   ipopt_max_iter: 250
   ipopt_print_level: 0
 
-platform_models:
-  ugv:
-    model: kinematic_bicycle
-    max_speed: 1.0
-    max_reverse_speed: 0.5
-    max_acceleration: 1.0
-    wheelbase: 0.8
-    max_steering_angle: 0.55
-    position_gain: 1.0
-    pose_heading_gain: 2.0
-    pose_goal_heading_gain: -0.6
-    ground_z: 0.0
-  usv:
-    model: marine_3dof
-    max_speed: 0.9
-    max_sway_speed: 0.45
-    max_yaw_rate: 0.8
-    max_thrust: 40.0
-    max_yaw_moment: 12.0
-    mass_diagonal: [35.0, 45.0, 8.0]
-    linear_damping: [8.0, 12.0, 4.0]
-    quadratic_damping: [4.0, 8.0, 2.0]
-    velocity_response_gain: 1.6
-    heading_gain: 1.5
-    yaw_response_gain: 2.0
-    surface_z: 0.0
-  rov:
-    model: marine_6dof
-    max_horizontal_speed: 0.75
-    max_vertical_speed: 0.4
-    max_angular_rate: 0.7
-    max_force: 30.0
-    max_torque: 8.0
-    mass_diagonal: [18.0, 18.0, 22.0, 1.2, 1.4, 1.5]
-    linear_damping: [8.0, 10.0, 12.0, 1.2, 1.4, 1.5]
-    quadratic_damping: [12.0, 16.0, 18.0, 0.6, 0.8, 0.8]
-    weight: 176.58
-    buoyancy: 176.58
-    center_of_gravity: [0.0, 0.0, 0.0]
-    center_of_buoyancy: [0.0, 0.0, 0.03]
-    velocity_response_gain: 1.8
-    attitude_response_gain: 1.0
-    angular_rate_response_gain: 2.0
-    control_smoothing: 0.60
+platform_profiles:
+  srilab_roben_jackal:
+    kind: ugv
+    label: RobEn (Jackal UGV)
+    parameters:
+      model: dynamic_skid_steer
+      mass: 24.0
+      yaw_inertia: 1.2
+      max_speed: 2.0
+      mission_speed: 1.0
+      max_reverse_speed: 1.0
+      max_yaw_rate: 1.5
+      max_force: 80.0
+      max_yaw_moment: 18.0
+      linear_drag: 10.0
+      quadratic_drag: 15.0
+      yaw_linear_drag: 3.0
+      yaw_quadratic_drag: 6.0
+      velocity_response_gain: 2.0
+      heading_gain: 2.0
+      yaw_response_gain: 2.5
+      ground_z: 0.0
+  srilab_inspector_gadget_husky:
+    kind: ugv
+    label: Inspector-Gadget (Husky UGV)
+    parameters:
+      model: dynamic_skid_steer
+      mass: 65.0
+      yaw_inertia: 10.0
+      max_speed: 1.0
+      mission_speed: 0.8
+      max_reverse_speed: 0.5
+      max_yaw_rate: 1.0
+      max_force: 180.0
+      max_yaw_moment: 50.0
+      linear_drag: 40.0
+      quadratic_drag: 140.0
+      yaw_linear_drag: 10.0
+      yaw_quadratic_drag: 25.0
+      velocity_response_gain: 2.0
+      heading_gain: 2.0
+      yaw_response_gain: 2.5
+      ground_z: 0.0
+  clearpath_heron_full_payload:
+    kind: usv
+    label: Clearpath Heron USV
+    parameters:
+      model: marine_3dof
+      max_speed: 1.7
+      mission_speed: 0.9
+      max_sway_speed: 0.55
+      max_yaw_rate: 0.7
+      max_thrust: 40.0
+      max_yaw_moment: 14.8
+      mass_diagonal: [43.0, 59.0, 10.5]
+      linear_damping: [5.0, 12.0, 3.0]
+      quadratic_damping: [10.9, 20.0, 4.0]
+      velocity_response_gain: 1.6
+      heading_gain: 1.5
+      yaw_response_gain: 2.0
+      surface_z: 0.0
+  bluerov2_heavy:
+    kind: rov
+    label: BlueROV2 Heavy
+    parameters:
+      model: marine_6dof
+      max_horizontal_speed: 1.5
+      mission_speed: 0.75
+      max_vertical_speed: 0.8
+      max_angular_rate: 0.8
+      max_force: 88.3
+      max_torque: 35.0
+      force_limits: [88.3, 88.3, 137.3]
+      torque_limits: [35.0, 28.0, 30.0]
+      mass_diagonal: [17.0, 24.2, 26.07, 0.28, 0.28, 0.28]
+      linear_damping: [4.03, 6.22, 5.18, 0.07, 0.07, 0.07]
+      quadratic_damping: [18.18, 21.66, 36.99, 1.55, 1.55, 1.55]
+      weight: 112.82
+      buoyancy: 114.78
+      center_of_gravity: [0.0, 0.0, 0.0]
+      center_of_buoyancy: [0.0, 0.0, 0.02]
+      velocity_response_gain: 1.8
+      attitude_response_gain: 1.0
+      angular_rate_response_gain: 2.0
+      control_smoothing: 0.60
 
 agents:
   - name: ground_rover_1
-    kind: ugv
-    start: [-4.0, 3.675, 0.0, 0.0]
+    profile: srilab_roben_jackal
+    start: [-4.0, 3.675, 0.0, 0.0, 0.0]
     goal: [4.0, 3.675, 0.0]
-    radius: 0.40
+    radius: 0.34
     domain:
       x: [-5.0, 5.0]
-      y: [3.2, 4.8]
+      y: [3.2, 5.5]
       z: [-0.05, 0.05]
   - name: ground_rover_2
-    kind: ugv
-    start: [4.0, 4.325, 3.1416, 0.0]
-    goal: [-4.0, 4.325, 3.1416]
-    radius: 0.40
+    profile: srilab_inspector_gadget_husky
+    start: [4.0, 5.05, 3.1416, 0.0, 0.0]
+    goal: [-4.0, 5.05, 3.1416]
+    radius: 0.60
     domain:
       x: [-5.0, 5.0]
-      y: [3.2, 4.8]
+      y: [3.2, 5.5]
       z: [-0.05, 0.05]
   - name: surface_vessel
-    kind: usv
+    profile: clearpath_heron_full_payload
     start: [0.0, -4.0, 1.5708, 0.0, 0.0, 0.0]
     goal: [0.0, 2.5, 0.0]
     radius: 0.50
@@ -132,7 +178,7 @@ agents:
       y: [-5.0, 3.0]
       z: [-0.05, 0.05]
   - name: underwater_rov
-    kind: rov
+    profile: bluerov2_heavy
     start: [-1.8, -2.0, -0.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     waypoints:
       - [0.0, -2.0, -2.4, 0.10, -0.10, 0.0]

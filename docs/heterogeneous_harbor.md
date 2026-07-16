@@ -22,8 +22,9 @@ dynamics, control bounds, position/velocity extraction, and operating domain.
 Shared coordination sees only world-frame position, velocity, and desired
 velocity.
 
-- UGV: low-speed kinematic bicycle with acceleration/steering controls and a
-  3-DOF `[x, y, yaw]` pose goal on its ground domain.
+- UGV: dynamic skid-steer force/yaw-moment model with a 3-DOF `[x, y, yaw]`
+  pose goal. RobEn (Jackal) and Inspector-Gadget (Husky) use separate named
+  mass, inertia, damping, speed, actuation, and footprint profiles.
 - USV: underactuated body-frame surge/sway/yaw marine dynamics, thrust/yaw-
   moment controls, and a 3-DOF pose goal at the water surface.
 - ROV: body-frame 6-DOF marine dynamics with inertia, Coriolis, linear and
@@ -55,21 +56,22 @@ The default deterministic benchmark is complete, swept-safe, and solver-clean:
 
 | Controller | Step sum | Min distance | Fallbacks | Collision slack |
 | --- | ---: | ---: | ---: | ---: |
-| Guidance seed | 242 | 1.501 m | 0 | 0 |
-| Distributed MPC (`N=12`) | 173 | 0.909 m | 0 | 0 |
-| Distributed LMPC 1 (`N=12`) | **163** | 0.908 m | 0 | 0 |
-| Distributed LMPC 2 (`N=12`, rejected) | 171 | 0.908 m | 0 | 0 |
+| Guidance seed | 201 | 1.709 m | 0 | 0 |
+| Distributed MPC (`N=12`) | **116** | 1.375 m | 0 | numerical zero |
+| Distributed LMPC 1 (`N=12`, rejected) | 127 | 1.375 m | 0 | 0 |
+| Distributed LMPC 2 (`N=12`, rejected) | 127 | 1.375 m | 0 | 0 |
 
-At the same horizon, admitted LMPC improves completion cost by `5.8%` over MPC
-and `32.6%` over guidance. The next iteration is safe and solver-clean but is
-rejected because it regresses the best learned cost. This is controlled
-evidence for the configured scenario, not a general guarantee.
+At `N=12`, plain MPC improves completion cost by `42.3%` over guidance. Both
+LMPC candidates are complete, swept-safe, and solver-clean but are rejected
+because their `127` cost regresses the admitted MPC rollout. The admission gate
+therefore prevents a safe but slower learned trajectory from replacing the
+incumbent.
 
-The matched horizon study provides the stronger research result. At `N=8`, MPC
-is safe but incomplete while LMPC is complete with cost `181`. At `N=12`, LMPC
-costs `163` versus MPC's `173`. The `N=12` LMPC even beats the longer `N=15`
-MPC cost of `165` with a smaller nonlinear program. Every study rollout has
-zero swept violations, zero collision slack, and zero solver fallback.
+The matched horizon study exposes a horizon-dependent learning benefit. At
+`N=8`, both controllers are incomplete. At `N=12`, MPC is admitted at `116`
+and LMPC is rejected at `127`. At `N=15`, both complete and LMPC is admitted,
+improving cost from `128` to `124` (`3.1%`). Every study rollout has zero swept
+violations and zero solver fallback.
 
 ## Initial Evidence
 
@@ -83,15 +85,14 @@ The default scenario produces:
 
 | Policy | Goals | Violations | Min distance | Step sum |
 | --- | ---: | ---: | ---: | ---: |
-| Independent | 4/4 | 4 | 0.650 m | 194 |
-| Reciprocal communication | 2/4 | 0 | 1.003 m | 496* |
-| ETA-priority communication | 4/4 | 0 | 1.501 m | 242 |
+| Independent | 4/4 | 0 | 1.375 m | 196 |
+| Reciprocal communication | 3/4 | 0 | 1.906 m | 365* |
+| ETA-priority communication | 4/4 | 0 | 1.709 m | 201 |
 
-`*` assigns `horizon + 1` to each incomplete platform. Communication removes all
-swept violations. Reciprocal response remains safe but loses liveness;
-ETA-priority is the only tested policy that is both complete and safe. The
-independent controller is faster but violates the two UGV safety envelopes, so
-it is not an admissible task-time baseline.
+`*` assigns `horizon + 1` to each incomplete platform. Real platform footprints
+and separated quay lanes make the independent rollout safe. ETA-priority trades
+five summed steps for `0.334 m` more minimum separation and a slightly lower
+makespan. Reciprocal response remains safe but loses USV liveness.
 
 Use `--mode communication` or `--mode independent` for one policy, and
 `--policy reciprocal` for the prior communication baseline. Add
@@ -116,22 +117,24 @@ Generate the matched-horizon evidence:
 python run.py harbor-horizon-study
 ```
 
-Evaluate model mismatch and local residual adaptation:
+Evaluate combined model mismatch and joint local adaptation:
 
 ```text
 python run.py harbor-robustness
 ```
 
-The default study applies an unmodeled `[-0.10, 0.00, 0.03]` m/s current to
-marine execution only. USV vertical current is discarded at the surface. The
-adaptive controller observes no current parameter; each agent estimates its
-own one-step world-position residual and uses the filtered value in subsequent
-predictions. A 12-step in-tolerance hold tests station keeping. In the current
-reference run, all three optimized controllers are complete, swept-safe, and
-fallback-free. Combined USV+ROV terminal position error falls from 0.196 m for
-nominal MPC to 0.066 m for adaptive MPC and 0.031 m for adaptive LMPC. The LMPC
-trial reaches first-goal cost 176 versus 169 for MPC, exposing the regulation
-accuracy/completion-speed tradeoff.
+The default study applies an unmodeled `[-0.10, 0.00, 0.03]` m/s current plus
+hidden control effectiveness `0.92/0.88/0.88` for UGV/USV/ROV execution. USV
+vertical current is discarded at the surface. Joint adaptation estimates the
+scalar actuator gain from local velocity/rate response before fitting remaining
+position drift. A 12-step in-tolerance hold tests station keeping. All four
+controllers complete safely, but nominal MPC incurs three solver fallbacks and
+residual-only MPC incurs two, so neither is admitted. Joint MPC and joint LMPC
+are fallback-free and recover the hidden current and actuator gains. Joint MPC
+reduces combined USV+ROV terminal error from `0.104 m` to `0.016 m` while
+lowering cost from `141` to `131`. Joint LMPC lowers cost again to `128` but has
+`0.081 m` combined marine error, exposing a measurable completion-speed versus
+regulation-accuracy tradeoff.
 
 Sweep delay and dropout over five deterministic seeds and generate a robustness
 heatmap:
@@ -145,10 +148,9 @@ the previous reduced-model claim of universal safety through `50%` dropout:
 some sparse-message trials fail safety or completion. The sweep now maps that
 boundary rather than assuming it away.
 
-The two-step block guidance default is complete and safe at cost `242`; per-step
-guidance is safe but incomplete under inertial command smoothing. Three-step
-guidance is also complete at cost `241` with fewer updates, while four steps
-causes both liveness and safety failures. Block size remains an explicit
+The two-step block guidance default matches per-step completion cost `201` with
+`109` instead of `229` guidance updates. Three- and four-step blocks remain safe
+and complete but regress cost to `225` and `232`. Block size remains an explicit
 closed-loop design variable rather than a pure compute optimization.
 
 ## Next Research Ablations

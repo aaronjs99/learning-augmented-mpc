@@ -30,6 +30,8 @@ class HarborRobustnessTrial:
     max_collision_slack: float
     residual_history: dict[str, np.ndarray]
     final_residual_estimates: dict[str, np.ndarray]
+    effectiveness_history: dict[str, np.ndarray]
+    final_effectiveness_estimates: dict[str, float]
 
 
 def sweep_network_robustness(
@@ -168,7 +170,12 @@ def run_model_mismatch_study(
         agents,
         simulation,
         communication,
-        replace(mpc_config, learning_iterations=1, residual_adaptation=False),
+        replace(
+            mpc_config,
+            learning_iterations=1,
+            residual_adaptation=False,
+            control_effectiveness_adaptation=False,
+        ),
     )
     seed = min(
         (record for record in seed_iterations if record.admitted),
@@ -180,15 +187,20 @@ def run_model_mismatch_study(
         goal_hold_steps=disturbance.evaluation_hold_steps,
     )
     definitions = (
-        ("Nominal MPC", False, False),
-        ("Residual-adaptive MPC", True, False),
-        ("Residual-adaptive LMPC", True, True),
+        ("Nominal MPC", False, False, False),
+        ("Residual-adaptive MPC", True, False, False),
+        ("Joint-adaptive MPC", True, True, False),
+        ("Joint-adaptive LMPC", True, True, True),
     )
     trials = []
-    for label, adaptive, learning in definitions:
+    for label, residual_adaptive, effectiveness_adaptive, learning in definitions:
         controller = DistributedHarborMPC(
             agents=agents,
-            config=replace(mpc_config, residual_adaptation=adaptive),
+            config=replace(
+                mpc_config,
+                residual_adaptation=residual_adaptive,
+                control_effectiveness_adaptation=effectiveness_adaptive,
+            ),
             dt=simulation.dt,
             safe_states=seed.result.states,
             safe_controls=seed.result.controls,
@@ -227,6 +239,13 @@ def run_model_mismatch_study(
                     name: value.copy()
                     for name, value in controller.position_drift_estimates.items()
                 },
+                effectiveness_history={
+                    name: np.asarray(values, dtype=float)
+                    for name, values in controller.effectiveness_history.items()
+                },
+                final_effectiveness_estimates=dict(
+                    controller.control_effectiveness_estimates
+                ),
             )
         )
         print(

@@ -4,7 +4,7 @@ The harbor package is independent from the manta-specific seven-state LMPC
 stack. It contains guidance, per-agent distributed MPC, and safe-set LMPC
 controllers behind the same simulation and communication boundary.
 
-- `models.py`: kinematic-bicycle UGV, 3-DOF marine USV, and 6-DOF marine ROV,
+- `models.py`: dynamic skid-steer UGV, 3-DOF marine USV, and 6-DOF marine ROV,
   each owning matching numerical and symbolic transitions.
 - `communication.py`: range-, rate-, delay-, TTL-, and dropout-aware message
   delivery with deterministic random seeds.
@@ -15,7 +15,7 @@ controllers behind the same simulation and communication boundary.
 - `plotting.py`: safety envelopes, successful-rollout samples, pose-goal
   headings, ROV depth/attitude diagnostics, and a coordinated GIF.
 - `experiments.py`: communication robustness, matched-horizon MPC/LMPC sweeps,
-  and nominal-versus-residual-adaptive model-mismatch trials.
+  and nominal-versus-joint-adaptive model-mismatch trials.
 - `mpc.py`: platform-specific per-agent CasADi optimizers using local state and
   received messages, with hard collision constraints.
 - `learning.py`: verified guidance seed, plain MPC baseline, clean-rollout
@@ -45,9 +45,11 @@ Only complete, swept-safe, zero-fallback, zero-collision-slack rollouts can
 replace the learned trajectory. The terminal hull uses position coordinates;
 full 3-DOF/6-DOF orientation remains in tracking and final acceptance.
 
-The default equations are physically structured but use illustrative YAML
-coefficients. `config/harbor_reduced.yaml` preserves the previous reduced
-models. Exact equations and fidelity limits are in `docs/harbor_dynamics.md`.
+Named YAML profiles distinguish SRI Lab's Jackal-based RobEn from its Husky-
+based Inspector-Gadget and configure a full-payload Heron and BlueROV2 Heavy.
+Manufacturer limits are separated from conservative mission cruise speeds;
+unidentified payload and hydrodynamic coefficients are documented assumptions.
+`config/harbor_reduced.yaml` preserves the previous reduced models.
 
 The ROV guidance loop uses finite velocity/attitude response gains and
 configurable command smoothing instead of one-step saturated pose correction.
@@ -56,9 +58,10 @@ the static diagnostic includes roll, pitch, and yaw histories.
 
 `python run.py harbor-robustness` executes every controller against the same
 hidden current and actuator-effectiveness settings from `disturbance_study`.
-The residual estimator is local and causal: it compares measured position
-after one step with the platform model's prediction from that agent's previous
-state and command, then inserts the filtered world-velocity residual into its
-own prediction model. It does not receive the configured disturbance or any
-other agent's state. The hold window prevents transient tolerance crossings
-from being reported as successful station keeping.
+The joint estimator is local and causal. It first fits scalar control
+effectiveness from the measured velocity/rate response to the agent's previous
+command. It then compares measured position with the effectiveness-adjusted
+prediction and inserts the filtered remaining world-velocity residual into its
+own model. It receives neither configured disturbance nor another agent's
+state. The hold window prevents transient tolerance crossings from being
+reported as successful station keeping.

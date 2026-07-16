@@ -84,10 +84,10 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
     - Range, rate, delay, message lifetime, dropout, and random seed are YAML
       configuration, and communication changes information without introducing
       any physical relative-pose constraint.
-    - In the shoreline-constrained harbor, coordination removes four swept UGV
-      violations and raises minimum 3D separation from `0.650 m` to `1.501 m`
-      while all four platforms satisfy position and attitude tolerances.
-    - Reciprocal response is safe but leaves two platforms incomplete;
+    - With platform-scale separated quay lanes, both independent and ETA-
+      priority runs are swept-safe. Coordination raises minimum 3D separation
+      from `1.375 m` to `1.709 m` while reducing makespan from `54` to `53`.
+    - Reciprocal response is safe but leaves the surface vessel incomplete;
       ETA-priority is the tested policy that restores both safety and liveness.
     - Delay/dropout sweeps now expose both safety and completion boundaries
       under inertial dynamics; the former universal reduced-model safety claim
@@ -95,15 +95,15 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
     - Per-agent distributed MPC and LMPC now use local state plus received
       messages. A prior clean rollout supplies a position-safe terminal hull
       and learned time-to-go; full platform pose remains part of task success.
-    - The default physical-model case reduces completion-step sum from guidance
-      `242` to MPC `173` and admitted LMPC `163`. At the matched `N=12`
-      horizon, LMPC is `5.8%` faster than MPC and has zero swept violations,
-      collision slack, or solver fallbacks.
-    - Horizon compression is the strongest controller result: `N=8` MPC is
-      incomplete while `N=8` LMPC completes at `181`; `N=12` LMPC at `163`
-      also beats the longer `N=15` MPC at `165`.
-    - Numerical and CasADi transitions for the bicycle, 3-DOF marine, and 6-DOF
+    - At `N=12`, MPC reduces completion cost from guidance `201` to `116`;
+      complete and clean LMPC candidates at `127` are correctly rejected as
+      regressions. At `N=15`, LMPC is admitted and improves MPC from `128` to
+      `124`, demonstrating a horizon-dependent rather than universal benefit.
+    - Numerical and CasADi transitions for dynamic skid-steer, 3-DOF marine,
+      and 6-DOF
       marine models are regression-checked for machine-precision agreement.
+    - Named profiles distinguish SRI Lab's Jackal-based RobEn and Husky-based
+      Inspector-Gadget, plus a full-payload Heron and BlueROV2 Heavy.
 
 13. **Configurable block guidance execution**
     - The useful block-replanning concept from the legacy `distmpc` prototype is
@@ -111,45 +111,74 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       control hold and explicit update-count telemetry.
     - Unlike the legacy centralized GEKKO script, the experiment remains
       heterogeneous, communication-aware, swept-validated, and YAML-backed.
-    - Two- and three-step blocks remain complete and safe under physical
-      dynamics; per-step guidance loses liveness and four-step guidance loses
-      both liveness and safety, making update interval a control variable.
+    - The two-step default matches per-step completion cost `201` with `109`
+      rather than `229` updates. Three- and four-step blocks stay safe and
+      complete but regress task cost, making update interval a control variable.
 
 ## Current Evidence
 
-The strongest heterogeneous result is the physical-model horizon study:
+The nominal horizon study exposes where learning helps and where it does not:
 
 ```text
 python run.py harbor-horizon-study
 ```
 
-At `N=12`, distributed LMPC improves completion cost from MPC's `173` to
-`163`; at `N=8`, it restores completion where plain MPC is incomplete. All
-reported horizon-study runs remain swept-safe and solver-clean.
+At `N=8`, both controllers are incomplete. At `N=12`, MPC is admitted at `116`
+and LMPC is rejected at `127`. At `N=15`, LMPC is admitted and improves MPC
+from `128` to `124` (`3.1%`). All reported runs are swept-safe and solver-clean.
 
-### Local residual adaptation under model mismatch
+### Joint local adaptation under model mismatch
 
 The robustness experiment separates the nominal planning model from the
 execution plant. A configurable current and per-platform actuator
-effectiveness act only during execution. Each distributed controller may fit a
-bounded exponentially filtered position-velocity residual using its own prior
-state, prior command, and current onboard state. The estimate enters that
-agent's horizon dynamics as an additive world-frame position drift; the true
-disturbance remains hidden.
+effectiveness act only during execution. Each distributed controller first
+fits bounded scalar control effectiveness from its velocity/rate response,
+then fits a bounded world-frame position residual after accounting for that
+gain. Both estimates use only prior local state, prior command, and current
+onboard state. They enter that agent's horizon model while the true disturbance
+remains hidden.
 
 ```text
 python run.py harbor-robustness
 ```
 
-With the configured physically feasible opposing current and a 12-step goal
-hold, nominal MPC, adaptive MPC, and adaptive LMPC are all complete,
-swept-safe, slack-free, and fallback-free. Adaptive MPC reduces combined marine
-terminal error by 66.6%; adaptive LMPC reduces it by 84.0% (0.196 m to 0.031
-m), while increasing completion-step sum from 169 to 176. This is an objective
-robust-regulation improvement, not a universal superiority claim. Cross-current
-station keeping at a fixed USV yaw can be physically infeasible for the
-underactuated no-sway-thruster model and is intentionally not presented as a
-controller benchmark.
+With the configured opposing current, `0.92/0.88/0.88` hidden effectiveness,
+and a 12-step goal hold, all controllers complete safely. Nominal and residual-
+only MPC incur three and two fallbacks, respectively, and fail the validity
+gate. Joint MPC and joint LMPC are fallback-free and recover the hidden gains
+and current. Joint MPC reduces combined marine terminal error about `85%`
+(`0.104 m` to `0.016 m`) and improves cost from `141` to `131`. Joint LMPC is
+faster again at `128`, though its `0.081 m` combined marine error is worse than
+joint MPC. This is an objective adaptation and speed/regulation tradeoff, not a
+universal superiority claim.
+Cross-current station keeping at a fixed USV yaw can be physically infeasible
+for the underactuated no-sway-thruster model and is intentionally not presented
+as a controller benchmark.
+
+#### Literature positioning
+
+The estimator split itself is not claimed as novel. Disturbance-observer MPC
+has been demonstrated for underwater vehicle-manipulator systems
+([IFAC-PapersOnLine, 2021](https://doi.org/10.1016/j.ifacol.2021.10.115));
+distributed adaptive fault-tolerant control has addressed actuator
+loss-of-effectiveness and disturbances in multi-AUV systems
+([Ocean Engineering, 2022](https://doi.org/10.1016/j.oceaneng.2022.112924));
+and separate disturbance/fault observers have been used for ships
+([Ocean Engineering, 2023](https://doi.org/10.1016/j.oceaneng.2023.114662)).
+Recent work also covers fault-tolerant networked heterogeneous marine surface
+vessels ([Ocean Engineering, 2024](https://doi.org/10.1016/j.oceaneng.2024.119370))
+and adaptive error-compensation NMPC for heterogeneous USV-AUV systems
+([Ocean Engineering, 2026](https://doi.org/10.1016/j.oceaneng.2026.125938)).
+
+The defensible project contribution is therefore the integration and tested
+ablation: local separated current/effectiveness identification inside
+safe-set distributed LMPC for untethered mixed-domain UGV/USV/ROV agents with
+different 3-DOF/6-DOF contracts, hard communicated collision constraints,
+sustained-goal evaluation, and strict rejection of fallback-contaminated data.
+The residual-only failure versus clean joint-adaptive result supports this
+architecture in the configured benchmark. Broader novelty still requires
+comparison against observer-based marine MPC baselines, noisy Monte Carlo
+trials, and hardware or higher-fidelity validation.
 
 The strongest manta-specific case remains `manta_crossover`:
 

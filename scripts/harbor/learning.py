@@ -33,6 +33,7 @@ class HarborLearningIteration:
     failure_steps_by_agent: dict[str, list[int]]
     failure_status_counts: dict[str, int]
     final_residual_estimates: dict[str, list[float]]
+    final_effectiveness_estimates: dict[str, float]
 
 
 def run_distributed_harbor_lmpc(
@@ -155,6 +156,9 @@ def _controller_record(
             name: values.tolist()
             for name, values in controller.position_drift_estimates.items()
         },
+        final_effectiveness_estimates=dict(
+            controller.control_effectiveness_estimates
+        ),
     )
 
 
@@ -174,6 +178,7 @@ def _record(
     failure_steps_by_agent=None,
     failure_status_counts=None,
     final_residual_estimates=None,
+    final_effectiveness_estimates=None,
 ) -> HarborLearningIteration:
     return HarborLearningIteration(
         label=label,
@@ -190,6 +195,7 @@ def _record(
         failure_steps_by_agent=failure_steps_by_agent or {},
         failure_status_counts=failure_status_counts or {},
         final_residual_estimates=final_residual_estimates or {},
+        final_effectiveness_estimates=final_effectiveness_estimates or {},
     )
 
 

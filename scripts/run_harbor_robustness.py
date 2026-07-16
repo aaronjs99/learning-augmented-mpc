@@ -1,4 +1,4 @@
-"""Benchmark nominal and residual-adaptive harbor control under plant mismatch."""
+"""Benchmark nominal and locally adaptive harbor control under plant mismatch."""
 
 from __future__ import annotations
 
@@ -56,6 +56,7 @@ def main() -> None:
                 name: value.tolist()
                 for name, value in trial.final_residual_estimates.items()
             },
+            "final_effectiveness_estimates": trial.final_effectiveness_estimates,
         }
         for trial in trials
     ]
@@ -70,16 +71,14 @@ def main() -> None:
         disturbance,
         output / "model_mismatch_diagnostics.png",
     )
-    adaptive = next(
-        trial for trial in trials if trial.label == "Residual-adaptive LMPC"
-    )
+    adaptive = next(trial for trial in trials if trial.label == "Joint-adaptive LMPC")
     if not args.no_gif:
         save_harbor_animation(
             adaptive.result,
             agents,
             simulation,
             output / "robust_harbor_lmpc.gif",
-            label="Residual-adaptive distributed LMPC",
+            label="Joint-adaptive distributed LMPC",
         )
     print(json.dumps(records, indent=2))
     print(f"Saved robustness diagnostics: {figure}")

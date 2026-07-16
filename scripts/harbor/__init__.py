@@ -6,7 +6,14 @@ from .config import (
     load_harbor_config,
     load_harbor_disturbance_config,
 )
-from .models import PlatformModel, ROVModel, UGVModel, USVModel, make_platform_model
+from .models import (
+    PlatformModel,
+    ROVModel,
+    SkidSteerUGVModel,
+    UGVModel,
+    USVModel,
+    make_platform_model,
+)
 from .mpc import HarborMPCConfig, load_harbor_mpc_config
 from .simulation import (
     HarborAgent,
@@ -30,6 +37,7 @@ __all__ = [
     "OperatingDomain",
     "PlatformModel",
     "ROVModel",
+    "SkidSteerUGVModel",
     "UGVModel",
     "USVModel",
     "load_harbor_config",

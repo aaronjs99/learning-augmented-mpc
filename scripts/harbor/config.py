@@ -39,10 +39,28 @@ def load_harbor_config(
         LinkConfig, raw.get("communication", {}), "communication"
     )
     model_parameters = raw.get("platform_models", {})
+    platform_profiles = raw.get("platform_profiles", {})
     agents = []
     for entry in raw.get("agents", []):
-        kind = str(entry["kind"]).lower()
-        model = make_platform_model(kind, dict(model_parameters.get(kind, {})))
+        profile_name = entry.get("profile")
+        if profile_name is not None:
+            if profile_name not in platform_profiles:
+                raise ValueError(
+                    f"agent {entry['name']} references unknown profile {profile_name}"
+                )
+            profile = platform_profiles[profile_name]
+            kind = str(profile["kind"]).lower()
+            if "kind" in entry and str(entry["kind"]).lower() != kind:
+                raise ValueError(
+                    f"agent {entry['name']} kind disagrees with profile {profile_name}"
+                )
+            parameters = dict(profile.get("parameters", {}))
+            display_name = str(profile.get("label", profile_name))
+        else:
+            kind = str(entry["kind"]).lower()
+            parameters = dict(model_parameters.get(kind, {}))
+            display_name = entry.get("display_name")
+        model = make_platform_model(kind, parameters)
         start = np.asarray(entry["start"], dtype=float)
         goal = np.asarray(entry["goal"], dtype=float)
         if start.shape != (model.state_dim,):
@@ -73,6 +91,12 @@ def load_harbor_config(
                 waypoints=(
                     np.asarray(entry["waypoints"], dtype=float)
                     if "waypoints" in entry
+                    else None
+                ),
+                profile=(str(profile_name) if profile_name is not None else None),
+                display_name=(
+                    str(entry.get("display_name", display_name))
+                    if entry.get("display_name", display_name) is not None
                     else None
                 ),
             )
