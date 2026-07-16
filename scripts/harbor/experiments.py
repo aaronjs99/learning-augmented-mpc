@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 from .communication import LinkConfig
+from .config import HarborFaultStudyConfig
 from .learning import run_distributed_harbor_lmpc
 from .mpc import DistributedHarborMPC, HarborMPCConfig
 from .simulation import (
@@ -31,7 +32,7 @@ class HarborRobustnessTrial:
     residual_history: dict[str, np.ndarray]
     final_residual_estimates: dict[str, np.ndarray]
     effectiveness_history: dict[str, np.ndarray]
-    final_effectiveness_estimates: dict[str, float]
+    final_effectiveness_estimates: dict[str, np.ndarray]
 
 
 def sweep_network_robustness(
@@ -243,9 +244,119 @@ def run_model_mismatch_study(
                     name: np.asarray(values, dtype=float)
                     for name, values in controller.effectiveness_history.items()
                 },
-                final_effectiveness_estimates=dict(
-                    controller.control_effectiveness_estimates
-                ),
+                final_effectiveness_estimates={
+                    name: value.copy()
+                    for name, value in controller.control_effectiveness_estimates.items()
+                },
+            )
+        )
+        print(
+            f"{label}: complete={result.all_goals_reached}, "
+            f"safe={result.pairwise_violation_count == 0}, "
+            f"cost={completion_cost}, fallbacks={controller.fallback_count}",
+            flush=True,
+        )
+    return trials
+
+
+def run_actuator_fault_study(
+    agents: list[HarborAgent],
+    simulation: HarborSimulationConfig,
+    communication: LinkConfig,
+    mpc_config: HarborMPCConfig,
+    disturbance: HarborDisturbanceConfig,
+    study_config: HarborFaultStudyConfig,
+) -> list[HarborRobustnessTrial]:
+    """Compare scalar and diagonal local estimators under asymmetric faults."""
+    study_mpc = replace(
+        mpc_config,
+        prediction_horizon=study_config.prediction_horizon,
+        terminal_goal_weight=study_config.terminal_goal_weight,
+        terminal_slack_bound=study_config.terminal_slack_bound,
+        terminal_slack_weight=study_config.terminal_slack_weight,
+    )
+    seed_iterations = run_distributed_harbor_lmpc(
+        agents,
+        simulation,
+        communication,
+        replace(
+            study_mpc,
+            learning_iterations=1,
+            residual_adaptation=False,
+            control_effectiveness_adaptation=False,
+        ),
+    )
+    seed = min(
+        (record for record in seed_iterations if record.admitted),
+        key=lambda record: record.completion_step_sum,
+    )
+    evaluation = replace(
+        simulation,
+        guidance_update_interval_steps=study_mpc.replan_interval_steps,
+        goal_hold_steps=disturbance.evaluation_hold_steps,
+    )
+    definitions = (
+        ("Nominal MPC", False, "scalar", False),
+        ("Scalar-adaptive MPC", True, "scalar", False),
+        ("Diagonal-adaptive MPC", True, "diagonal", False),
+        ("Diagonal-adaptive LMPC", True, "diagonal", True),
+    )
+    trials = []
+    for label, adaptive, estimator_mode, learning in definitions:
+        controller = DistributedHarborMPC(
+            agents=agents,
+            config=replace(
+                study_mpc,
+                residual_adaptation=False,
+                control_effectiveness_adaptation=adaptive,
+                effectiveness_estimator_mode=estimator_mode,
+            ),
+            dt=simulation.dt,
+            safe_states=seed.result.states,
+            safe_controls=seed.result.controls,
+            learning=learning,
+        )
+        result = run_harbor_simulation(
+            agents,
+            evaluation,
+            communication,
+            control_provider=controller,
+            disturbance=disturbance,
+        )
+        completion_cost = sum(
+            step if step is not None else simulation.horizon + 1
+            for step in result.first_goal_steps.values()
+        )
+        valid = (
+            result.all_goals_reached
+            and result.pairwise_violation_count == 0
+            and controller.fallback_count == 0
+            and controller.max_collision_slack <= 1e-9
+        )
+        trials.append(
+            HarborRobustnessTrial(
+                label=label,
+                result=result,
+                valid=valid,
+                completion_step_sum=completion_cost,
+                solver_fallbacks=controller.fallback_count,
+                max_collision_slack=controller.max_collision_slack,
+                residual_history={
+                    name: np.asarray(values, dtype=float)
+                    for name, values in controller.residual_history.items()
+                },
+                final_residual_estimates={
+                    name: value.copy()
+                    for name, value in controller.position_drift_estimates.items()
+                },
+                effectiveness_history={
+                    name: np.asarray(values, dtype=float)
+                    for name, values in controller.effectiveness_history.items()
+                },
+                final_effectiveness_estimates={
+                    name: value.copy()
+                    for name, value in controller.control_effectiveness_estimates.items()
+                },
             )
         )
         print(

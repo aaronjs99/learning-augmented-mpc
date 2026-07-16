@@ -14,6 +14,7 @@ configure_matplotlib()
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib.lines import Line2D
 
 
 _PALETTES = {
@@ -634,20 +635,19 @@ def save_model_mismatch_diagnostics(
     residual_axis.legend(ncol=2, fontsize=8)
 
     true_effectiveness = {
-        "ugv": disturbance.ugv_control_effectiveness,
-        "usv": disturbance.usv_control_effectiveness,
-        "rov": disturbance.rov_control_effectiveness,
+        agent.name: disturbance.effectiveness(agent.model, agent.name)
+        for agent in agents
     }
     for agent in agents:
         history = adaptive.effectiveness_history[agent.name]
         effectiveness_axis.plot(
-            history,
+            np.mean(history, axis=1),
             color=colors[agent.name],
             linewidth=2.0,
             label=f"{_display_name(agent)} estimate",
         )
         effectiveness_axis.axhline(
-            true_effectiveness[agent.model.kind],
+            float(np.mean(true_effectiveness[agent.name])),
             color=colors[agent.name],
             linestyle=":",
             linewidth=1.3,
@@ -657,7 +657,7 @@ def save_model_mismatch_diagnostics(
     effectiveness_axis.set_xlabel("control update")
     effectiveness_axis.set_ylabel("applied / commanded control")
     effectiveness_axis.set_ylim(
-        min(true_effectiveness.values()) - 0.04,
+        min(float(np.min(value)) for value in true_effectiveness.values()) - 0.04,
         1.03,
     )
     effectiveness_axis.grid(True, alpha=0.25)
@@ -676,6 +676,211 @@ def save_model_mismatch_diagnostics(
     fig.savefig(output, dpi=180, bbox_inches="tight")
     plt.close(fig)
     return output
+
+
+def save_actuator_fault_diagnostics(
+    trials,
+    agents: list[HarborAgent],
+    simulation_config,
+    disturbance: HarborDisturbanceConfig,
+    path: str | Path,
+) -> Path:
+    """Show asymmetric-fault paths, cost, convergence, and channel estimates."""
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig = plt.figure(figsize=(18.0, 8.4))
+    grid = fig.add_gridspec(
+        2, 3, width_ratios=(1.05, 0.82, 1.18), hspace=0.34, wspace=0.30
+    )
+    map_axis = fig.add_subplot(grid[:, 0])
+    cost_axis = fig.add_subplot(grid[0, 1])
+    rmse_axis = fig.add_subplot(grid[1, 1])
+    matrix_axis = fig.add_subplot(grid[:, 2])
+    colors = _agent_colors(agents)
+    scalar = next(trial for trial in trials if trial.label == "Scalar-adaptive MPC")
+    diagonal = next(
+        trial for trial in trials if trial.label == "Diagonal-adaptive MPC"
+    )
+    _draw_harbor_map(map_axis, simulation_config)
+    for agent in agents:
+        for trial, style, alpha in ((scalar, "--", 0.55), (diagonal, "-", 1.0)):
+            positions = trial.result.positions[agent.name]
+            map_axis.plot(
+                positions[:, 0],
+                positions[:, 1],
+                color=colors[agent.name],
+                linestyle=style,
+                linewidth=1.7 if style == "--" else 2.5,
+                alpha=alpha,
+            )
+        map_axis.scatter(
+            agent.goal[0], agent.goal[1], color=colors[agent.name], marker="*", s=115
+        )
+    map_axis.set_title("Executed Paths Under Identical Asymmetric Faults")
+    map_axis.set_xlabel("x [m]")
+    map_axis.set_ylabel("y [m]")
+    map_axis.set_aspect("equal", adjustable="box")
+    map_axis.grid(True, alpha=0.25)
+    platform_handles = [
+        Line2D(
+            [0],
+            [0],
+            color=colors[agent.name],
+            linewidth=2.5,
+            label=_short_platform_name(agent),
+        )
+        for agent in agents
+    ]
+    style_handles = [
+        Line2D([0], [0], color="#333333", linestyle="--", label="scalar MPC"),
+        Line2D([0], [0], color="#333333", linestyle="-", label="diagonal MPC"),
+    ]
+    map_axis.legend(
+        handles=[*platform_handles, *style_handles],
+        loc="upper left",
+        fontsize=7,
+        ncol=2,
+    )
+
+    labels = [trial.label.replace("-adaptive", "") for trial in trials]
+    bars = cost_axis.bar(
+        np.arange(len(trials)),
+        [trial.completion_step_sum for trial in trials],
+        color=["#8c8c8c", "#d8a02b", "#2c9c69", "#2878b5"],
+    )
+    for trial, bar in zip(trials, bars, strict=True):
+        cost_axis.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 1,
+            str(trial.completion_step_sum),
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+        if not trial.valid:
+            bar.set_hatch("//")
+            bar.set_edgecolor("#333333")
+    cost_axis.set_title("Completion Cost")
+    cost_axis.set_ylabel("sum of first-goal steps")
+    cost_axis.set_xticks(np.arange(len(labels)), labels, rotation=14, ha="right")
+    cost_axis.grid(True, axis="y", alpha=0.25)
+
+    adaptive_trials = [trial for trial in trials if "adaptive" in trial.label]
+    for trial, color in zip(
+        adaptive_trials, ("#d8a02b", "#2c9c69", "#2878b5"), strict=True
+    ):
+        errors = _effectiveness_rmse_history(trial, agents, disturbance)
+        rmse_axis.plot(errors, color=color, linewidth=2.0, label=trial.label)
+    rmse_axis.set_title("Local Effectiveness Estimation Error")
+    rmse_axis.set_xlabel("control update")
+    rmse_axis.set_ylabel("channel RMSE")
+    rmse_axis.grid(True, alpha=0.25)
+    rmse_axis.legend(fontsize=8)
+
+    row_labels = []
+    truth_values = []
+    for agent in agents:
+        truth = disturbance.effectiveness(agent.model, agent.name)
+        for channel, value in zip(
+            _control_channel_labels(agent), truth, strict=True
+        ):
+            row_labels.append(f"{_short_platform_name(agent)} {channel}")
+            truth_values.append(value)
+    columns = [
+        ("hidden", np.asarray(truth_values)),
+        (
+            "scalar MPC",
+            _flatten_effectiveness(scalar.final_effectiveness_estimates, agents),
+        ),
+        (
+            "diagonal MPC",
+            _flatten_effectiveness(diagonal.final_effectiveness_estimates, agents),
+        ),
+        (
+            "diagonal LMPC",
+            _flatten_effectiveness(
+                next(
+                    trial
+                    for trial in trials
+                    if trial.label == "Diagonal-adaptive LMPC"
+                ).final_effectiveness_estimates,
+                agents,
+            ),
+        ),
+    ]
+    matrix = np.column_stack([values for _, values in columns])
+    image = matrix_axis.imshow(
+        matrix,
+        cmap="viridis",
+        vmin=min(0.5, float(np.min(matrix))),
+        vmax=1.0,
+        aspect="auto",
+    )
+    for row in range(matrix.shape[0]):
+        for column in range(matrix.shape[1]):
+            value = matrix[row, column]
+            matrix_axis.text(
+                column,
+                row,
+                f"{value:.2f}",
+                ha="center",
+                va="center",
+                color="white" if value < 0.78 else "#111111",
+                fontsize=8,
+            )
+    matrix_axis.set_title("Hidden and Final Channel Effectiveness")
+    matrix_axis.set_xticks(
+        np.arange(len(columns)), [label for label, _ in columns], rotation=12
+    )
+    matrix_axis.set_yticks(np.arange(len(row_labels)), row_labels)
+    fig.colorbar(image, ax=matrix_axis, fraction=0.045, pad=0.03)
+    fig.suptitle(
+        "Local Diagonal Fault Identification for Distributed Harbor MPC",
+        fontsize=15,
+    )
+    fig.savefig(output, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+    return output
+
+
+def _effectiveness_rmse_history(trial, agents, disturbance) -> np.ndarray:
+    lengths = [len(trial.effectiveness_history[agent.name]) for agent in agents]
+    count = min(lengths, default=0)
+    values = []
+    for index in range(count):
+        error = np.concatenate(
+            [
+                trial.effectiveness_history[agent.name][index]
+                - disturbance.effectiveness(agent.model, agent.name)
+                for agent in agents
+            ]
+        )
+        values.append(float(np.sqrt(np.mean(error * error))))
+    return np.asarray(values, dtype=float)
+
+
+def _flatten_effectiveness(estimates, agents: list[HarborAgent]) -> np.ndarray:
+    return np.concatenate(
+        [np.asarray(estimates[agent.name], dtype=float) for agent in agents]
+    )
+
+
+def _control_channel_labels(agent: HarborAgent) -> tuple[str, ...]:
+    if agent.model.kind == "ugv":
+        return ("F", "N")
+    if agent.model.kind == "usv":
+        return ("T", "N")
+    return ("X", "Y", "Z", "K", "M", "N")
+
+
+def _short_platform_name(agent: HarborAgent) -> str:
+    if agent.name == "ground_rover_1":
+        return "RobEn"
+    if agent.name == "ground_rover_2":
+        return "Inspector-Gadget"
+    if agent.model.kind == "usv":
+        return "Heron"
+    return "BlueROV2"
 
 
 def _draw_paths(

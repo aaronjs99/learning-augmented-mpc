@@ -115,6 +115,23 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       rather than `229` updates. Three- and four-step blocks stay safe and
       complete but regress task cost, making update interval a control variable.
 
+14. **Local channel-wise fault identification inside distributed LMPC**
+    - Each named platform can carry a hidden diagonal effectiveness vector over
+      its generalized controls; RobEn and Inspector-Gadget retain independent
+      UGV models, routes, force/yaw-moment faults, and estimates.
+    - A causal finite-difference sensitivity matrix and bounded least-squares
+      update identify excited channels from only local state transition and
+      prior command data. No controller reads the configured plant fault.
+    - In the current asymmetric benchmark, diagonal adaptation lowers final
+      gain RMSE about `30.0%` versus scalar adaptation. Diagonal LMPC lowers
+      held Heron error about `40.9%` versus diagonal MPC at equal task cost.
+    - Scalar MPC remains faster in this route. The contribution is therefore
+      improved fault identification and terminal regulation under heterogeneous
+      channel losses, not universal completion-time dominance.
+    - The diagnostic deliberately reports unexcited channels. Individual wheel,
+      waterjet, and thruster identification requires allocation models and
+      persistently exciting trajectories and remains future work.
+
 ## Current Evidence
 
 The nominal horizon study exposes where learning helps and where it does not:

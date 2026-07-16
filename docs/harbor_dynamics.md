@@ -109,10 +109,23 @@ u_applied = alpha_platform u_commanded
 ```
 
 The USV uses only horizontal current; the ROV uses all three components. The
-UGV is not advected. Optional actuator effectiveness `alpha_platform` is also
-applied only in execution. The controller does not read either value. Let `z`
-denote velocity/rate states, which are unaffected by the current advection. A
-finite-difference sensitivity around the prior effectiveness estimate gives
+UGV is not advected. Optional actuator effectiveness is also applied only in
+execution. The controller does not read either value. The scalar robustness
+experiment uses one shared gain per platform. The asymmetric fault experiment
+instead uses a diagonal gain matrix over each platform's generalized controls:
+
+```text
+u_applied = diag(alpha_1, ..., alpha_nu) u_commanded
+```
+
+For RobEn and Inspector-Gadget, these are separate `[force, yaw moment]`
+vectors; the two UGVs neither share an estimate nor share hidden fault values.
+For Heron they are `[surge force, yaw moment]`, and for BlueROV2 Heavy they are
+the six generalized wrench channels `[X, Y, Z, K, M, N]`.
+
+Let `z` denote velocity/rate states, which are unaffected by current advection.
+The scalar estimator uses a finite-difference sensitivity around the prior
+effectiveness estimate:
 
 ```text
 s_alpha = (z_model(alpha+epsilon) - z_model(alpha-epsilon)) / (2 epsilon)
@@ -120,6 +133,25 @@ alpha_measured = alpha_hat + s_alpha^T (z_k - z_model(alpha_hat))
                               / (s_alpha^T s_alpha)
 alpha_hat_k = clip((1-beta) alpha_hat_(k-1) + beta alpha_measured)
 ```
+
+The channel-wise estimator forms one sensitivity column for every sufficiently
+excited command channel:
+
+```text
+S_j = (z_model(alpha + epsilon e_j) - z_model(alpha - epsilon e_j))
+      / (2 epsilon)
+delta_alpha = argmin_delta ||S delta - (z_measured - z_model(alpha_hat))||_2
+alpha_hat_next = (1-gamma) alpha_hat
+                 + gamma clip(alpha_hat + delta_alpha)
+```
+
+Only locally measured state and the platform's prior command enter this update.
+An unexcited or dynamically indistinguishable channel remains at its prior;
+this is an observability result, not evidence that the actuator is healthy.
+The model identifies generalized force/moment effectiveness. It does not yet
+identify individual RobEn/Inspector-Gadget wheel motors, Heron waterjets, or
+BlueROV2 thrusters; that requires an explicit allocation matrix and sufficiently
+exciting maneuvers.
 
 Updates below a normalized command-excitation threshold are skipped. Using the
 effectiveness-adjusted transition, the same agent then computes
@@ -130,10 +162,10 @@ r_hat_k = clip((1-gamma) r_hat_(k-1) + gamma r_measured)
 p_pred_(j+1) = p_model_(j+1) + dt r_hat_k
 ```
 
-This is a bounded scalar-gain plus constant-residual model, not a learned
-hydrodynamic model. It is appropriate for steady current, aggregate actuator
-loss, and local bias. It does not identify separate thrusters, rapidly varying
-waves, or coupled unmodeled velocity dynamics.
+These are bounded local gain/residual models, not learned hydrodynamic models.
+They are appropriate for steady current, generalized actuator loss, and local
+bias. They do not identify rapidly varying waves or coupled unmodeled velocity
+dynamics.
 
 ## Reduced reproducibility models
 

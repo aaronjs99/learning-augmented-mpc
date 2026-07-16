@@ -56,7 +56,10 @@ def main() -> None:
                 name: value.tolist()
                 for name, value in trial.final_residual_estimates.items()
             },
-            "final_effectiveness_estimates": trial.final_effectiveness_estimates,
+            "final_effectiveness_estimates": {
+                name: value.tolist()
+                for name, value in trial.final_effectiveness_estimates.items()
+            },
         }
         for trial in trials
     ]

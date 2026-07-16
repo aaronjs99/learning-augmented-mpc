@@ -42,6 +42,7 @@ class HarborMPCConfig:
     residual_estimator_gain: float = 0.35
     residual_max_speed: float = 0.35
     control_effectiveness_adaptation: bool = False
+    effectiveness_estimator_mode: str = "scalar"
     effectiveness_estimator_gain: float = 0.25
     effectiveness_min: float = 0.5
     effectiveness_max: float = 1.2
@@ -87,6 +88,10 @@ class HarborMPCConfig:
             raise ValueError("effectiveness_estimator_gain must be in [0, 1]")
         if not self.effectiveness_min <= 1.0 <= self.effectiveness_max:
             raise ValueError("effectiveness bounds must contain the nominal value 1")
+        if self.effectiveness_estimator_mode not in {"scalar", "diagonal"}:
+            raise ValueError(
+                "effectiveness_estimator_mode must be scalar or diagonal"
+            )
 
 
 @dataclass(frozen=True)
@@ -155,7 +160,7 @@ class HarborAgentOptimizer:
         warm_controls: np.ndarray,
         previous_control: np.ndarray,
         position_drift: np.ndarray,
-        control_effectiveness: float,
+        control_effectiveness: np.ndarray,
     ) -> HarborMPCStep:
         opti = self.opti
         opti.set_value(self.p_initial, state)
@@ -216,7 +221,7 @@ class HarborAgentOptimizer:
         p_goal = opti.parameter(pose_dim, 1)
         p_previous_control = opti.parameter(nu, 1)
         p_position_drift = opti.parameter(3, 1)
-        p_control_effectiveness = opti.parameter()
+        p_control_effectiveness = opti.parameter(nu, 1)
         p_obstacles = [opti.parameter(3, horizon) for _ in self.other_agents]
 
         opti.subject_to(states[:, 0] == p_initial)
@@ -238,7 +243,7 @@ class HarborAgentOptimizer:
                         ca,
                         model,
                         states[:, index],
-                        p_control_effectiveness * controls[:, index],
+                        ca.times(p_control_effectiveness, controls[:, index]),
                         self.dt,
                     ),
                     p_position_drift,
@@ -502,7 +507,8 @@ class DistributedHarborMPC:
         }
         self.residual_history = {agent.name: [] for agent in agents}
         self.control_effectiveness_estimates = {
-            agent.name: 1.0 for agent in agents
+            agent.name: np.ones(agent.model.control_dim, dtype=float)
+            for agent in agents
         }
         self.effectiveness_history = {agent.name: [] for agent in agents}
         self.solve_count = 0
@@ -588,7 +594,7 @@ class DistributedHarborMPC:
             self.position_drift_estimates[agent.name].copy()
         )
         self.effectiveness_history[agent.name].append(
-            self.control_effectiveness_estimates[agent.name]
+            self.control_effectiveness_estimates[agent.name].copy()
         )
         return self.previous_controls[agent.name]
 
@@ -602,7 +608,7 @@ class DistributedHarborMPC:
         previous_control = self.previous_controls[agent.name]
         if self.config.control_effectiveness_adaptation:
             self.control_effectiveness_estimates[agent.name] = (
-                _estimate_control_effectiveness(
+                _estimate_effectiveness_vector(
                     agent.model,
                     previous_state,
                     previous_control,
@@ -689,6 +695,90 @@ def _estimate_control_effectiveness(
     )
     gain = config.effectiveness_estimator_gain
     return float((1.0 - gain) * prior + gain * instantaneous)
+
+
+def _estimate_effectiveness_vector(
+    model: PlatformModel,
+    previous_state: np.ndarray,
+    previous_control: np.ndarray,
+    current_state: np.ndarray,
+    dt: float,
+    prior: np.ndarray,
+    config: HarborMPCConfig,
+) -> np.ndarray:
+    """Estimate scalar-shared or diagonal local actuator effectiveness."""
+    prior_vector = np.asarray(prior, dtype=float).reshape(model.control_dim)
+    if config.effectiveness_estimator_mode == "scalar":
+        estimate = _estimate_control_effectiveness(
+            model,
+            previous_state,
+            previous_control,
+            current_state,
+            dt,
+            float(np.mean(prior_vector)),
+            config,
+        )
+        return np.full(model.control_dim, estimate, dtype=float)
+    return _estimate_diagonal_control_effectiveness(
+        model,
+        previous_state,
+        previous_control,
+        current_state,
+        dt,
+        prior_vector,
+        config,
+    )
+
+
+def _estimate_diagonal_control_effectiveness(
+    model: PlatformModel,
+    previous_state: np.ndarray,
+    previous_control: np.ndarray,
+    current_state: np.ndarray,
+    dt: float,
+    prior: np.ndarray,
+    config: HarborMPCConfig,
+) -> np.ndarray:
+    """Fit independent channel gains from one-step local dynamic response."""
+    command = np.asarray(previous_control, dtype=float).reshape(model.control_dim)
+    scales = np.asarray(model.control_scale(), dtype=float)
+    active = np.abs(command / scales) >= config.effectiveness_excitation_threshold
+    if not np.any(active):
+        return np.asarray(prior, dtype=float).copy()
+    prior = np.asarray(prior, dtype=float).reshape(model.control_dim)
+    dynamic = slice(model.pose_dim, model.state_dim)
+    predicted = model.step(previous_state, prior * command, dt)[dynamic]
+    measured = np.asarray(current_state, dtype=float)[dynamic]
+    active_indices = np.flatnonzero(active)
+    sensitivity = np.zeros((len(predicted), len(active_indices)), dtype=float)
+    epsilon = 0.05
+    for column, channel in enumerate(active_indices):
+        lower = prior.copy()
+        upper = prior.copy()
+        lower[channel] = max(config.effectiveness_min, prior[channel] - epsilon)
+        upper[channel] = min(config.effectiveness_max, prior[channel] + epsilon)
+        span = upper[channel] - lower[channel]
+        if span <= np.finfo(float).eps:
+            continue
+        low_state = model.step(previous_state, lower * command, dt)[dynamic]
+        high_state = model.step(previous_state, upper * command, dt)[dynamic]
+        sensitivity[:, column] = (high_state - low_state) / span
+    if float(np.linalg.norm(sensitivity)) <= 1e-12:
+        return prior.copy()
+    correction = np.linalg.lstsq(
+        sensitivity,
+        measured - predicted,
+        rcond=1e-8,
+    )[0]
+    instantaneous = prior.copy()
+    instantaneous[active_indices] += correction
+    instantaneous = np.clip(
+        instantaneous,
+        config.effectiveness_min,
+        config.effectiveness_max,
+    )
+    gain = config.effectiveness_estimator_gain
+    return (1.0 - gain) * prior + gain * instantaneous
 
 
 def _nearest_reference_index(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 import numpy as np
@@ -163,9 +163,12 @@ class HarborDisturbanceConfig:
     """Unknown execution-plant effects used for robustness experiments."""
 
     water_current: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    ugv_control_effectiveness: float = 1.0
-    usv_control_effectiveness: float = 1.0
-    rov_control_effectiveness: float = 1.0
+    ugv_control_effectiveness: float | tuple[float, ...] = 1.0
+    usv_control_effectiveness: float | tuple[float, ...] = 1.0
+    rov_control_effectiveness: float | tuple[float, ...] = 1.0
+    agent_control_effectiveness: dict[
+        str, float | tuple[float, ...]
+    ] = field(default_factory=dict)
     evaluation_hold_steps: int = 12
 
     def __post_init__(self) -> None:
@@ -173,19 +176,41 @@ class HarborDisturbanceConfig:
             raise ValueError("water_current must contain [x, y, z] velocity")
         if not np.all(np.isfinite(self.water_current)):
             raise ValueError("water_current must be finite")
-        effectiveness = (
-            self.ugv_control_effectiveness,
-            self.usv_control_effectiveness,
-            self.rov_control_effectiveness,
-        )
-        if any(not 0.0 < value <= 1.5 for value in effectiveness):
-            raise ValueError("control effectiveness must be in (0, 1.5]")
+        for name in (
+            "ugv_control_effectiveness",
+            "usv_control_effectiveness",
+            "rov_control_effectiveness",
+        ):
+            value = _normalize_effectiveness(getattr(self, name), name)
+            object.__setattr__(self, name, value)
+        normalized_agents = {
+            str(name): _normalize_effectiveness(value, f"agent {name}")
+            for name, value in self.agent_control_effectiveness.items()
+        }
+        if any(not name.strip() for name in normalized_agents):
+            raise ValueError("agent effectiveness names must not be empty")
+        object.__setattr__(self, "agent_control_effectiveness", normalized_agents)
         if self.evaluation_hold_steps <= 0:
             raise ValueError("evaluation_hold_steps must be positive")
 
-    def effectiveness(self, kind: str) -> float:
-        """Return the hidden actuator effectiveness for a platform kind."""
-        return float(getattr(self, f"{kind}_control_effectiveness"))
+    def effectiveness(
+        self, model: PlatformModel, agent_name: str | None = None
+    ) -> np.ndarray:
+        """Return one hidden effectiveness value per platform control channel."""
+        configured = (
+            self.agent_control_effectiveness[agent_name]
+            if agent_name in self.agent_control_effectiveness
+            else getattr(self, f"{model.kind}_control_effectiveness")
+        )
+        values = np.asarray(configured, dtype=float).reshape(-1)
+        if len(values) == 1:
+            return np.full(model.control_dim, values[0], dtype=float)
+        if len(values) != model.control_dim:
+            raise ValueError(
+                f"{agent_name or model.kind} effectiveness must have "
+                f"1 or {model.control_dim} entries"
+            )
+        return values.copy()
 
     def current(self, model: PlatformModel) -> np.ndarray:
         """Return the environmental world velocity acting on a platform."""
@@ -377,7 +402,7 @@ def run_harbor_simulation(
                     stopped_at_goal.add(name)
             else:
                 control = last_controls[name]
-            applied_control = plant.effectiveness(agent.model.kind) * control
+            applied_control = plant.effectiveness(agent.model, agent.name) * control
             next_state = agent.model.step(current[name], applied_control, config.dt)
             current_velocity = plant.current(agent.model)
             next_state = _advect_position(agent.model, next_state, current_velocity, config.dt)
@@ -454,6 +479,17 @@ def _advect_position(
     dimensions = 3 if model.kind == "rov" else 2
     value[:dimensions] += dt * np.asarray(current, dtype=float)[:dimensions]
     return value
+
+
+def _normalize_effectiveness(value, name: str) -> float | tuple[float, ...]:
+    array = np.asarray(value, dtype=float).reshape(-1)
+    if len(array) == 0 or not np.all(np.isfinite(array)):
+        raise ValueError(f"{name} control effectiveness must be finite and nonempty")
+    if np.any(array <= 0.0) or np.any(array > 1.5):
+        raise ValueError(f"{name} control effectiveness must be in (0, 1.5]")
+    if len(array) == 1:
+        return float(array[0])
+    return tuple(float(item) for item in array)
 
 
 def _coordinate_velocity(

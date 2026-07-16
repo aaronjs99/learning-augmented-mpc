@@ -65,3 +65,11 @@ prediction and inserts the filtered remaining world-velocity residual into its
 own model. It receives neither configured disturbance nor another agent's
 state. The hold window prevents transient tolerance crossings from being
 reported as successful station keeping.
+
+`python run.py harbor-fault-study` isolates asymmetric actuator faults without
+current. It compares nominal, scalar-adaptive, and diagonal-adaptive distributed
+MPC plus diagonal-adaptive LMPC. Each named platform owns its hidden vector and
+local estimate. In particular, RobEn and Inspector-Gadget are separate UGVs
+with separate model parameters and `[force, yaw moment]` effectiveness vectors.
+The resulting estimate is at the generalized-control level, not the individual
+wheel, waterjet, or thruster level.

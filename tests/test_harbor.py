@@ -16,12 +16,14 @@ from scripts.harbor import (
     HarborDisturbanceConfig,
     load_harbor_config,
     load_harbor_disturbance_config,
+    load_harbor_fault_config,
     run_harbor_simulation,
 )
 from scripts.harbor.experiments import sweep_network_robustness
 from scripts.harbor.learning import run_distributed_harbor_lmpc
 from scripts.harbor.mpc import (
     _estimate_control_effectiveness,
+    _estimate_diagonal_control_effectiveness,
     load_harbor_mpc_config,
 )
 from scripts.harbor.plotting import (
@@ -59,6 +61,25 @@ class HarborTests(unittest.TestCase):
             ],
         )
         self.assertNotEqual(agents[0].model.mass, agents[1].model.mass)
+        for parameter in (
+            "yaw_inertia",
+            "max_speed",
+            "mission_speed",
+            "max_reverse_speed",
+            "max_yaw_rate",
+            "max_force",
+            "max_yaw_moment",
+            "linear_drag",
+            "quadratic_drag",
+            "yaw_linear_drag",
+            "yaw_quadratic_drag",
+        ):
+            self.assertNotEqual(
+                getattr(agents[0].model, parameter),
+                getattr(agents[1].model, parameter),
+                f"RobEn and Inspector-Gadget must retain distinct {parameter}",
+            )
+        self.assertNotEqual(agents[0].radius, agents[1].radius)
         self.assertEqual(agents[-1].route.shape, (3, 6))
         self.assertEqual(communication.delay_steps, 1)
         self.assertEqual(communication.message_ttl_steps, 12)
@@ -92,6 +113,56 @@ class HarborTests(unittest.TestCase):
                 config,
             )
             self.assertAlmostEqual(estimate, actual_effectiveness, places=10)
+
+    def test_diagonal_estimator_recovers_independent_channel_losses(self) -> None:
+        agents, simulation, _ = load_harbor_config()
+        config = replace(
+            load_harbor_mpc_config(),
+            effectiveness_estimator_gain=1.0,
+            effectiveness_excitation_threshold=0.001,
+            effectiveness_estimator_mode="diagonal",
+        )
+        for agent in agents:
+            truth = np.linspace(0.65, 0.95, agent.model.control_dim)
+            command = 0.02 * agent.model.control_scale()
+            measured = agent.model.step(
+                agent.start,
+                truth * command,
+                simulation.dt,
+            )
+            estimate = _estimate_diagonal_control_effectiveness(
+                agent.model,
+                agent.start,
+                command,
+                measured,
+                simulation.dt,
+                np.ones(agent.model.control_dim),
+                config,
+            )
+            np.testing.assert_allclose(estimate, truth, atol=1e-9)
+
+    def test_fault_config_applies_named_channel_vectors(self) -> None:
+        agents, _, _ = load_harbor_config()
+        disturbance = load_harbor_fault_config()
+        expected = {
+            "ground_rover_1": [0.68, 0.94],
+            "ground_rover_2": [0.90, 0.70],
+            "surface_vessel": [0.58, 0.93],
+            "underwater_rov": [0.84, 0.95, 0.62, 0.96, 0.72, 0.90],
+        }
+        for agent in agents:
+            np.testing.assert_allclose(
+                disturbance.effectiveness(agent.model, agent.name),
+                expected[agent.name],
+            )
+
+    def test_agent_fault_vector_must_match_platform_control_dimension(self) -> None:
+        agents, _, _ = load_harbor_config()
+        disturbance = HarborDisturbanceConfig(
+            agent_control_effectiveness={"ground_rover_1": (0.8, 0.9, 1.0)}
+        )
+        with self.assertRaisesRegex(ValueError, "1 or 2 entries"):
+            disturbance.effectiveness(agents[0].model, agents[0].name)
 
     def test_hidden_current_advects_only_marine_execution_plant(self) -> None:
         agents, simulation, communication = load_harbor_config()

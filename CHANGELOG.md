@@ -30,6 +30,9 @@ All notable repository-level changes are tracked here.
 - Hidden execution-plant current/actuator mismatch, separated local causal
   effectiveness and residual adaptation, sustained-goal evaluation, and
   nominal-versus-adaptive robustness diagnostics.
+- Per-agent channel-wise actuator-fault injection and local diagonal
+  effectiveness identification, with scalar/diagonal MPC and fault-aware LMPC
+  comparison artifacts.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.
@@ -42,6 +45,8 @@ All notable repository-level changes are tracked here.
 - Physical harbor models are now the default; all masses, damping, hydrostatics,
   platform profiles, and axis-specific actuator limits live in
   `config/harbor.yaml`.
+- RobEn and Inspector-Gadget remain separate named UGV contracts throughout
+  simulation, optimization, fault injection, diagnostics, and regression tests.
 - Harbor learning seeds from the best clean MPC rollout and rejects later safe
   iterations that regress completion cost.
 - Triangle APF initialization now compares compact concurrent schedules against

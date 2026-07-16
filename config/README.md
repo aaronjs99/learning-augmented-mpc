@@ -31,6 +31,13 @@ solver-clean, and uses no collision slack.
 replaces guidance as the first learned safe trajectory. It is enabled for the
 physical experiment and disabled only in the frozen reduced benchmark.
 
+`actuator_fault_study` defines hidden effectiveness vectors by agent name, so
+RobEn and Inspector-Gadget can have different force and yaw-moment faults even
+though both use skid-steer dynamics. `actuator_fault_mpc` contains only the
+horizon and terminal settings used by that controlled comparison. Scalar
+values remain supported for kind-wide robustness experiments; a vector must
+match the selected platform's control dimension.
+
 `platform_profiles` lets each agent select an independent named model. The
 default UGV profiles are SRI Lab's Jackal-based RobEn and Husky-based Inspector-
 Gadget; they do not share mass, inertia, damping, limits, or footprint. Heron

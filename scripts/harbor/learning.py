@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+import numpy as np
+
 from .communication import LinkConfig
 from .mpc import DistributedHarborMPC, HarborMPCConfig
 from .simulation import (
@@ -33,7 +35,7 @@ class HarborLearningIteration:
     failure_steps_by_agent: dict[str, list[int]]
     failure_status_counts: dict[str, int]
     final_residual_estimates: dict[str, list[float]]
-    final_effectiveness_estimates: dict[str, float]
+    final_effectiveness_estimates: dict[str, np.ndarray]
 
 
 def run_distributed_harbor_lmpc(
@@ -156,9 +158,10 @@ def _controller_record(
             name: values.tolist()
             for name, values in controller.position_drift_estimates.items()
         },
-        final_effectiveness_estimates=dict(
-            controller.control_effectiveness_estimates
-        ),
+        final_effectiveness_estimates={
+            name: value.copy()
+            for name, value in controller.control_effectiveness_estimates.items()
+        },
     )
 
 

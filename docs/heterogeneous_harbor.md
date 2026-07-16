@@ -73,6 +73,38 @@ and LMPC is rejected at `127`. At `N=15`, both complete and LMPC is admitted,
 improving cost from `128` to `124` (`3.1%`). Every study rollout has zero swept
 violations and zero solver fallback.
 
+## Asymmetric Actuator-Fault Study
+
+The fault study applies a different hidden effectiveness vector to every named
+platform. RobEn and Inspector-Gadget remain separate UGVs: each has its own
+physical parameters, route, `[force, yaw moment]` fault, and local estimate.
+The controller receives no configured fault value.
+
+```text
+python run.py harbor-fault-study
+```
+
+| Controller | Step sum | Effectiveness RMSE | Heron final error | Fallbacks |
+| --- | ---: | ---: | ---: | ---: |
+| Nominal MPC | 153 | 0.233 | 0.100 m | 0 |
+| Scalar-adaptive MPC | **138** | 0.175 | 0.167 m | 0 |
+| Diagonal-adaptive MPC | 146 | **0.123** | 0.197 m | 0 |
+| Diagonal-adaptive LMPC | 146 | **0.123** | **0.116 m** | 0 |
+
+All four rollouts are complete, swept-safe, fallback-free, and use numerical-
+zero collision slack. Channel-wise adaptation reduces final effectiveness RMSE
+by about `30.0%` relative to scalar adaptation. Adding the learned terminal set
+to the diagonal estimator reduces held Heron error by about `40.9%` relative to
+diagonal MPC at the same completion cost. Scalar MPC is faster in this route,
+so this is an identification/regulation benefit rather than a universal task-
+time improvement.
+
+The diagnostic also exposes observability limits: straight-line UGV motion may
+not excite yaw moment, and some ROV wrench channels are less identifiable under
+saturation and correlated motion. An unexcited estimate staying at `1.0` must
+not be interpreted as proof of a healthy actuator. The current model identifies
+generalized force/moment channels, not individual wheel motors or thrusters.
+
 ## Initial Evidence
 
 Run the deterministic ablation without creating an output file:

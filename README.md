@@ -86,12 +86,20 @@ joint-adaptive distributed MPC/LMPC:
 
 `python3 run.py harbor-robustness`
 
+Asymmetric per-platform, per-control-channel fault study comparing scalar and
+diagonal local adaptation:
+
+`python3 run.py harbor-fault-study`
+
 These commands overwrite curated artifacts in `results/latest/harbor/`. The
 robustness command writes one metrics JSON, one combined diagnostic, and one
 GIF. Plant parameters are hidden from the controllers. Joint adaptation first
 fits scalar control effectiveness from local velocity/rate response, then fits
 the remaining position drift. Add `--no-gif` for a faster metrics-and-PNG
 iteration.
+
+The fault-study command keeps RobEn and Inspector-Gadget as distinct UGVs and
+estimates their force/yaw-moment losses separately.
 
 Useful overrides:
 

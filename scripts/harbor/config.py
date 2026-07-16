@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import fields
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +20,26 @@ from .simulation import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_HARBOR_CONFIG = PROJECT_ROOT / "config" / "harbor.yaml"
+
+
+@dataclass(frozen=True)
+class HarborFaultStudyConfig:
+    """Optimizer overrides used only by the asymmetric actuator-fault study."""
+
+    prediction_horizon: int = 15
+    terminal_goal_weight: float = 500.0
+    terminal_slack_bound: float = 2.0
+    terminal_slack_weight: float = 500.0
+
+    def __post_init__(self) -> None:
+        if self.prediction_horizon <= 0:
+            raise ValueError("fault-study prediction_horizon must be positive")
+        if min(
+            self.terminal_goal_weight,
+            self.terminal_slack_bound,
+            self.terminal_slack_weight,
+        ) < 0.0:
+            raise ValueError("fault-study MPC weights and bounds must be nonnegative")
 
 
 def load_harbor_config(
@@ -122,10 +142,42 @@ def load_harbor_disturbance_config(
         config_path = PROJECT_ROOT / config_path
     with config_path.open("r", encoding="utf-8") as stream:
         raw = yaml.safe_load(stream) or {}
+    return _disturbance_from_section(raw, "disturbance_study")
+
+
+def load_harbor_fault_config(
+    path: str | Path = DEFAULT_HARBOR_CONFIG,
+) -> HarborDisturbanceConfig:
+    """Load the strict optional ``actuator_fault_study`` YAML section."""
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / config_path
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw = yaml.safe_load(stream) or {}
+    return _disturbance_from_section(raw, "actuator_fault_study")
+
+
+def load_harbor_fault_study_config(
+    path: str | Path = DEFAULT_HARBOR_CONFIG,
+) -> HarborFaultStudyConfig:
+    """Load strict optimizer overrides for the actuator-fault experiment."""
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / config_path
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw = yaml.safe_load(stream) or {}
+    return _dataclass_from_mapping(
+        HarborFaultStudyConfig,
+        raw.get("actuator_fault_mpc", {}),
+        "actuator_fault_mpc",
+    )
+
+
+def _disturbance_from_section(raw: dict[str, Any], section: str):
     return _dataclass_from_mapping(
         HarborDisturbanceConfig,
-        raw.get("disturbance_study", {}),
-        "disturbance_study",
+        raw.get(section, {}),
+        section,
     )
 
 

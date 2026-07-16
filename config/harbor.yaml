@@ -33,6 +33,21 @@ disturbance_study:
   rov_control_effectiveness: 0.88
   evaluation_hold_steps: 12
 
+actuator_fault_study:
+  water_current: [0.0, 0.0, 0.0]
+  evaluation_hold_steps: 12
+  agent_control_effectiveness:
+    ground_rover_1: [0.68, 0.94]
+    ground_rover_2: [0.90, 0.70]
+    surface_vessel: [0.58, 0.93]
+    underwater_rov: [0.84, 0.95, 0.62, 0.96, 0.72, 0.90]
+
+actuator_fault_mpc:
+  prediction_horizon: 15
+  terminal_goal_weight: 500.0
+  terminal_slack_bound: 2.0
+  terminal_slack_weight: 500.0
+
 harbor_mpc:
   prediction_horizon: 12
   replan_interval_steps: 1

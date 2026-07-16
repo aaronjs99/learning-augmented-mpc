@@ -58,6 +58,11 @@ def main() -> None:
         from scripts.run_harbor_robustness import main as run_harbor_robustness
 
         run_harbor_robustness()
+    elif command == "harbor-fault-study":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_fault_study import main as run_fault_study
+
+        run_fault_study()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

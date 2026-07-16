@@ -39,7 +39,7 @@
     },
     "solver_calls": 192,
     "solver_fallbacks": 0,
-    "solve_time_seconds": 5.082509499741718,
+    "solve_time_seconds": 4.913107399712317,
     "max_collision_slack": 5.587008917840848e-26,
     "max_terminal_slack": 0.0,
     "solve_count_by_agent": {
@@ -84,10 +84,26 @@
       ]
     },
     "final_effectiveness_estimates": {
-      "ground_rover_1": 1.0,
-      "ground_rover_2": 1.0,
-      "surface_vessel": 1.0,
-      "underwater_rov": 1.0
+      "ground_rover_1": [
+        1.0,
+        1.0
+      ],
+      "ground_rover_2": [
+        1.0,
+        1.0
+      ],
+      "surface_vessel": [
+        1.0,
+        1.0
+      ],
+      "underwater_rov": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
     }
   },
   {
@@ -105,7 +121,7 @@
     },
     "solver_calls": 172,
     "solver_fallbacks": 0,
-    "solve_time_seconds": 3.21701539948117,
+    "solve_time_seconds": 3.264835301088169,
     "max_collision_slack": 0.0,
     "max_terminal_slack": 0.9071320979220779,
     "solve_count_by_agent": {
@@ -150,10 +166,26 @@
       ]
     },
     "final_effectiveness_estimates": {
-      "ground_rover_1": 1.0,
-      "ground_rover_2": 1.0,
-      "surface_vessel": 1.0,
-      "underwater_rov": 1.0
+      "ground_rover_1": [
+        1.0,
+        1.0
+      ],
+      "ground_rover_2": [
+        1.0,
+        1.0
+      ],
+      "surface_vessel": [
+        1.0,
+        1.0
+      ],
+      "underwater_rov": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
     }
   },
   {
@@ -171,7 +203,7 @@
     },
     "solver_calls": 172,
     "solver_fallbacks": 0,
-    "solve_time_seconds": 3.174110499327071,
+    "solve_time_seconds": 3.3533778995042667,
     "max_collision_slack": 0.0,
     "max_terminal_slack": 0.9071320979220779,
     "solve_count_by_agent": {
@@ -216,10 +248,26 @@
       ]
     },
     "final_effectiveness_estimates": {
-      "ground_rover_1": 1.0,
-      "ground_rover_2": 1.0,
-      "surface_vessel": 1.0,
-      "underwater_rov": 1.0
+      "ground_rover_1": [
+        1.0,
+        1.0
+      ],
+      "ground_rover_2": [
+        1.0,
+        1.0
+      ],
+      "surface_vessel": [
+        1.0,
+        1.0
+      ],
+      "underwater_rov": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
     }
   }
 ]
