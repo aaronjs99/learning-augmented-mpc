@@ -68,6 +68,26 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       globally and per agent, enabling safety interventions and performance
       changes to be tied back to the optimizer's actual relaxation usage.
 
+11. **Swept-safe compact APF staging**
+    - Order-conditioned APF routes are delay-scheduled for concurrent execution
+      using pairwise swept-distance tables and a minimum-makespan search.
+    - Delayed controls are replayed through the nonlinear seven-state dynamics;
+      the scheduler never splices position-only paths into the learned safe set.
+    - Every compact candidate competes against the original sequential seed and
+      must pass the same independent admission validator, so infeasible overlap
+      automatically falls back to the established behavior.
+
+12. **Untethered heterogeneous harbor coordination**
+    - UGV, USV, and ROV models expose a common world-velocity guidance contract
+      while retaining different state dimensions, controls, dynamics, and
+      operating domains.
+    - Range, rate, delay, message lifetime, dropout, and random seed are YAML
+      configuration, and communication changes information without introducing
+      any physical relative-pose constraint.
+    - Against independent goal tracking, the first deterministic communication
+      policy reduces swept violations from `7` to `0` and raises minimum 3D
+      separation from `0.172 m` to `1.634 m`, while all three platforms finish.
+
 ## Current Evidence
 
 The strongest current success case is `manta_crossover`:
@@ -113,6 +133,26 @@ terminal relaxation is therefore continuously active but not saturated; simply
 raising its bound or retuning collision penalties is not supported by this
 evidence.
 
+Compact APF staging materially improves the triangle initialization before any
+LMPC solve. The selected safe-set makespan falls from `414` first-hit steps for
+the slowest agent in the prior sequential seed to `199` steps, with per-agent
+first hits of `199/189/147`. Independent swept validation reports `0.639 m`
+minimum pairwise separation against the configured `0.600 m` requirement and
+`0.932 m` minimum clearance outside the inflated obstacle. The complete
+seven-state/control sequence is also replay-checked one transition at a time in
+the test suite. The two-agent crossover remains valid and shortens to `155`
+steps, demonstrating that compact staging is not triangle-specific.
+
+The compact initializer does not, by itself, solve the triangle LMPC problem.
+In a 60-step controlled probe, the learned rollout remains swept-safe and
+solver-clean, reaches agent 2 at step `55`, and uses no execution-time safety
+interventions. It also exposes `0.0303` maximum hyperplane slack and `0.398`
+maximum terminal slack, both larger than under strictly sequential staging. At
+200 steps, agents 0 and 2 improve from APF first-hit costs `117/75` to `99/55`,
+but agent 1 remains incomplete and 66 fallback actions occur after its clean
+solve prefix. Compact staging is therefore retained for its objective APF
+makespan improvement, while complete three-agent LMPC remains an open result.
+
 A pruned discrete-terminal experiment was also rejected. Fixing the terminal
 to the nominal sampled point took `120.6` seconds, slightly worsened agent 0's
 60-step goal error from `4.114` to `4.257`, and left maximum terminal slack at
@@ -131,31 +171,25 @@ staged waiting agent near its start.
 
 ## High-Value Next Experiments
 
-1. **Compact concurrent APF initialization**
-   - Replace strictly sequential staging with delay-scheduled overlapping APF
-     routes that are admitted only after swept validation.
-   - Expected benefit: shorten the current 3-agent seed makespan before LMPC
-     inherits its conservative timing.
-
-2. **Adaptive per-agent terminal regularization**
+1. **Adaptive per-agent terminal regularization**
    - Increase terminal weight for agents expected to hold and relax it only for
      agents whose measured terminal mismatch grows during active motion.
    - Expected benefit: retain staged coordination without over-regularizing the
      agent currently earning task-time improvement.
 
-3. **Control-rate constraints**
+2. **Control-rate constraints**
    - Add configurable fin-command slew limits and measure completion time,
      fallback rate, and control effort.
    - Expected benefit: suppress abrupt optimizer commands that are feasible in
      the model but difficult for physical manta actuators to track.
 
-4. **Waypoint terminal repair**
+3. **Waypoint terminal repair**
    - A capped APF repair phase exists behind `repair_incomplete_with_apf`, but
      current probes show it is still too conservative or too slow for triangle.
    - Expected benefit after refinement: turn safe partial LMPC routes into
      complete learned safe-set members without hiding the repair status.
 
-5. **Scenario-class benchmark table**
+4. **Scenario-class benchmark table**
    - Track APF baseline, 2-agent success, 3-agent nominal crossing, narrow gate,
      and offset crossing separately.
    - Expected benefit: turns failure modes into measurable research claims.

@@ -1,4 +1,4 @@
-"""Root command dispatcher for the manta LMPC project."""
+"""Root command dispatcher for manta LMPC and harbor experiments."""
 
 from __future__ import annotations
 
@@ -33,6 +33,11 @@ def main() -> None:
         from scripts.run_tests import main as run_tests
 
         run_tests()
+    elif command == "harbor":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor import main as run_harbor
+
+        run_harbor()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

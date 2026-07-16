@@ -1,6 +1,8 @@
 # Config
 
-`manta.yaml` is the default runtime configuration for the project.
+`manta.yaml` is the default runtime configuration for manta LMPC.
+`harbor.yaml` independently configures heterogeneous UGV/USV/ROV dynamics,
+operating domains, coordination, and delayed communication experiments.
 
 It owns the scenario states/goals, obstacle, dynamics constants, APF initializer
 tuning, LMPC horizons/weights/slacks, and output defaults. CLI flags in
@@ -30,10 +32,14 @@ reachability. The default `10000` reduced unintended waiting-agent drift and
 terminal relaxation by about one order of magnitude in short A/B probes without
 adding solver failures or runtime.
 
-`static_agent_radius_scales` controls the APF staging search. Recovery behavior
-is configured with `fallback_control_levels`, `fallback_diagonal_levels`, and
-the three `fallback_*_weight` values; these preserve the original candidate
-grid and scoring while making experiments reproducible from YAML.
+`static_agent_radius_scales` controls the APF staging search. When
+`compact_staging` is enabled, the best `compact_staging_candidates` valid route
+sets are also delay-scheduled for concurrent execution. The scheduler supports
+up to `compact_staging_max_agents` agents and keeps the original sequential
+candidate as a fallback. Recovery behavior is configured with
+`fallback_control_levels`, `fallback_diagonal_levels`, and the three
+`fallback_*_weight` values; these preserve the original candidate grid and
+scoring while making experiments reproducible from YAML.
 
 `priority_hyperplanes` enables asymmetric pairwise margins. The total
 separation budget for each pair is preserved, but the lower-priority agent gets

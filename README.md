@@ -1,6 +1,7 @@
 # MAE 271D: Decentralized Learning MPC
 
-Config-driven multi-agent manta LMPC implementation. The active state is:
+Config-driven multi-agent manta LMPC implementation plus a modular
+heterogeneous harbor research testbed. The manta state is:
 
 `[x, y, theta, p_L, q_L, p_R, q_R]`
 
@@ -20,6 +21,8 @@ The default run is controlled by `config/manta.yaml`.
 - `docs/`: research contribution notes and experiment roadmap.
 - `scripts/dynamics/`: manta dynamics and RK4 integration.
 - `scripts/simulation/`: manta environment and scenario dataclasses.
+- `scripts/harbor/`: independent UGV/USV/ROV dynamics, domains, communication,
+  and heterogeneous simulation.
 - `scripts/learning/`: APF initialization, safe-set sampling, SVM hyperplanes, runner.
 - `scripts/mpc/`: CasADi LMPC agent builder.
 - `scripts/metrics/`, `scripts/plotting/`: diagnostics, plots, and GIFs.
@@ -50,6 +53,10 @@ Compact benchmark sweep, APF-only by default:
 Fast regression tests (no IPOPT solve):
 
 `python3 run.py test`
+
+Heterogeneous harbor communication ablation (writes no file by default):
+
+`python3 run.py harbor`
 
 Useful overrides:
 

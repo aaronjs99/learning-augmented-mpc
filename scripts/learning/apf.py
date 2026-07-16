@@ -25,6 +25,9 @@ class APFConfig:
     base_mu_min: float = 0.5
     base_mu_max: float = 1.5
     static_agent_radius_scales: tuple[float, ...] = (1.5, 1.2, 1.0, 0.85, 0.7)
+    compact_staging: bool = True
+    compact_staging_candidates: int = 3
+    compact_staging_max_agents: int = 3
 
     def __post_init__(self) -> None:
         """Validate APF tuning independently of a simulation run."""
@@ -46,6 +49,10 @@ class APFConfig:
             scale <= 0.0 for scale in self.static_agent_radius_scales
         ):
             raise ValueError("apf.static_agent_radius_scales must be positive")
+        if self.compact_staging_candidates <= 0:
+            raise ValueError("apf.compact_staging_candidates must be positive")
+        if self.compact_staging_max_agents < 2:
+            raise ValueError("apf.compact_staging_max_agents must be at least 2")
 
 
 def compute_apf_control(

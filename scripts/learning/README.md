@@ -3,7 +3,8 @@
 Learning and initialization modules for manta LMPC.
 
 - `apf.py`: iteration-0 APF autopilot with optional extra static obstacles, recorded controls, and one-step APF backup control.
-- `safe_sets.py`: dynamically valid staged safe-set and control-history construction plus terminal sampling.
+- `safe_sets.py`: dynamically valid sequential and swept-safe compact staging,
+  control-history construction, and terminal sampling.
 - `hyperplanes.py`: SVM spatial hyperplanes for pairwise avoidance, including asymmetric margins for priority-aware coordination.
 - `policies.py`: reusable priority allocation and safe-memory warm-start policies.
 - `recovery.py`: bounded APF fallback selection and optional staged terminal repair.
@@ -18,6 +19,11 @@ Tuning values for these modules are loaded from `config/manta.yaml`.
 Only rollouts that are both collision-free and complete are added back into the
 learned safe set. Safe-but-incomplete LMPC attempts are still reported in
 `summary.json`, but they are not used as terminal safe-set data.
+
+Compact APF staging delay-schedules the best order-conditioned routes for
+concurrent execution. It replays every delayed control through the full
+seven-state dynamics, validates swept separation independently, and retains the
+original sequential route as an automatic fallback.
 
 Safety is checked independently of the optimizer. Unsafe proposed transitions
 are replaced by bounded APF actions or zero-translation holds, and the report
