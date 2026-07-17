@@ -81,6 +81,7 @@ class HarborTimeVaryingFaultConfig:
     observation_seeds: tuple[int, ...] = (131, 197, 263)
     change_threshold: float = 2.5
     covariance_inflation: float = 12.0
+    event_detection_window_steps: int = 16
 
     def __post_init__(self) -> None:
         seeds = tuple(int(seed) for seed in self.observation_seeds)
@@ -92,6 +93,8 @@ class HarborTimeVaryingFaultConfig:
             raise ValueError(
                 "change threshold must be positive and covariance inflation at least 1"
             )
+        if self.event_detection_window_steps <= 0:
+            raise ValueError("event detection window must be positive")
         object.__setattr__(self, "observation_seeds", seeds)
 
 

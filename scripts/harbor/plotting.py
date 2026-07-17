@@ -1154,15 +1154,20 @@ def save_prediction_ablation_plot(records, summary, path: str | Path) -> Path:
 
 
 def save_time_varying_fault_plot(records, summary, path: str | Path) -> Path:
-    """Plot scheduled-fault tracking, task cost, and covariance adaptation."""
+    """Plot temporary-fault tracking, recovery, task cost, and event telemetry."""
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    labels = ("Fixed-covariance RLS", "Innovation-adaptive RLS")
-    short_labels = ("Fixed covariance", "Innovation adaptive")
-    colors = ("#b66a50", "#2f9c95")
+    labels = (
+        "Fixed-covariance RLS",
+        "Innovation-threshold RLS",
+        "Chi-square CUSUM RLS",
+        "CUSUM-triggered probing RLS",
+    )
+    short_labels = ("Fixed", "Threshold", "CUSUM", "CUSUM + probes")
+    colors = ("#b66a50", "#2f9c95", "#3974a8", "#7048a8")
     seeds = sorted({record["seed"] for record in records})
     fig, axes = plt.subplots(2, 2, figsize=(15.0, 9.0))
-    tracking_axis, platform_axis, cost_axis, trigger_axis = axes.flat
+    tracking_axis, phase_axis, cost_axis, event_axis = axes.flat
 
     for label, short, color in zip(labels, short_labels, colors, strict=True):
         histories = [
@@ -1181,7 +1186,8 @@ def save_time_varying_fault_plot(records, summary, path: str | Path) -> Path:
         {
             step
             for record in records
-            for step in record["fault_onset_steps"].values()
+            for events in record["fault_event_steps"].values()
+            for step in events
         }
     )
     for index, step in enumerate(event_steps):
@@ -1190,7 +1196,7 @@ def save_time_varying_fault_plot(records, summary, path: str | Path) -> Path:
             color="#666666",
             linestyle=":",
             alpha=0.45,
-            label="fault onset" if index == 0 else None,
+            label="plant change" if index == 0 else None,
         )
     tracking_axis.set_title("Global Actuator-Effectiveness Tracking")
     tracking_axis.set_xlabel("simulation step")
@@ -1198,37 +1204,33 @@ def save_time_varying_fault_plot(records, summary, path: str | Path) -> Path:
     tracking_axis.grid(True, alpha=0.25)
     tracking_axis.legend(fontsize=8)
 
-    platform_names = tuple(records[0]["platform_post_fault_rmse"])
-    platform_labels = {
-        "ground_rover_1": "RobEn",
-        "ground_rover_2": "Inspector-Gadget",
-        "surface_vessel": "Heron",
-        "underwater_rov": "BlueROV2",
-    }
-    x = np.arange(len(platform_names))
+    controller_x = np.arange(len(labels))
+    fault_values = [
+        summary["controllers"][label]["mean_fault_interval_rmse"] for label in labels
+    ]
+    recovery_values = [
+        summary["controllers"][label]["mean_recovery_rmse"] for label in labels
+    ]
     width = 0.36
-    for offset, (label, short, color) in enumerate(
-        zip(labels, short_labels, colors, strict=True)
-    ):
-        selected = [record for record in records if record["controller"] == label]
-        values = [
-            np.mean([record["platform_post_fault_rmse"][name] for record in selected])
-            for name in platform_names
-        ]
-        platform_axis.bar(
-            x + (offset - 0.5) * width,
-            values,
-            width,
-            color=color,
-            label=short,
-        )
-    platform_axis.set_title("Post-Onset Tracking by Platform")
-    platform_axis.set_ylabel("mean channel RMSE")
-    platform_axis.set_xticks(
-        x, [platform_labels.get(name, name) for name in platform_names], rotation=15
+    phase_axis.bar(
+        controller_x - width / 2,
+        fault_values,
+        width,
+        color="#c45a3c",
+        label="degraded interval",
     )
-    platform_axis.grid(True, axis="y", alpha=0.25)
-    platform_axis.legend(fontsize=8)
+    phase_axis.bar(
+        controller_x + width / 2,
+        recovery_values,
+        width,
+        color="#4b88b8",
+        label="after recovery",
+    )
+    phase_axis.set_title("Tracking by Plant Phase")
+    phase_axis.set_ylabel("mean channel RMSE")
+    phase_axis.set_xticks(controller_x, short_labels, rotation=12)
+    phase_axis.grid(True, axis="y", alpha=0.25)
+    phase_axis.legend(fontsize=8)
 
     by_key = {
         (record["seed"], record["controller"]): record for record in records
@@ -1244,28 +1246,31 @@ def save_time_varying_fault_plot(records, summary, path: str | Path) -> Path:
     cost_axis.grid(True, alpha=0.25)
     cost_axis.legend(fontsize=8)
 
-    adaptive = [
-        record for record in records if record["controller"] == labels[1]
+    recall = [100.0 * summary["controllers"][label]["mean_event_recall"] for label in labels]
+    false_events = [
+        summary["controllers"][label]["mean_false_inflations"] for label in labels
     ]
-    trigger_values = [
-        np.mean(
-            [len(record["change_steps_by_agent"][name]) for record in adaptive]
+    bars = event_axis.bar(controller_x, recall, color=colors)
+    for bar, false_count in zip(bars, false_events, strict=True):
+        event_axis.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 2.0,
+            f"false {false_count:.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
         )
-        for name in platform_names
-    ]
-    trigger_axis.bar(x, trigger_values, color="#7048a8")
-    trigger_axis.set_title("Innovation-Triggered Covariance Inflation")
-    trigger_axis.set_ylabel("mean inflation events")
-    trigger_axis.set_xticks(
-        x, [platform_labels.get(name, name) for name in platform_names], rotation=15
-    )
-    trigger_axis.grid(True, axis="y", alpha=0.25)
+    event_axis.set_title("Causal Event Recall")
+    event_axis.set_ylabel("scheduled changes matched within window (%)")
+    event_axis.set_ylim(0.0, 112.0)
+    event_axis.set_xticks(controller_x, short_labels, rotation=12)
+    event_axis.grid(True, axis="y", alpha=0.25)
 
-    comparison = summary["paired_adaptive_vs_fixed"]
+    comparison = summary["paired_vs_fixed"]["Chi-square CUSUM RLS"]
     fig.suptitle(
-        "Online Tracking of Scheduled Heterogeneous Actuator Faults\n"
-        f"adaptive wins {comparison['adaptive_wins']}/{comparison['trials']}; "
-        f"mean post-onset RMSE reduction "
+        "Online Tracking of Temporary Heterogeneous Actuator Faults\n"
+        f"CUSUM wins {comparison['adaptive_wins']}/{comparison['trials']}; "
+        f"mean degraded-interval RMSE reduction "
         f"{100.0 * comparison['mean_relative_rmse_reduction']:.1f}%",
         fontsize=15,
     )

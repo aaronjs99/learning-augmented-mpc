@@ -98,8 +98,9 @@ goal-bounded peer prediction using one common safe-memory seed and matched
 fault/noise cases. It writes one JSON and one three-panel figure covering
 fallbacks, task cost, and actuator-estimation error.
 
-`python run.py harbor-time-varying-fault-study` compares fixed-covariance and
-innovation-adaptive recursive identification under scheduled per-channel plant
-losses. The schedule is execution truth used only for offline RMSE scoring. The
-controller sees local noisy transitions, and the artifact reports tracking,
-task cost, safety, solver recovery, and covariance-inflation events.
+`python run.py harbor-time-varying-fault-study` compares fixed covariance,
+one-step innovation adaptation, chi-square CUSUM, and CUSUM-triggered active
+re-identification under temporary per-channel plant losses. The schedule is
+execution truth used only for offline scoring. The artifact separates degraded
+and recovered tracking, task cost, causal event recall, false inflations,
+solver/safety evidence, and physical probe counts.

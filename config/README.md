@@ -67,6 +67,13 @@ recursive estimate after an unusually large normalized innovation. Persistence
 and cooldown limit repeated inflation. These events indicate model surprise,
 not a certified fault classification.
 
+`effectiveness_rls_change_detector: cusum` accumulates normalized innovation-
+squared excess above `effectiveness_rls_cusum_drift` and inflates covariance at
+`effectiveness_rls_cusum_threshold`. `identification_arm_on_change` keeps active
+probing dormant until such an event; `identification_reset_on_change` then
+clears only that agent's local excitation, information, quota, and rejection
+state. The execution-plant schedule remains unavailable to both mechanisms.
+
 `obstacle_prediction_mode` selects legacy unbounded `constant_velocity` or
 `goal_bounded_velocity` peer extrapolation. The latter retains constant
 velocity when peer motion is not aligned with communicated intent, but caps

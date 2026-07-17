@@ -71,17 +71,22 @@ time_varying_fault_study:
   agent_control_effectiveness_schedule:
     ground_rover_1:
       - {step: 12, effectiveness: [0.62, 0.88]}
+      - {step: 34, effectiveness: [1.0, 1.0]}
     ground_rover_2:
       - {step: 16, effectiveness: [0.86, 0.58]}
+      - {step: 38, effectiveness: [1.0, 1.0]}
     surface_vessel:
       - {step: 14, effectiveness: [0.60, 0.90]}
+      - {step: 36, effectiveness: [1.0, 1.0]}
     underwater_rov:
       - {step: 8, effectiveness: [0.82, 0.94, 0.60, 0.95, 0.70, 0.88, 0.84, 0.66]}
+      - {step: 30, effectiveness: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]}
 
 time_varying_fault_experiment:
   observation_seeds: [131, 197, 263]
   change_threshold: 5.0
-  covariance_inflation: 12.0
+  covariance_inflation: 25.0
+  event_detection_window_steps: 16
 
 harbor_mpc:
   prediction_horizon: 12
@@ -112,10 +117,13 @@ harbor_mpc:
   effectiveness_rls_process_noise: 0.00001
   effectiveness_rls_innovation_gate: 3.0
   effectiveness_rls_adaptive_covariance: false
+  effectiveness_rls_change_detector: threshold
   effectiveness_rls_change_threshold: 3.0
   effectiveness_rls_covariance_inflation: 8.0
   effectiveness_rls_change_persistence: 1
   effectiveness_rls_change_cooldown_steps: 20
+  effectiveness_rls_cusum_drift: 2.5
+  effectiveness_rls_cusum_threshold: 12.0
   effectiveness_min: 0.5
   effectiveness_max: 1.2
   effectiveness_excitation_threshold: 0.05
@@ -127,6 +135,8 @@ harbor_mpc:
   identification_measurement_noise: 0.005
   identification_target_std: 0.15
   identification_fault_focus_weight: 2.0
+  identification_reset_on_change: false
+  identification_arm_on_change: false
   identification_probe_interval_steps: 1
   identification_min_probes_per_channel: 2
   identification_max_rejections: 2

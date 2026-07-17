@@ -173,12 +173,16 @@ state-observation noise. Controller inputs are noisy; safety and completion are
 evaluated from plant truth. Recursive passive estimation reduces mean actuator
 RMSE from `0.1529` for the instantaneous fit to `0.0392`, a mean paired relative
 reduction of `72.42%`, and wins all five matched cases. The paired absolute
-reduction is `0.1137` with bootstrap 95% interval `[0.0779, 0.1496]`. Recursive
-active probing reaches `0.0344`. One-pass and information-aware probe order tie in this noisy
-ensemble, so the noise experiment supports recursive estimation, not a further
-scheduling advantage. Every rollout completes and remains collision-safe.
-All 15 recursive-controller rollouts are solver-clean; the instantaneous
-baseline retains one Inspector-Gadget fallback in seed 71.
+reduction is `0.1137` with bootstrap 95% interval `[0.0779, 0.1496]`.
+
+After correcting the recursive-estimator probe gate, one-pass and information-
+aware probing reach `0.0748` and `0.0510`; passive recursive RLS remains best at
+`0.0392`. Information-aware ordering beats one-pass in only two of five cases.
+Its paired mean reduction is `0.0238`, but bootstrap interval `[-0.0055,
+0.0532]` crosses zero. It lowers completion cost by `6.8` steps on average.
+Every rollout completes and remains collision-safe. Fourteen of 15 recursive
+rollouts are solver-clean; one-pass retains one fallback in seed 37. The
+instantaneous baseline retains one Inspector-Gadget fallback in seed 71.
 
 ## Intent-Bounded Peer Prediction
 
@@ -202,20 +206,27 @@ the mechanism.
 python run.py harbor-time-varying-fault-study
 ```
 
-This matched ablation switches hidden per-channel effectiveness vectors during
-execution while retaining the same safe-memory seed, communication model,
-fault schedule, and noisy observations for each estimator pair. The controller
-does not receive fault timing or magnitude. Innovation-adaptive covariance wins
-all three observation seeds: mean post-onset RMSE changes `0.1711 -> 0.1371`, a
-`19.92%` paired relative reduction, final RMSE changes `0.1442 -> 0.1074`, and
-mean sustained-completion cost changes `161.7 -> 154.7`. Every rollout
-completes, is collision-safe, and is solver-clean.
+This matched ablation switches hidden per-channel effectiveness vectors down
+and back to nominal during active execution while retaining the same safe-
+memory seed, communication model, schedule, and noisy observations for every
+controller. The controller does not receive change timing or magnitude.
+Passive chi-square CUSUM wins all three seeds during degradation: RMSE changes
+`0.1695 -> 0.0979` (`42.27%` paired relative reduction), and completion cost
+changes `154.3 -> 149.3`. A one-step innovation threshold reaches `0.1006` at
+the same cost.
 
-Covariance-inflation events are reported for auditability but are not scored as
-fault classifications. The normalized innovation can respond to observation
-noise and residual model mismatch as well as actuator loss. The supported claim
-is improved online effectiveness tracking and task performance under the
-configured abrupt-fault benchmark.
+Change-triggered information probing remains dormant until CUSUM fires, then
+reopens the local information budget and executes one safe request per physical
+channel. Its recovery RMSE changes `0.1736 -> 0.1533` (`11.70%`), final RMSE
+improves `9.61%`, and completion cost is `150.3`. All 12 rollouts complete,
+remain collision-safe, solver-clean, and at numerical-zero collision slack.
+
+Covariance-inflation events are reported for auditability but are not treated
+as certified classifications. Mean causal recall is only `50-58%`, with
+`2.0-2.7` unmatched inflations per run. Normalized innovations can respond to
+noise and model mismatch as well as actuator loss. The supported claim is
+improved online tracking and recovery under the configured temporary-fault
+benchmark.
 
 ## Initial Evidence
 

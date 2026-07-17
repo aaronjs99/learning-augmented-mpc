@@ -49,10 +49,13 @@ class HarborMPCConfig:
     effectiveness_rls_process_noise: float = 1.0e-5
     effectiveness_rls_innovation_gate: float = 3.0
     effectiveness_rls_adaptive_covariance: bool = False
+    effectiveness_rls_change_detector: str = "threshold"
     effectiveness_rls_change_threshold: float = 3.0
     effectiveness_rls_covariance_inflation: float = 8.0
     effectiveness_rls_change_persistence: int = 1
     effectiveness_rls_change_cooldown_steps: int = 20
+    effectiveness_rls_cusum_drift: float = 1.5
+    effectiveness_rls_cusum_threshold: float = 4.0
     effectiveness_min: float = 0.5
     effectiveness_max: float = 1.2
     effectiveness_excitation_threshold: float = 0.05
@@ -64,6 +67,8 @@ class HarborMPCConfig:
     identification_measurement_noise: float = 0.005
     identification_target_std: float = 0.15
     identification_fault_focus_weight: float = 2.0
+    identification_reset_on_change: bool = False
+    identification_arm_on_change: bool = False
     identification_probe_interval_steps: int = 1
     identification_min_probes_per_channel: int = 2
     identification_max_rejections: int = 2
@@ -109,6 +114,8 @@ class HarborMPCConfig:
             self.effectiveness_rls_innovation_gate,
             self.effectiveness_rls_change_threshold,
             self.effectiveness_rls_covariance_inflation,
+            self.effectiveness_rls_cusum_drift,
+            self.effectiveness_rls_cusum_threshold,
             self.effectiveness_min,
             self.effectiveness_max,
             self.effectiveness_excitation_threshold,
@@ -138,6 +145,10 @@ class HarborMPCConfig:
             raise ValueError("RLS noise, gates, and covariance inflation must be positive")
         if self.effectiveness_rls_covariance_inflation < 1.0:
             raise ValueError("effectiveness_rls_covariance_inflation must be at least 1")
+        if self.effectiveness_rls_change_detector not in {"threshold", "cusum"}:
+            raise ValueError(
+                "effectiveness_rls_change_detector must be threshold or cusum"
+            )
         if not self.effectiveness_min <= 1.0 <= self.effectiveness_max:
             raise ValueError("effectiveness bounds must contain the nominal value 1")
         if self.effectiveness_estimator_mode not in {
@@ -656,7 +667,7 @@ class DistributedHarborMPC:
             agent.name: [] for agent in agents
         }
         self.effectiveness_change_evidence_by_agent = {
-            agent.name: 0 for agent in agents
+            agent.name: 0.0 for agent in agents
         }
         self.effectiveness_last_change_step_by_agent = {
             agent.name: -config.effectiveness_rls_change_cooldown_steps
@@ -681,12 +692,19 @@ class DistributedHarborMPC:
             agent.name: np.zeros(agent.model.control_dim, dtype=int)
             for agent in agents
         }
+        self.identification_probe_quota_counts = {
+            agent.name: np.zeros(agent.model.control_dim, dtype=int)
+            for agent in agents
+        }
         self.identification_probe_sequence_by_agent: dict[str, list[int]] = {
             agent.name: [] for agent in agents
         }
         self.identification_probe_rejection_counts = {
             agent.name: np.zeros(agent.model.control_dim, dtype=int)
             for agent in agents
+        }
+        self.identification_change_armed_by_agent = {
+            agent.name: not config.identification_arm_on_change for agent in agents
         }
         self.solve_count = 0
         self.fallback_count = 0
@@ -800,6 +818,7 @@ class DistributedHarborMPC:
                 self.identification_probe_channel_counts[agent.name][
                     probe_channel
                 ] += 1
+                self.identification_probe_quota_counts[agent.name][probe_channel] += 1
                 self.identification_probe_sequence_by_agent[agent.name].append(
                     probe_channel
                 )
@@ -878,6 +897,13 @@ class DistributedHarborMPC:
                     self.effectiveness_last_change_step_by_agent[agent.name] = (
                         current_step
                     )
+                    if self.config.identification_reset_on_change:
+                        self.excitation_energy[agent.name].fill(0.0)
+                        self.information_matrices[agent.name].fill(0.0)
+                        self.identification_probe_quota_counts[agent.name].fill(0)
+                        self.identification_probe_rejection_counts[agent.name].fill(0)
+                    if self.config.identification_arm_on_change:
+                        self.identification_change_armed_by_agent[agent.name] = True
             else:
                 self.control_effectiveness_estimates[agent.name] = (
                     _estimate_effectiveness_vector(
@@ -925,7 +951,9 @@ class DistributedHarborMPC:
         if (
             not self.config.active_identification
             or not self.config.control_effectiveness_adaptation
-            or self.config.effectiveness_estimator_mode != "diagonal"
+            or not self.identification_change_armed_by_agent[agent.name]
+            or self.config.effectiveness_estimator_mode
+            not in {"diagonal", "recursive_diagonal"}
             or np.linalg.norm(desired_velocity) <= 1e-6
             or step % self.config.identification_probe_interval_steps != 0
         ):
@@ -955,7 +983,7 @@ class DistributedHarborMPC:
             channel = _information_identification_channel(
                 self.information_matrices[agent.name],
                 increments,
-                self.identification_probe_channel_counts[agent.name],
+                self.identification_probe_quota_counts[agent.name],
                 self.identification_probe_rejection_counts[agent.name],
                 self.config,
                 effectiveness_estimate=self.control_effectiveness_estimates[
@@ -965,7 +993,7 @@ class DistributedHarborMPC:
         else:
             channel = _identification_channel(
                 self.excitation_energy[agent.name],
-                self.identification_probe_channel_counts[agent.name],
+                self.identification_probe_quota_counts[agent.name],
                 self.identification_probe_rejection_counts[agent.name],
                 self.config,
             )
@@ -1140,9 +1168,9 @@ def _recursive_diagonal_effectiveness_update(
     covariance: np.ndarray,
     config: HarborMPCConfig,
     *,
-    change_evidence: int = 0,
+    change_evidence: float = 0.0,
     allow_change: bool = True,
-) -> tuple[np.ndarray, np.ndarray, bool, int]:
+) -> tuple[np.ndarray, np.ndarray, bool, float]:
     """Update per-actuator gains with robust covariance-form recursive LS."""
     prior = np.asarray(prior, dtype=float).reshape(model.control_dim)
     covariance = np.asarray(covariance, dtype=float).reshape(
@@ -1186,20 +1214,42 @@ def _recursive_diagonal_effectiveness_update(
         return inverse, distance
 
     inverse_innovation, mahalanobis = innovation_statistics(predicted_covariance)
-    change_candidate = bool(
-        config.effectiveness_rls_adaptive_covariance
-        and mahalanobis > config.effectiveness_rls_change_threshold
-        and np.linalg.norm(previous_control / model.control_scale())
+    excited = bool(
+        np.linalg.norm(previous_control / model.control_scale())
         >= config.effectiveness_excitation_threshold
     )
-    change_evidence = change_evidence + 1 if change_candidate else 0
-    change_detected = bool(
-        change_candidate
-        and change_evidence >= config.effectiveness_rls_change_persistence
-        and allow_change
-    )
+    change_detected = False
+    if not config.effectiveness_rls_adaptive_covariance:
+        change_evidence = 0.0
+    elif config.effectiveness_rls_change_detector == "threshold":
+        change_candidate = bool(
+            excited and mahalanobis > config.effectiveness_rls_change_threshold
+        )
+        change_evidence = change_evidence + 1.0 if change_candidate else 0.0
+        change_detected = bool(
+            change_candidate
+            and change_evidence >= config.effectiveness_rls_change_persistence
+            and allow_change
+        )
+    elif allow_change:
+        normalized_innovation_squared = mahalanobis**2 / len(innovation)
+        change_evidence = (
+            max(
+                0.0,
+                change_evidence
+                + normalized_innovation_squared
+                - config.effectiveness_rls_cusum_drift,
+            )
+            if excited
+            else 0.0
+        )
+        change_detected = bool(
+            change_evidence >= config.effectiveness_rls_cusum_threshold
+        )
+    else:
+        change_evidence = 0.0
     if change_detected:
-        change_evidence = 0
+        change_evidence = 0.0
         predicted_covariance *= config.effectiveness_rls_covariance_inflation
         inverse_innovation, mahalanobis = innovation_statistics(predicted_covariance)
     if mahalanobis > config.effectiveness_rls_innovation_gate:

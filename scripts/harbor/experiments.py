@@ -663,7 +663,7 @@ def run_time_varying_fault_study(
     experiment_config: HarborTimeVaryingFaultConfig,
     observation_noise: HarborObservationNoiseConfig,
 ) -> list[HarborFaultEnsembleCase]:
-    """Compare fixed and innovation-adaptive RLS on scheduled faults."""
+    """Compare fixed, threshold-adaptive, and CUSUM-adaptive scheduled-fault RLS."""
     study_mpc = replace(
         mpc_config,
         prediction_horizon=study_config.prediction_horizon,
@@ -696,9 +696,10 @@ def run_time_varying_fault_study(
         noise = replace(observation_noise, enabled=True, seed=observation_seed)
         trials = []
         print(f"Scheduled-fault observation seed {observation_seed}", flush=True)
-        for label, adaptive in (
-            ("Fixed-covariance RLS", False),
-            ("Innovation-adaptive RLS", True),
+        for label, adaptive, detector in (
+            ("Fixed-covariance RLS", False, "threshold"),
+            ("Innovation-threshold RLS", True, "threshold"),
+            ("Chi-square CUSUM RLS", True, "cusum"),
         ):
             trials.extend(
                 _run_fault_trials(
@@ -709,6 +710,7 @@ def run_time_varying_fault_study(
                     replace(
                         study_mpc,
                         effectiveness_rls_adaptive_covariance=adaptive,
+                        effectiveness_rls_change_detector=detector,
                         effectiveness_rls_change_threshold=(
                             experiment_config.change_threshold
                         ),
@@ -733,6 +735,42 @@ def run_time_varying_fault_study(
                     observation_noise=noise,
                 )
             )
+        trials.extend(
+            _run_fault_trials(
+                agents,
+                simulation,
+                evaluation,
+                communication,
+                replace(
+                    study_mpc,
+                    effectiveness_rls_adaptive_covariance=True,
+                    effectiveness_rls_change_detector="cusum",
+                    effectiveness_rls_change_threshold=(
+                        experiment_config.change_threshold
+                    ),
+                    effectiveness_rls_covariance_inflation=(
+                        experiment_config.covariance_inflation
+                    ),
+                    identification_reset_on_change=True,
+                    identification_arm_on_change=True,
+                ),
+                disturbance,
+                seed.result,
+                (
+                    (
+                        "CUSUM-triggered probing RLS",
+                        True,
+                        "recursive_diagonal",
+                        False,
+                        True,
+                        None,
+                        "information",
+                        1,
+                    ),
+                ),
+                observation_noise=noise,
+            )
+        )
         cases.append(
             HarborFaultEnsembleCase(
                 seed=observation_seed,

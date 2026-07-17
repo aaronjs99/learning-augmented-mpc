@@ -63,6 +63,11 @@ All notable repository-level changes are tracked here.
 - YAML-scheduled time-varying per-channel actuator losses and matched
   innovation-adaptive recursive identification, with true-state offline RMSE,
   covariance-inflation telemetry, and safety/completion evidence.
+- Chi-square CUSUM covariance adaptation, temporary actuator recovery events,
+  causal recall/false-inflation scoring, and change-triggered constrained
+  physical-channel re-identification.
+- Corrected recursive active-identification eligibility; refreshed noisy-fault
+  evidence now separates passive recursive filtering from actual probing.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.

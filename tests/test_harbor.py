@@ -30,6 +30,7 @@ from scripts.harbor.experiments import (
 from scripts.harbor.communication import AgentMessage
 from scripts.harbor.learning import run_distributed_harbor_lmpc
 from scripts.harbor.mpc import (
+    DistributedHarborMPC,
     HarborAgentOptimizer,
     _approach_pose_goal,
     _estimate_control_effectiveness,
@@ -53,21 +54,105 @@ from scripts.run_harbor_time_varying_fault_study import (
 
 
 class HarborTests(unittest.TestCase):
+    def test_recursive_estimator_can_request_active_identification(self) -> None:
+        agents, simulation, _ = load_harbor_config()
+        agent = agents[0]
+        config = replace(
+            load_harbor_mpc_config(),
+            prediction_horizon=2,
+            terminal_samples=2,
+            control_effectiveness_adaptation=True,
+            effectiveness_estimator_mode="recursive_diagonal",
+            active_identification=True,
+            identification_strategy="information",
+            identification_min_probes_per_channel=1,
+        )
+        selected = agents[:2]
+        safe_states = {
+            item.name: np.vstack((item.start, item.start)) for item in selected
+        }
+        safe_controls = {
+            item.name: np.zeros((2, item.model.control_dim), dtype=float)
+            for item in selected
+        }
+        controller = DistributedHarborMPC(
+            agents=selected,
+            config=config,
+            dt=simulation.dt,
+            safe_states=safe_states,
+            safe_controls=safe_controls,
+            learning=False,
+        )
+        probe, mask, channel = controller._identification_probe(
+            agent,
+            agent.start,
+            np.array([0.2, 0.0, 0.0]),
+            {},
+            0,
+        )
+        self.assertIsNotNone(channel)
+        self.assertEqual(np.count_nonzero(mask), 1)
+        self.assertNotEqual(probe[channel], 0.0)
+
+    def test_change_armed_identification_stays_dormant_until_triggered(self) -> None:
+        agents, simulation, _ = load_harbor_config()
+        selected = agents[:2]
+        agent = selected[0]
+        config = replace(
+            load_harbor_mpc_config(),
+            prediction_horizon=2,
+            terminal_samples=2,
+            control_effectiveness_adaptation=True,
+            effectiveness_estimator_mode="recursive_diagonal",
+            active_identification=True,
+            identification_arm_on_change=True,
+        )
+        controller = DistributedHarborMPC(
+            agents=selected,
+            config=config,
+            dt=simulation.dt,
+            safe_states={
+                item.name: np.vstack((item.start, item.start)) for item in selected
+            },
+            safe_controls={
+                item.name: np.zeros((2, item.model.control_dim)) for item in selected
+            },
+            learning=False,
+        )
+        arguments = (agent, agent.start, np.array([0.2, 0.0, 0.0]), {}, 0)
+        _, dormant_mask, dormant_channel = controller._identification_probe(*arguments)
+        self.assertIsNone(dormant_channel)
+        self.assertEqual(np.count_nonzero(dormant_mask), 0)
+        controller.identification_change_armed_by_agent[agent.name] = True
+        _, armed_mask, armed_channel = controller._identification_probe(*arguments)
+        self.assertIsNotNone(armed_channel)
+        self.assertEqual(np.count_nonzero(armed_mask), 1)
+        controller.identification_probe_channel_counts[agent.name][armed_channel] = 2
+        controller.identification_probe_quota_counts[agent.name][armed_channel] = 2
+        controller.identification_probe_quota_counts[agent.name].fill(0)
+        self.assertEqual(
+            controller.identification_probe_channel_counts[agent.name][armed_channel],
+            2,
+        )
+
     def test_time_varying_fault_summary_preserves_matched_pairs(self) -> None:
         records = []
         for seed, fixed, adaptive, fixed_final, adaptive_final in (
             (11, 0.20, 0.10, 0.16, 0.08),
             (13, 0.30, 0.15, 0.20, 0.10),
         ):
-            for label, post, final, cost, events in (
-                ("Fixed-covariance RLS", fixed, fixed_final, 50, 0),
-                ("Innovation-adaptive RLS", adaptive, adaptive_final, 45, 2),
+            for label, post, final, cost, events, probes in (
+                ("Fixed-covariance RLS", fixed, fixed_final, 50, 0, 0),
+                ("Innovation-threshold RLS", adaptive, adaptive_final, 45, 2, 0),
+                ("Chi-square CUSUM RLS", adaptive, adaptive_final, 45, 2, 0),
+                ("CUSUM-triggered probing RLS", adaptive, adaptive_final, 47, 2, 4),
             ):
                 records.append(
                     {
                         "seed": seed,
                         "controller": label,
-                        "post_onset_rmse": post,
+                        "fault_interval_rmse": post,
+                        "recovery_rmse": post,
                         "final_effectiveness_rmse": final,
                         "sustained_completion_cost": cost,
                         "solver_fallbacks": 0,
@@ -75,10 +160,14 @@ class HarborTests(unittest.TestCase):
                         "pairwise_violation_count": 0,
                         "max_collision_slack": 0.0,
                         "change_steps_by_agent": {"agent": list(range(events))},
+                        "event_recall": 0.5 if events else 0.0,
+                        "false_inflations": 0,
+                        "mean_detection_delay": 1.0 if events else None,
+                        "probe_count": probes,
                     }
                 )
-        comparison = summarize_time_varying_faults(records)[
-            "paired_adaptive_vs_fixed"
+        comparison = summarize_time_varying_faults(records)["paired_vs_fixed"][
+            "Chi-square CUSUM RLS"
         ]
         self.assertEqual(comparison["trials"], 2)
         self.assertEqual(comparison["adaptive_wins"], 2)
@@ -100,6 +189,10 @@ class HarborTests(unittest.TestCase):
         np.testing.assert_allclose(
             disturbance.effectiveness(agent.model, agent.name, 12),
             [0.62, 0.88],
+        )
+        np.testing.assert_allclose(
+            disturbance.effectiveness(agent.model, agent.name, 34),
+            [1.0, 1.0],
         )
 
         class ZeroController:
@@ -592,6 +685,72 @@ class HarborTests(unittest.TestCase):
         adaptive_error, changes = run(adaptive)
         self.assertEqual(changes, [90])
         self.assertLess(np.mean(adaptive_error[90:140]), 0.4 * np.mean(fixed_error[90:140]))
+
+    def test_cusum_tracks_loss_and_recovery_without_nominal_false_alarm(self) -> None:
+        agents, simulation, _ = load_harbor_config()
+        agent = agents[0]
+        model = agent.model
+        config = replace(
+            load_harbor_mpc_config(),
+            effectiveness_rls_measurement_noise=0.03,
+            effectiveness_rls_adaptive_covariance=True,
+            effectiveness_rls_change_detector="cusum",
+            effectiveness_rls_covariance_inflation=12.0,
+            effectiveness_rls_change_cooldown_steps=15,
+            effectiveness_rls_cusum_drift=2.5,
+            effectiveness_rls_cusum_threshold=8.0,
+        )
+        rng = np.random.default_rng(19)
+        state = agent.start.copy()
+        estimate = np.ones(model.control_dim)
+        covariance = np.eye(model.control_dim) * config.identification_prior_std**2
+        evidence = 0.0
+        last_change = -config.effectiveness_rls_change_cooldown_steps
+        changes = []
+        errors = []
+        for step in range(160):
+            truth = (
+                np.ones(model.control_dim)
+                if step < 50 or step >= 110
+                else np.array([0.58, 0.72])
+            )
+            channel = step % model.control_dim
+            command = np.zeros(model.control_dim)
+            command[channel] = (
+                0.35
+                * (1.0 if (step // model.control_dim) % 2 == 0 else -1.0)
+                * model.control_scale()[channel]
+            )
+            next_state = model.step(state, truth * command, simulation.dt)
+            measured = next_state.copy()
+            measured[model.pose_dim :] += rng.normal(
+                0.0, 0.012, model.state_dim - model.pose_dim
+            )
+            estimate, covariance, changed, evidence = (
+                _recursive_diagonal_effectiveness_update(
+                    model,
+                    state,
+                    command,
+                    measured,
+                    simulation.dt,
+                    estimate,
+                    covariance,
+                    config,
+                    change_evidence=evidence,
+                    allow_change=(
+                        step - last_change
+                        >= config.effectiveness_rls_change_cooldown_steps
+                    ),
+                )
+            )
+            errors.append(float(np.sqrt(np.mean((estimate - truth) ** 2))))
+            if changed:
+                changes.append(step)
+                last_change = step
+            state = next_state
+        self.assertEqual(changes, [51, 111])
+        self.assertLess(np.mean(errors[55:80]), 0.1)
+        self.assertLess(np.mean(errors[115:140]), 0.1)
 
     def test_bluerov2_heavy_allocation_is_full_rank_and_bounded(self) -> None:
         agents, _, _ = load_harbor_config()

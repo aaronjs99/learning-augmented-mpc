@@ -106,8 +106,8 @@ same noisy hidden-fault ensemble:
 
 `python3 run.py harbor-prediction-study`
 
-Matched fixed-covariance versus innovation-adaptive recursive identification
-under scheduled, initially hidden actuator losses:
+Matched fixed-covariance, innovation-threshold, chi-square CUSUM, and
+CUSUM-triggered probing under temporary, initially hidden actuator losses:
 
 `python3 run.py harbor-time-varying-fault-study`
 
@@ -129,9 +129,9 @@ The noisy study adds an instantaneous-versus-recursive estimator ablation and
 records solver recovery by platform and IPOPT status.
 The prediction study isolates the communicated obstacle model from estimation,
 safe memory, plant faults, and observation seeds.
-The time-varying-fault study applies abrupt per-channel losses during execution,
-records the plant truth only for offline scoring, and compares matched local
-estimators without giving either controller the fault times or magnitudes.
+The time-varying-fault study applies abrupt per-channel loss and recovery during
+execution, records plant truth only for offline scoring, and compares matched
+local estimators without giving any controller the change times or magnitudes.
 
 Useful overrides:
 

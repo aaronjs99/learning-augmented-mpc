@@ -194,13 +194,16 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
     - Across the same five stratified fault draws, recursive passive estimation
       wins all five comparisons and lowers mean RMSE from `0.1529` to `0.0392`
       (`72.42%` paired relative reduction; absolute bootstrap 95% interval
-      `[0.0779, 0.1496]`); recursive active probing reaches
-      `0.0344`. All rollouts are complete and collision-safe.
-    - The two active schedules tie under this noise realization. All 15
-      recursive-controller rollouts are solver-clean; the instantaneous
-      comparator retains one Inspector-Gadget fallback. The defensible
-      contribution is robust local identification under heterogeneous noisy
-      observations, not universal scheduling dominance or hardware validation.
+      `[0.0779, 0.1496]`). All rollouts are complete and collision-safe.
+    - With the recursive-probe gate corrected, one-pass and information-aware
+      probing reach `0.0748` and `0.0510`, respectively, while passive recursive
+      RLS remains best at `0.0392`. Information-aware ordering beats one-pass in
+      only two of five cases; its paired interval `[-0.0055, 0.0532]` crosses
+      zero, although it lowers mean completion cost by `6.8` steps.
+    - Fourteen of 15 recursive-controller rollouts are solver-clean; one-pass
+      probing retains one fallback. The defensible contribution is robust local
+      identification under heterogeneous noisy observations, not universal
+      active-scheduling dominance or hardware validation.
 
 19. **Intent-bounded communicated obstacle prediction**
     - Constant-velocity peer extrapolation is retained as an explicit ablation.
@@ -217,23 +220,29 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       contribution as reduced false collision infeasibility rather than better
       fault identification.
 
-20. **Innovation-adaptive tracking of abrupt heterogeneous actuator losses**
+20. **CUSUM adaptation and change-triggered probing for temporary faults**
     - YAML schedules change each platform's hidden per-channel plant
       effectiveness during execution. The local controller receives only noisy
       state transitions and prior commands; scheduled times and magnitudes are
       retained solely for offline scoring.
-    - A normalized innovation test inflates recursive-estimator covariance and
-      recomputes the gain when the current model is unexpectedly inconsistent
-      with an excited transition. Cooldown bounds repeated adaptation.
-    - Across three matched observation seeds, adaptive covariance wins all
-      three pairs, reducing mean post-onset RMSE from `0.1711` to `0.1371`
-      (`19.92%` paired relative reduction) and final RMSE from `0.1442` to
-      `0.1074`. Mean sustained-completion cost improves from `161.7` to `154.7`.
-    - All six rollouts complete, remain collision-safe, use numerical-zero
-      collision slack, and require no solver fallback. Inflation telemetry is
-      reported as model-surprise events rather than fault-classification truth.
-      The result supports faster online tracking in this configured benchmark,
-      not universal fault isolation or hardware-level validation.
+    - A one-step normalized innovation threshold and a chi-square CUSUM are
+      explicit covariance-inflation comparators. Both recompute the recursive
+      gain after model surprise; cooldown bounds repeated adaptation.
+    - CUSUM-triggered probing keeps information requests dormant until a change
+      statistic fires, then clears only that agent's excitation/information
+      budget and requests one constraint-aware probe per physical channel.
+    - Across three matched observation seeds, passive CUSUM wins all pairs and
+      reduces degraded-interval RMSE from `0.1695` to `0.0979` (`42.27%`). The
+      threshold comparator reaches `0.1006` (`40.63%`). Both reduce mean
+      completion cost from `154.3` to `149.3`.
+    - Triggered probing reaches `0.1533` recovery RMSE versus `0.1736` fixed
+      (`11.70%` reduction) and lowers final RMSE by `9.61%`, at mean completion
+      cost `150.3`. It executes 16 physical-channel probes per run.
+    - All 12 rollouts complete, remain collision-safe, use numerical-zero
+      collision slack, and require no solver fallback. Event recall remains
+      only `50-58%` with `2.0-2.7` unmatched inflations per run, so this is an
+      adaptive-tracking and re-identification result, not certified fault
+      detection, isolation, or hardware validation.
 
 ## Current Evidence
 

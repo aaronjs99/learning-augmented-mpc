@@ -71,20 +71,20 @@
       },
       "Recursive one-pass MPC": {
         "trials": 5,
-        "mean_effectiveness_rmse": 0.03437519584489182,
-        "std_effectiveness_rmse": 0.02083304122033539,
-        "mean_first_hit_step_sum": 152.4,
-        "mean_sustained_completion_cost": 152.4,
-        "valid_rate": 1.0,
+        "mean_effectiveness_rmse": 0.0748329688148689,
+        "std_effectiveness_rmse": 0.03426506567361793,
+        "mean_first_hit_step_sum": 168.8,
+        "mean_sustained_completion_cost": 168.8,
+        "valid_rate": 0.8,
         "completion_rate": 1.0,
         "safety_rate": 1.0
       },
       "Recursive information-aware MPC": {
         "trials": 5,
-        "mean_effectiveness_rmse": 0.03437519584489182,
-        "std_effectiveness_rmse": 0.02083304122033539,
-        "mean_first_hit_step_sum": 152.4,
-        "mean_sustained_completion_cost": 152.4,
+        "mean_effectiveness_rmse": 0.05099470813329852,
+        "std_effectiveness_rmse": 0.027086697353888203,
+        "mean_first_hit_step_sum": 162.0,
+        "mean_sustained_completion_cost": 162.0,
         "valid_rate": 1.0,
         "completion_rate": 1.0,
         "safety_rate": 1.0
@@ -102,16 +102,16 @@
     },
     "equal_budget_information_vs_one_pass": {
       "trials": 5,
-      "information_wins": 0,
-      "ties": 5,
-      "mean_rmse_reduction": 0.0,
-      "mean_relative_rmse_reduction": 0.0,
+      "information_wins": 2,
+      "ties": 0,
+      "mean_rmse_reduction": 0.02383826068157039,
+      "mean_relative_rmse_reduction": 0.22354105154671994,
       "paired_mean_reduction_bootstrap_95_ci": [
-        0.0,
-        0.0
+        -0.005504473808254071,
+        0.053246009636063886
       ],
-      "mean_completion_cost_delta": 0.0,
-      "max_absolute_completion_cost_delta": 0.0
+      "mean_completion_cost_delta": -6.8,
+      "max_absolute_completion_cost_delta": 12.0
     }
   },
   "trials": [
@@ -207,6 +207,12 @@
           0.6186377848341221,
           1.020784713753147
         ]
+      },
+      "effectiveness_change_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
       },
       "probe_sequence_by_agent": {
         "ground_rover_1": [],
@@ -308,6 +314,12 @@
           0.8466480724304911
         ]
       },
+      "effectiveness_change_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
       "probe_sequence_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
@@ -321,27 +333,27 @@
       "controller": "Recursive one-pass MPC",
       "valid": true,
       "all_goals_reached": true,
-      "first_hit_step_sum": 150,
-      "sustained_completion_cost": 150,
+      "first_hit_step_sum": 190,
+      "sustained_completion_cost": 190,
       "first_goal_steps": {
-        "ground_rover_1": 24,
-        "ground_rover_2": 52,
-        "surface_vessel": 49,
-        "underwater_rov": 25
+        "ground_rover_1": 25,
+        "ground_rover_2": 53,
+        "surface_vessel": 88,
+        "underwater_rov": 24
       },
       "final_goal_errors": {
-        "ground_rover_1": 0.010779255264544934,
-        "ground_rover_2": 0.007457117135792536,
-        "surface_vessel": 0.06720775166324618,
-        "underwater_rov": 0.020789334541859696
+        "ground_rover_1": 0.008587824821228074,
+        "ground_rover_2": 0.008884051934470283,
+        "surface_vessel": 0.03396570396919744,
+        "underwater_rov": 0.004003864355263865
       },
       "final_orientation_errors": {
-        "ground_rover_1": 0.02067446535794959,
-        "ground_rover_2": 0.0010445872527218292,
-        "surface_vessel": 0.04200316287148809,
-        "underwater_rov": 0.0031315755089952463
+        "ground_rover_1": 0.002958280786808487,
+        "ground_rover_2": 0.006364055731942653,
+        "surface_vessel": 0.000509286743893167,
+        "underwater_rov": 0.007505542609526559
       },
-      "min_pairwise_distance": 1.418508771745701,
+      "min_pairwise_distance": 1.3152536008046682,
       "pairwise_violation_count": 0,
       "solver_fallbacks": 0,
       "solver_fallbacks_by_agent": {
@@ -357,9 +369,9 @@
         "underwater_rov": []
       },
       "solver_failure_status_counts": {},
-      "max_collision_slack": 4.077209207889953e-20,
-      "effectiveness_rmse": 0.06662785920922044,
-      "probe_count": 0,
+      "max_collision_slack": 3.339983644551951e-20,
+      "effectiveness_rmse": 0.037232619694176,
+      "probe_count": 14,
       "hidden_effectiveness": {
         "ground_rover_1": [
           0.858721491458037,
@@ -386,33 +398,57 @@
       },
       "final_effectiveness_estimates": {
         "ground_rover_1": [
-          0.8649558033176565,
-          0.8442625160239885
+          0.8532525899743184,
+          0.8326654512570819
         ],
         "ground_rover_2": [
-          0.8900306961661695,
-          0.6266508366260068
+          0.8896861873392122,
+          0.6283089948683608
         ],
         "surface_vessel": [
-          0.8293653321947257,
-          0.5738269807173908
+          0.8559795562953161,
+          0.5784295577931959
         ],
         "underwater_rov": [
-          0.8500160362804524,
-          0.8789337667235829,
-          0.7181820372498233,
-          0.8388479140520483,
-          0.6584764524551969,
-          0.7773552805017839,
-          0.6871987048217563,
-          0.846028960981612
+          0.8035280317140447,
+          0.9555795982625509,
+          0.8157824676154493,
+          0.7946526638587019,
+          0.6653641251827319,
+          0.7679695404252492,
+          0.665986437437897,
+          0.8428313148736108
         ]
       },
-      "probe_sequence_by_agent": {
+      "effectiveness_change_steps_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
         "surface_vessel": [],
         "underwater_rov": []
+      },
+      "probe_sequence_by_agent": {
+        "ground_rover_1": [
+          0,
+          1
+        ],
+        "ground_rover_2": [
+          0,
+          1
+        ],
+        "surface_vessel": [
+          0,
+          1
+        ],
+        "underwater_rov": [
+          0,
+          1,
+          6,
+          7,
+          2,
+          4,
+          5,
+          3
+        ]
       }
     },
     {
@@ -421,27 +457,27 @@
       "controller": "Recursive information-aware MPC",
       "valid": true,
       "all_goals_reached": true,
-      "first_hit_step_sum": 150,
-      "sustained_completion_cost": 150,
+      "first_hit_step_sum": 188,
+      "sustained_completion_cost": 188,
       "first_goal_steps": {
-        "ground_rover_1": 24,
-        "ground_rover_2": 52,
-        "surface_vessel": 49,
-        "underwater_rov": 25
+        "ground_rover_1": 25,
+        "ground_rover_2": 53,
+        "surface_vessel": 81,
+        "underwater_rov": 29
       },
       "final_goal_errors": {
-        "ground_rover_1": 0.010779255264544934,
-        "ground_rover_2": 0.007457117135792536,
-        "surface_vessel": 0.06720775166324618,
-        "underwater_rov": 0.020789334541859696
+        "ground_rover_1": 0.008826596172933104,
+        "ground_rover_2": 0.00669228258758406,
+        "surface_vessel": 0.0486546226735673,
+        "underwater_rov": 0.012613769362599222
       },
       "final_orientation_errors": {
-        "ground_rover_1": 0.02067446535794959,
-        "ground_rover_2": 0.0010445872527218292,
-        "surface_vessel": 0.04200316287148809,
-        "underwater_rov": 0.0031315755089952463
+        "ground_rover_1": 0.005637033897719856,
+        "ground_rover_2": 0.00295477370265651,
+        "surface_vessel": 0.043438728153931905,
+        "underwater_rov": 0.0033464567915734156
       },
-      "min_pairwise_distance": 1.418508771745701,
+      "min_pairwise_distance": 1.3517352474580946,
       "pairwise_violation_count": 0,
       "solver_fallbacks": 0,
       "solver_fallbacks_by_agent": {
@@ -457,9 +493,9 @@
         "underwater_rov": []
       },
       "solver_failure_status_counts": {},
-      "max_collision_slack": 4.077209207889953e-20,
-      "effectiveness_rmse": 0.06662785920922044,
-      "probe_count": 0,
+      "max_collision_slack": 3.36500930545314e-20,
+      "effectiveness_rmse": 0.042582955500740725,
+      "probe_count": 15,
       "hidden_effectiveness": {
         "ground_rover_1": [
           0.858721491458037,
@@ -486,33 +522,58 @@
       },
       "final_effectiveness_estimates": {
         "ground_rover_1": [
-          0.8649558033176565,
-          0.8442625160239885
+          0.8510901073594758,
+          0.8327418985256609
         ],
         "ground_rover_2": [
-          0.8900306961661695,
-          0.6266508366260068
+          0.8893714104640337,
+          0.6273600239857867
         ],
         "surface_vessel": [
-          0.8293653321947257,
-          0.5738269807173908
+          0.8314051848247261,
+          0.572689018937912
         ],
         "underwater_rov": [
-          0.8500160362804524,
-          0.8789337667235829,
-          0.7181820372498233,
-          0.8388479140520483,
-          0.6584764524551969,
-          0.7773552805017839,
-          0.6871987048217563,
-          0.846028960981612
+          0.6505788304123866,
+          1.0433392141810536,
+          0.9047050516701302,
+          0.6619940945278029,
+          0.6899077292156311,
+          0.8236045459786031,
+          0.7315964382447946,
+          0.8877872191890547
         ]
       },
-      "probe_sequence_by_agent": {
+      "effectiveness_change_steps_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
         "surface_vessel": [],
         "underwater_rov": []
+      },
+      "probe_sequence_by_agent": {
+        "ground_rover_1": [
+          0,
+          1
+        ],
+        "ground_rover_2": [
+          1,
+          0
+        ],
+        "surface_vessel": [
+          0,
+          1,
+          0
+        ],
+        "underwater_rov": [
+          4,
+          0,
+          3,
+          2,
+          6,
+          1,
+          7,
+          5
+        ]
       }
     },
     {
@@ -607,6 +668,12 @@
           0.8704563716760252,
           0.7880494039170729
         ]
+      },
+      "effectiveness_change_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
       },
       "probe_sequence_by_agent": {
         "ground_rover_1": [],
@@ -708,6 +775,12 @@
           0.6347978224507752
         ]
       },
+      "effectiveness_change_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
       "probe_sequence_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
@@ -721,27 +794,27 @@
       "controller": "Recursive one-pass MPC",
       "valid": true,
       "all_goals_reached": true,
-      "first_hit_step_sum": 151,
-      "sustained_completion_cost": 151,
+      "first_hit_step_sum": 162,
+      "sustained_completion_cost": 162,
       "first_goal_steps": {
         "ground_rover_1": 29,
-        "ground_rover_2": 51,
+        "ground_rover_2": 52,
         "surface_vessel": 45,
-        "underwater_rov": 26
+        "underwater_rov": 36
       },
       "final_goal_errors": {
-        "ground_rover_1": 0.011566207850929182,
-        "ground_rover_2": 0.0037575313003882713,
-        "surface_vessel": 0.1330808000777008,
-        "underwater_rov": 0.009505588677786031
+        "ground_rover_1": 0.005603322908067976,
+        "ground_rover_2": 0.009174309575493754,
+        "surface_vessel": 0.11206019297445645,
+        "underwater_rov": 0.01360293508752703
       },
       "final_orientation_errors": {
-        "ground_rover_1": 0.02279611713312013,
-        "ground_rover_2": 0.000819289120282729,
-        "surface_vessel": 0.02404980610414853,
-        "underwater_rov": 0.006229446679833567
+        "ground_rover_1": 0.013652877393230511,
+        "ground_rover_2": 0.004138068162684139,
+        "surface_vessel": 0.017327178113446084,
+        "underwater_rov": 0.001894524486979496
       },
-      "min_pairwise_distance": 1.4842067956400258,
+      "min_pairwise_distance": 1.3935721744563032,
       "pairwise_violation_count": 0,
       "solver_fallbacks": 0,
       "solver_fallbacks_by_agent": {
@@ -757,9 +830,9 @@
         "underwater_rov": []
       },
       "solver_failure_status_counts": {},
-      "max_collision_slack": 8.235074414335278e-20,
-      "effectiveness_rmse": 0.03907647888671378,
-      "probe_count": 0,
+      "max_collision_slack": 1.4652096868755287e-16,
+      "effectiveness_rmse": 0.061707689714703626,
+      "probe_count": 14,
       "hidden_effectiveness": {
         "ground_rover_1": [
           0.9541275723524505,
@@ -786,33 +859,57 @@
       },
       "final_effectiveness_estimates": {
         "ground_rover_1": [
-          0.9802895825163839,
-          0.7539558102903281
+          0.937892198305351,
+          0.7251442340903484
         ],
         "ground_rover_2": [
-          0.6709739336255011,
-          0.6438658094893188
+          0.6726376666815533,
+          0.6453233701990121
         ],
         "surface_vessel": [
-          0.9271169869565856,
-          1.028467332193857
+          0.9060468507763745,
+          0.9453222099674655
         ],
         "underwater_rov": [
-          0.7577908809887683,
-          0.6320359287016839,
-          0.9299966026031063,
-          0.8537532599426383,
-          0.801607192783333,
-          0.605646281137582,
-          0.7972288325397519,
-          0.6519169795723488
+          0.8180755065598355,
+          0.7591108657187866,
+          1.0508702505241458,
+          0.9532015884675896,
+          0.7261689999315478,
+          0.6400197819429418,
+          0.840730743188125,
+          0.5936737129396576
         ]
       },
-      "probe_sequence_by_agent": {
+      "effectiveness_change_steps_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
         "surface_vessel": [],
         "underwater_rov": []
+      },
+      "probe_sequence_by_agent": {
+        "ground_rover_1": [
+          0,
+          1
+        ],
+        "ground_rover_2": [
+          0,
+          1
+        ],
+        "surface_vessel": [
+          0,
+          1
+        ],
+        "underwater_rov": [
+          0,
+          1,
+          6,
+          7,
+          3,
+          5,
+          4,
+          2
+        ]
       }
     },
     {
@@ -821,27 +918,27 @@
       "controller": "Recursive information-aware MPC",
       "valid": true,
       "all_goals_reached": true,
-      "first_hit_step_sum": 151,
-      "sustained_completion_cost": 151,
+      "first_hit_step_sum": 150,
+      "sustained_completion_cost": 150,
       "first_goal_steps": {
-        "ground_rover_1": 29,
-        "ground_rover_2": 51,
+        "ground_rover_1": 26,
+        "ground_rover_2": 52,
         "surface_vessel": 45,
-        "underwater_rov": 26
+        "underwater_rov": 27
       },
       "final_goal_errors": {
-        "ground_rover_1": 0.011566207850929182,
-        "ground_rover_2": 0.0037575313003882713,
-        "surface_vessel": 0.1330808000777008,
-        "underwater_rov": 0.009505588677786031
+        "ground_rover_1": 0.0059166933411306695,
+        "ground_rover_2": 0.008963209155432944,
+        "surface_vessel": 0.11256065751350375,
+        "underwater_rov": 0.013756300157663177
       },
       "final_orientation_errors": {
-        "ground_rover_1": 0.02279611713312013,
-        "ground_rover_2": 0.000819289120282729,
-        "surface_vessel": 0.02404980610414853,
-        "underwater_rov": 0.006229446679833567
+        "ground_rover_1": 0.01417743025778151,
+        "ground_rover_2": 0.00399755446502148,
+        "surface_vessel": 0.01633746239415368,
+        "underwater_rov": 0.0023507404410436734
       },
-      "min_pairwise_distance": 1.4842067956400258,
+      "min_pairwise_distance": 1.4304920112179897,
       "pairwise_violation_count": 0,
       "solver_fallbacks": 0,
       "solver_fallbacks_by_agent": {
@@ -857,9 +954,9 @@
         "underwater_rov": []
       },
       "solver_failure_status_counts": {},
-      "max_collision_slack": 8.235074414335278e-20,
-      "effectiveness_rmse": 0.03907647888671378,
-      "probe_count": 0,
+      "max_collision_slack": 2.175788585318992e-14,
+      "effectiveness_rmse": 0.06810329926358406,
+      "probe_count": 14,
       "hidden_effectiveness": {
         "ground_rover_1": [
           0.9541275723524505,
@@ -886,33 +983,57 @@
       },
       "final_effectiveness_estimates": {
         "ground_rover_1": [
-          0.9802895825163839,
-          0.7539558102903281
+          0.9392380411447528,
+          0.7259162732328601
         ],
         "ground_rover_2": [
-          0.6709739336255011,
-          0.6438658094893188
+          0.6725468513350855,
+          0.6454106863965134
         ],
         "surface_vessel": [
-          0.9271169869565856,
-          1.028467332193857
+          0.9051694544008226,
+          0.9444352482733914
         ],
         "underwater_rov": [
-          0.7577908809887683,
-          0.6320359287016839,
-          0.9299966026031063,
-          0.8537532599426383,
-          0.801607192783333,
-          0.605646281137582,
-          0.7972288325397519,
-          0.6519169795723488
+          0.6904742340697613,
+          0.5920136228388216,
+          0.8775939452792558,
+          0.8108259454920341,
+          0.8090639294647916,
+          0.7287751374624086,
+          0.9611401968399075,
+          0.6648411415654557
         ]
       },
-      "probe_sequence_by_agent": {
+      "effectiveness_change_steps_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
         "surface_vessel": [],
         "underwater_rov": []
+      },
+      "probe_sequence_by_agent": {
+        "ground_rover_1": [
+          0,
+          1
+        ],
+        "ground_rover_2": [
+          1,
+          0
+        ],
+        "surface_vessel": [
+          0,
+          1
+        ],
+        "underwater_rov": [
+          5,
+          3,
+          0,
+          7,
+          1,
+          2,
+          6,
+          4
+        ]
       }
     },
     {
@@ -1007,6 +1128,12 @@
           0.8037803833516795,
           0.7724904410343598
         ]
+      },
+      "effectiveness_change_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
       },
       "probe_sequence_by_agent": {
         "ground_rover_1": [],
@@ -1108,6 +1235,12 @@
           0.8027233615889396
         ]
       },
+      "effectiveness_change_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
       "probe_sequence_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
@@ -1119,47 +1252,51 @@
       "seed": 37,
       "observation_seed": 138,
       "controller": "Recursive one-pass MPC",
-      "valid": true,
+      "valid": false,
       "all_goals_reached": true,
-      "first_hit_step_sum": 141,
-      "sustained_completion_cost": 141,
+      "first_hit_step_sum": 156,
+      "sustained_completion_cost": 156,
       "first_goal_steps": {
-        "ground_rover_1": 26,
-        "ground_rover_2": 43,
-        "surface_vessel": 49,
-        "underwater_rov": 23
+        "ground_rover_1": 29,
+        "ground_rover_2": 44,
+        "surface_vessel": 50,
+        "underwater_rov": 33
       },
       "final_goal_errors": {
-        "ground_rover_1": 0.008602062598864871,
-        "ground_rover_2": 0.008812337861094185,
-        "surface_vessel": 0.06993758692020119,
-        "underwater_rov": 0.011442551457005488
+        "ground_rover_1": 0.01048704070894834,
+        "ground_rover_2": 0.011292841118581616,
+        "surface_vessel": 0.07632772770988577,
+        "underwater_rov": 0.010734467464990929
       },
       "final_orientation_errors": {
-        "ground_rover_1": 0.008320437260601388,
-        "ground_rover_2": 0.013320308612915444,
-        "surface_vessel": 0.059752289555604854,
-        "underwater_rov": 0.005049556814336652
+        "ground_rover_1": 0.011644315558486884,
+        "ground_rover_2": 0.01638888728986032,
+        "surface_vessel": 0.06700422124544447,
+        "underwater_rov": 0.0026956787553861737
       },
-      "min_pairwise_distance": 1.2987690630424344,
+      "min_pairwise_distance": 1.198238246760542,
       "pairwise_violation_count": 0,
-      "solver_fallbacks": 0,
+      "solver_fallbacks": 1,
       "solver_fallbacks_by_agent": {
         "ground_rover_1": 0,
-        "ground_rover_2": 0,
+        "ground_rover_2": 1,
         "surface_vessel": 0,
         "underwater_rov": 0
       },
       "solver_failure_steps_by_agent": {
         "ground_rover_1": [],
-        "ground_rover_2": [],
+        "ground_rover_2": [
+          8
+        ],
         "surface_vessel": [],
         "underwater_rov": []
       },
-      "solver_failure_status_counts": {},
-      "max_collision_slack": 5.134232520757863e-20,
-      "effectiveness_rmse": 0.02827954516753317,
-      "probe_count": 0,
+      "solver_failure_status_counts": {
+        "Infeasible_Problem_Detected": 1
+      },
+      "max_collision_slack": 2.0402293372744254e-15,
+      "effectiveness_rmse": 0.13043809524099279,
+      "probe_count": 14,
       "hidden_effectiveness": {
         "ground_rover_1": [
           0.7078010820209185,
@@ -1186,33 +1323,57 @@
       },
       "final_effectiveness_estimates": {
         "ground_rover_1": [
-          0.7088615035505725,
-          0.7168252213107971
+          0.6972853967721386,
+          0.7036737213905381
         ],
         "ground_rover_2": [
-          0.9379094243010117,
-          0.8817234193330689
+          0.9365534988894827,
+          0.880226091466947
         ],
         "surface_vessel": [
-          0.7095981734995939,
-          0.7026294227497213
+          0.6999039784665033,
+          0.7049502061919352
         ],
         "underwater_rov": [
-          0.6398405477876623,
-          0.6122326413236228,
-          0.6639680636796413,
-          0.9137350490718328,
-          0.9338421050775445,
-          0.6671661164578488,
-          0.5853737303607861,
-          0.7676633046423083
+          0.948740725797452,
+          0.7785956445664574,
+          0.7814993328425334,
+          1.1825560659649734,
+          0.9236746824879343,
+          0.667450937983536,
+          0.5834576537875388,
+          0.7616934878512056
         ]
       },
-      "probe_sequence_by_agent": {
+      "effectiveness_change_steps_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
         "surface_vessel": [],
         "underwater_rov": []
+      },
+      "probe_sequence_by_agent": {
+        "ground_rover_1": [
+          0,
+          1
+        ],
+        "ground_rover_2": [
+          0,
+          1
+        ],
+        "surface_vessel": [
+          0,
+          1
+        ],
+        "underwater_rov": [
+          0,
+          1,
+          6,
+          7,
+          4,
+          5,
+          2,
+          3
+        ]
       }
     },
     {
@@ -1221,27 +1382,27 @@
       "controller": "Recursive information-aware MPC",
       "valid": true,
       "all_goals_reached": true,
-      "first_hit_step_sum": 141,
-      "sustained_completion_cost": 141,
+      "first_hit_step_sum": 154,
+      "sustained_completion_cost": 154,
       "first_goal_steps": {
-        "ground_rover_1": 26,
-        "ground_rover_2": 43,
-        "surface_vessel": 49,
-        "underwater_rov": 23
+        "ground_rover_1": 27,
+        "ground_rover_2": 44,
+        "surface_vessel": 52,
+        "underwater_rov": 31
       },
       "final_goal_errors": {
-        "ground_rover_1": 0.008602062598864871,
-        "ground_rover_2": 0.008812337861094185,
-        "surface_vessel": 0.06993758692020119,
-        "underwater_rov": 0.011442551457005488
+        "ground_rover_1": 0.010766014154159792,
+        "ground_rover_2": 0.013136970179444518,
+        "surface_vessel": 0.12388106406333023,
+        "underwater_rov": 0.019109570477117165
       },
       "final_orientation_errors": {
-        "ground_rover_1": 0.008320437260601388,
-        "ground_rover_2": 0.013320308612915444,
-        "surface_vessel": 0.059752289555604854,
-        "underwater_rov": 0.005049556814336652
+        "ground_rover_1": 0.002704549165470027,
+        "ground_rover_2": 0.023193003966731407,
+        "surface_vessel": 0.00541135098691603,
+        "underwater_rov": 0.004309007116688296
       },
-      "min_pairwise_distance": 1.2987690630424344,
+      "min_pairwise_distance": 1.2946274271214344,
       "pairwise_violation_count": 0,
       "solver_fallbacks": 0,
       "solver_fallbacks_by_agent": {
@@ -1257,9 +1418,9 @@
         "underwater_rov": []
       },
       "solver_failure_status_counts": {},
-      "max_collision_slack": 5.134232520757863e-20,
-      "effectiveness_rmse": 0.02827954516753317,
-      "probe_count": 0,
+      "max_collision_slack": 9.7968543476819e-21,
+      "effectiveness_rmse": 0.062131766794389295,
+      "probe_count": 15,
       "hidden_effectiveness": {
         "ground_rover_1": [
           0.7078010820209185,
@@ -1286,33 +1447,58 @@
       },
       "final_effectiveness_estimates": {
         "ground_rover_1": [
-          0.7088615035505725,
-          0.7168252213107971
+          0.7007062606844459,
+          0.7066669205444969
         ],
         "ground_rover_2": [
-          0.9379094243010117,
-          0.8817234193330689
+          0.9372439352539931,
+          0.8845288516042943
         ],
         "surface_vessel": [
-          0.7095981734995939,
-          0.7026294227497213
+          0.6998717607490087,
+          0.6971821250511051
         ],
         "underwater_rov": [
-          0.6398405477876623,
-          0.6122326413236228,
-          0.6639680636796413,
-          0.9137350490718328,
-          0.9338421050775445,
-          0.6671661164578488,
-          0.5853737303607861,
-          0.7676633046423083
+          0.5800582757478524,
+          0.6006077969543592,
+          0.6993021636881347,
+          0.8444342867184609,
+          1.05120678278964,
+          0.7194440521540382,
+          0.6456120813388164,
+          0.8833181133530215
         ]
       },
-      "probe_sequence_by_agent": {
+      "effectiveness_change_steps_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
         "surface_vessel": [],
         "underwater_rov": []
+      },
+      "probe_sequence_by_agent": {
+        "ground_rover_1": [
+          1,
+          0
+        ],
+        "ground_rover_2": [
+          0,
+          1
+        ],
+        "surface_vessel": [
+          1,
+          0,
+          1
+        ],
+        "underwater_rov": [
+          4,
+          2,
+          1,
+          6,
+          0,
+          3,
+          7,
+          5
+        ]
       }
     },
     {
@@ -1407,6 +1593,12 @@
           0.9392119749521162,
           1.0607766615764538
         ]
+      },
+      "effectiveness_change_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
       },
       "probe_sequence_by_agent": {
         "ground_rover_1": [],
@@ -1508,6 +1700,12 @@
           0.9358393167861164
         ]
       },
+      "effectiveness_change_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
       "probe_sequence_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
@@ -1521,27 +1719,27 @@
       "controller": "Recursive one-pass MPC",
       "valid": true,
       "all_goals_reached": true,
-      "first_hit_step_sum": 153,
-      "sustained_completion_cost": 153,
+      "first_hit_step_sum": 167,
+      "sustained_completion_cost": 167,
       "first_goal_steps": {
-        "ground_rover_1": 31,
-        "ground_rover_2": 54,
-        "surface_vessel": 45,
-        "underwater_rov": 23
+        "ground_rover_1": 32,
+        "ground_rover_2": 55,
+        "surface_vessel": 47,
+        "underwater_rov": 33
       },
       "final_goal_errors": {
-        "ground_rover_1": 0.009446491044758762,
-        "ground_rover_2": 0.03647042616070474,
-        "surface_vessel": 0.0763045348350639,
-        "underwater_rov": 0.018757144806042632
+        "ground_rover_1": 0.007829021097205242,
+        "ground_rover_2": 0.015077489343361306,
+        "surface_vessel": 0.07416181636572607,
+        "underwater_rov": 0.016638215103860137
       },
       "final_orientation_errors": {
-        "ground_rover_1": 0.021676150162539543,
-        "ground_rover_2": 0.030125151705703512,
-        "surface_vessel": 0.009293463539056912,
-        "underwater_rov": 0.008359176881354492
+        "ground_rover_1": 0.0020704761734182675,
+        "ground_rover_2": 0.004738155482375994,
+        "surface_vessel": 0.051629718388666035,
+        "underwater_rov": 0.004795177778522853
       },
-      "min_pairwise_distance": 1.434628618119558,
+      "min_pairwise_distance": 1.448483324344294,
       "pairwise_violation_count": 0,
       "solver_fallbacks": 0,
       "solver_fallbacks_by_agent": {
@@ -1557,9 +1755,9 @@
         "underwater_rov": []
       },
       "solver_failure_status_counts": {},
-      "max_collision_slack": 3.6646564673185025e-20,
-      "effectiveness_rmse": 0.009989153853691257,
-      "probe_count": 0,
+      "max_collision_slack": 5.299823943610966e-19,
+      "effectiveness_rmse": 0.0741938946942021,
+      "probe_count": 14,
       "hidden_effectiveness": {
         "ground_rover_1": [
           0.805037199014642,
@@ -1586,33 +1784,57 @@
       },
       "final_effectiveness_estimates": {
         "ground_rover_1": [
-          0.817958073393164,
-          0.6440537866362953
+          0.7956412037642436,
+          0.6339258981033431
         ],
         "ground_rover_2": [
-          0.5809845990462136,
-          0.9241656506709053
+          0.5806181294654799,
+          0.922645798930947
         ],
         "surface_vessel": [
-          0.7985957890782517,
-          0.7987524230431957
+          0.7953990845278364,
+          0.8028296215091855
         ],
         "underwater_rov": [
-          0.8699732117731803,
-          0.7855838813719591,
-          0.6959801167933283,
-          0.6272944925724308,
-          0.8884222192368333,
-          0.9127224206005166,
-          0.9253565430975258,
-          0.9358383273970807
+          1.030336641689633,
+          0.9354718249294619,
+          0.7946687896828799,
+          0.7500796216260873,
+          0.8828480231010492,
+          0.9123185624841534,
+          0.9531534483161134,
+          0.9717695381364659
         ]
       },
-      "probe_sequence_by_agent": {
+      "effectiveness_change_steps_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
         "surface_vessel": [],
         "underwater_rov": []
+      },
+      "probe_sequence_by_agent": {
+        "ground_rover_1": [
+          0,
+          1
+        ],
+        "ground_rover_2": [
+          0,
+          1
+        ],
+        "surface_vessel": [
+          0,
+          1
+        ],
+        "underwater_rov": [
+          0,
+          1,
+          6,
+          7,
+          4,
+          2,
+          5,
+          3
+        ]
       }
     },
     {
@@ -1621,27 +1843,27 @@
       "controller": "Recursive information-aware MPC",
       "valid": true,
       "all_goals_reached": true,
-      "first_hit_step_sum": 153,
-      "sustained_completion_cost": 153,
+      "first_hit_step_sum": 160,
+      "sustained_completion_cost": 160,
       "first_goal_steps": {
-        "ground_rover_1": 31,
-        "ground_rover_2": 54,
-        "surface_vessel": 45,
-        "underwater_rov": 23
+        "ground_rover_1": 32,
+        "ground_rover_2": 55,
+        "surface_vessel": 49,
+        "underwater_rov": 24
       },
       "final_goal_errors": {
-        "ground_rover_1": 0.009446491044758762,
-        "ground_rover_2": 0.03647042616070474,
-        "surface_vessel": 0.0763045348350639,
-        "underwater_rov": 0.018757144806042632
+        "ground_rover_1": 0.007526620730936843,
+        "ground_rover_2": 0.012567893357721517,
+        "surface_vessel": 0.07239118716478578,
+        "underwater_rov": 0.024416714935914196
       },
       "final_orientation_errors": {
-        "ground_rover_1": 0.021676150162539543,
-        "ground_rover_2": 0.030125151705703512,
-        "surface_vessel": 0.009293463539056912,
-        "underwater_rov": 0.008359176881354492
+        "ground_rover_1": 0.0003174353938693031,
+        "ground_rover_2": 0.011850205278195691,
+        "surface_vessel": 0.06552896461547686,
+        "underwater_rov": 0.005361400290513742
       },
-      "min_pairwise_distance": 1.434628618119558,
+      "min_pairwise_distance": 1.4367307996485663,
       "pairwise_violation_count": 0,
       "solver_fallbacks": 0,
       "solver_fallbacks_by_agent": {
@@ -1657,9 +1879,9 @@
         "underwater_rov": []
       },
       "solver_failure_status_counts": {},
-      "max_collision_slack": 3.6646564673185025e-20,
-      "effectiveness_rmse": 0.009989153853691257,
-      "probe_count": 0,
+      "max_collision_slack": 2.8566004480512334e-20,
+      "effectiveness_rmse": 0.007532496047128442,
+      "probe_count": 15,
       "hidden_effectiveness": {
         "ground_rover_1": [
           0.805037199014642,
@@ -1686,33 +1908,58 @@
       },
       "final_effectiveness_estimates": {
         "ground_rover_1": [
-          0.817958073393164,
-          0.6440537866362953
+          0.7972453268504659,
+          0.6360931795903239
         ],
         "ground_rover_2": [
-          0.5809845990462136,
-          0.9241656506709053
+          0.580154593733438,
+          0.9228741853538609
         ],
         "surface_vessel": [
-          0.7985957890782517,
-          0.7987524230431957
+          0.7815307416613025,
+          0.8068277414716625
         ],
         "underwater_rov": [
-          0.8699732117731803,
-          0.7855838813719591,
-          0.6959801167933283,
-          0.6272944925724308,
-          0.8884222192368333,
-          0.9127224206005166,
-          0.9253565430975258,
-          0.9358383273970807
+          0.8568841635427064,
+          0.7864234941826901,
+          0.6988561394518612,
+          0.6106858711300689,
+          0.8780517923365326,
+          0.9033176074114968,
+          0.9469149215777363,
+          0.9623391206770218
         ]
       },
-      "probe_sequence_by_agent": {
+      "effectiveness_change_steps_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
         "surface_vessel": [],
         "underwater_rov": []
+      },
+      "probe_sequence_by_agent": {
+        "ground_rover_1": [
+          0,
+          1
+        ],
+        "ground_rover_2": [
+          0,
+          1
+        ],
+        "surface_vessel": [
+          0,
+          1,
+          0
+        ],
+        "underwater_rov": [
+          4,
+          3,
+          0,
+          7,
+          5,
+          1,
+          2,
+          6
+        ]
       }
     },
     {
@@ -1811,6 +2058,12 @@
           0.9450569046203969,
           0.6551841577972919
         ]
+      },
+      "effectiveness_change_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
       },
       "probe_sequence_by_agent": {
         "ground_rover_1": [],
@@ -1912,6 +2165,12 @@
           0.6122692206487078
         ]
       },
+      "effectiveness_change_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
       "probe_sequence_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
@@ -1925,27 +2184,27 @@
       "controller": "Recursive one-pass MPC",
       "valid": true,
       "all_goals_reached": true,
-      "first_hit_step_sum": 167,
-      "sustained_completion_cost": 167,
+      "first_hit_step_sum": 169,
+      "sustained_completion_cost": 169,
       "first_goal_steps": {
         "ground_rover_1": 33,
-        "ground_rover_2": 47,
-        "surface_vessel": 62,
-        "underwater_rov": 25
+        "ground_rover_2": 48,
+        "surface_vessel": 61,
+        "underwater_rov": 27
       },
       "final_goal_errors": {
-        "ground_rover_1": 0.005457392659871084,
-        "ground_rover_2": 0.004590313927338295,
-        "surface_vessel": 0.17200109414166093,
-        "underwater_rov": 0.012072840913644547
+        "ground_rover_1": 0.008040450460985343,
+        "ground_rover_2": 0.006863400585758056,
+        "surface_vessel": 0.23141987167400788,
+        "underwater_rov": 0.014259433784115998
       },
       "final_orientation_errors": {
-        "ground_rover_1": 0.004669641130358393,
-        "ground_rover_2": 0.011489007481058522,
-        "surface_vessel": 0.011398524172232527,
-        "underwater_rov": 0.0032134565263201723
+        "ground_rover_1": 0.02879557296010926,
+        "ground_rover_2": 0.0008481930299044649,
+        "surface_vessel": 0.0016621104527501096,
+        "underwater_rov": 0.012421697979654776
       },
-      "min_pairwise_distance": 1.2212713188534565,
+      "min_pairwise_distance": 1.279833372606323,
       "pairwise_violation_count": 0,
       "solver_fallbacks": 0,
       "solver_fallbacks_by_agent": {
@@ -1961,9 +2220,9 @@
         "underwater_rov": []
       },
       "solver_failure_status_counts": {},
-      "max_collision_slack": 2.2397638655872683e-17,
-      "effectiveness_rmse": 0.02790294210730047,
-      "probe_count": 0,
+      "max_collision_slack": 2.107802404227117e-15,
+      "effectiveness_rmse": 0.07059254473027002,
+      "probe_count": 14,
       "hidden_effectiveness": {
         "ground_rover_1": [
           0.6002575643703506,
@@ -1990,33 +2249,57 @@
       },
       "final_effectiveness_estimates": {
         "ground_rover_1": [
-          0.6135667414352602,
-          0.9988537899777827
+          0.5925169421267404,
+          0.9670185129849721
         ],
         "ground_rover_2": [
-          0.7907865146695547,
-          0.7458499895003107
+          0.7922308286903821,
+          0.7455845843311417
         ],
         "surface_vessel": [
-          0.6141065422309452,
-          0.849434043419419
+          0.5653064873516485,
+          1.0534265957933548
         ],
         "underwater_rov": [
-          1.0227189479607344,
-          0.893516534633074,
-          0.6000132682172855,
-          0.7954294339644644,
-          0.6555421285806073,
-          0.8518713936286064,
-          0.7155413933581785,
-          0.6080367761380481
+          1.0687922564113705,
+          0.9309580989539911,
+          0.6214384294525994,
+          0.8595568815263408,
+          0.631229659949276,
+          0.8539302893770526,
+          0.7223973935983953,
+          0.6038419810530138
         ]
       },
-      "probe_sequence_by_agent": {
+      "effectiveness_change_steps_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
         "surface_vessel": [],
         "underwater_rov": []
+      },
+      "probe_sequence_by_agent": {
+        "ground_rover_1": [
+          0,
+          1
+        ],
+        "ground_rover_2": [
+          0,
+          1
+        ],
+        "surface_vessel": [
+          0,
+          1
+        ],
+        "underwater_rov": [
+          0,
+          1,
+          6,
+          7,
+          4,
+          5,
+          2,
+          3
+        ]
       }
     },
     {
@@ -2025,27 +2308,27 @@
       "controller": "Recursive information-aware MPC",
       "valid": true,
       "all_goals_reached": true,
-      "first_hit_step_sum": 167,
-      "sustained_completion_cost": 167,
+      "first_hit_step_sum": 158,
+      "sustained_completion_cost": 158,
       "first_goal_steps": {
-        "ground_rover_1": 33,
-        "ground_rover_2": 47,
-        "surface_vessel": 62,
-        "underwater_rov": 25
+        "ground_rover_1": 34,
+        "ground_rover_2": 48,
+        "surface_vessel": 45,
+        "underwater_rov": 31
       },
       "final_goal_errors": {
-        "ground_rover_1": 0.005457392659871084,
-        "ground_rover_2": 0.004590313927338295,
-        "surface_vessel": 0.17200109414166093,
-        "underwater_rov": 0.012072840913644547
+        "ground_rover_1": 0.008429608448444844,
+        "ground_rover_2": 0.0066100619278233776,
+        "surface_vessel": 0.1791433997871993,
+        "underwater_rov": 0.012774556818633482
       },
       "final_orientation_errors": {
-        "ground_rover_1": 0.004669641130358393,
-        "ground_rover_2": 0.011489007481058522,
-        "surface_vessel": 0.011398524172232527,
-        "underwater_rov": 0.0032134565263201723
+        "ground_rover_1": 0.0022026732354061274,
+        "ground_rover_2": 0.023513232004437334,
+        "surface_vessel": 0.12835567942249604,
+        "underwater_rov": 0.006054727289412713
       },
-      "min_pairwise_distance": 1.2212713188534565,
+      "min_pairwise_distance": 1.2780379300682818,
       "pairwise_violation_count": 0,
       "solver_fallbacks": 0,
       "solver_fallbacks_by_agent": {
@@ -2061,9 +2344,9 @@
         "underwater_rov": []
       },
       "solver_failure_status_counts": {},
-      "max_collision_slack": 2.2397638655872683e-17,
-      "effectiveness_rmse": 0.02790294210730047,
-      "probe_count": 0,
+      "max_collision_slack": 4.430133217577492e-20,
+      "effectiveness_rmse": 0.07462302306065005,
+      "probe_count": 15,
       "hidden_effectiveness": {
         "ground_rover_1": [
           0.6002575643703506,
@@ -2090,33 +2373,58 @@
       },
       "final_effectiveness_estimates": {
         "ground_rover_1": [
-          0.6135667414352602,
-          0.9988537899777827
+          0.6014276068623988,
+          0.9899517986925425
         ],
         "ground_rover_2": [
-          0.7907865146695547,
-          0.7458499895003107
+          0.7956385623073279,
+          0.7602658745976452
         ],
         "surface_vessel": [
-          0.6141065422309452,
-          0.849434043419419
+          0.5588578681731216,
+          0.9015014166898329
         ],
         "underwater_rov": [
-          1.0227189479607344,
-          0.893516534633074,
-          0.6000132682172855,
-          0.7954294339644644,
-          0.6555421285806073,
-          0.8518713936286064,
-          0.7155413933581785,
-          0.6080367761380481
+          0.9974058388154871,
+          0.9211103938160441,
+          0.6489601285414427,
+          0.7724203523304453,
+          0.7061834660548378,
+          1.0268021876589033,
+          0.9042126741629959,
+          0.6646226944155607
         ]
       },
-      "probe_sequence_by_agent": {
+      "effectiveness_change_steps_by_agent": {
         "ground_rover_1": [],
         "ground_rover_2": [],
         "surface_vessel": [],
         "underwater_rov": []
+      },
+      "probe_sequence_by_agent": {
+        "ground_rover_1": [
+          0,
+          1
+        ],
+        "ground_rover_2": [
+          0,
+          1
+        ],
+        "surface_vessel": [
+          0,
+          1,
+          0
+        ],
+        "underwater_rov": [
+          5,
+          1,
+          6,
+          2,
+          4,
+          3,
+          0,
+          7
+        ]
       }
     }
   ]

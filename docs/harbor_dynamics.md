@@ -237,6 +237,38 @@ abrupt loss without reading the configured change time or effectiveness. An
 inflation event is evidence of local model surprise, not an isolated or
 classified physical fault; offline plant truth is used only to calculate RMSE.
 
+The CUSUM comparator uses normalized innovation squared per measured dynamic
+state:
+
+```text
+q_k = d_k^2 / dim(e_k)
+g_k = max(0, g_(k-1) + q_k - nu)
+inflate P_k^- and reset g_k when g_k >= h
+```
+
+Here `nu` is the configured reference drift and `h` is the decision threshold.
+The statistic accumulates moderate persistent mismatch that a one-step test can
+miss. This follows the established chi-square CUSUM pattern used for innovation-
+based fault monitoring, while the project-specific action is covariance
+reopening rather than a standalone alarm
+([de Oliveira et al., 2012](https://doi.org/10.1155/2012/740752)).
+
+When change-triggered probing is enabled, the controller initially suppresses
+active identification. After a CUSUM event for agent `i`, it resets that local
+agent's excitation and information proxies,
+
+```text
+E_i <- 0,  I_i <- 0,  probe_quota_i <- 0
+```
+
+and reuses the existing constraint-aware information scheduler. Other agents'
+estimators and budgets are untouched. The scheduled plant event remains hidden;
+the trigger comes only from the local normalized innovation. CUSUM combined with
+RLS is an established monitoring architecture, so the claim here is its causal
+integration with safe physical-channel re-probing inside heterogeneous
+distributed MPC, not invention of CUSUM itself
+([Tran and Fowler, 2020](https://doi.org/10.3390/batteries6010001)).
+
 For distributed collision prediction, a received peer message contains
 position `p`, velocity `v`, and goal `g`. Legacy prediction uses `p(t)=p+tv`
 for the full horizon. The goal-bounded model first computes
