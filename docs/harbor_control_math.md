@@ -302,3 +302,21 @@ Solver fallbacks, dynamic retries, all slack maxima, communication delivery,
 observability, actuator RMSE, and completion cost are stored separately so one
 metric cannot conceal failure in another.
 
+## 11. Robust fixed-lag factor graph
+
+The EKF is retained as a directly comparable baseline. The experimental
+smoother in `scripts/harbor/factor_graph.py` stores a window of platform poses
+and unknown beacon positions. It minimizes prior, odometry, robust range,
+attitude, and beacon-prior residuals. A range residual is
+
+```text
+r_range = (||p_k-l_b|| - z_kb) / sigma_range
+```
+
+Huber IRLS uses `w(r)=1` for `|r| <= delta` and `w(r)=delta/|r|` otherwise.
+Once `fixed_lag` is exceeded, the oldest pose is removed and represented by a
+retained prior. `factor_iterations`, damping, and the Huber threshold are
+configurable. Each update reports residual RMS, rejected factors, window size,
+Jacobian rank, smallest singular value, and condition number. The dependency-
+free solver is a transparent research reference; solve time must be reported
+before claiming real-time performance.

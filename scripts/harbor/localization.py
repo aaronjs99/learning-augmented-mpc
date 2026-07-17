@@ -8,6 +8,8 @@ from pathlib import Path
 import numpy as np
 import yaml
 
+from .factor_graph import FactorGraphConfig, FixedLagRangeSLAM, GraphRange
+
 
 @dataclass(frozen=True)
 class RangeBeacon:
@@ -35,6 +37,9 @@ class RangeAidedSLAMConfig:
 
     enabled: bool = False
     mode: str = "joint_landmark_ekf"
+    fixed_lag: int = 8
+    factor_iterations: int = 4
+    robust_range_loss: str = "huber"
     range_std: float = 0.08
     range_bias: float = 0.0
     dropout_probability: float = 0.0
@@ -53,8 +58,12 @@ class RangeAidedSLAMConfig:
     beacons: tuple[RangeBeacon, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.mode not in {"known_anchor_ekf", "joint_landmark_ekf"}:
-            raise ValueError("range-aided mode must be known_anchor_ekf or joint_landmark_ekf")
+        if self.mode not in {"known_anchor_ekf", "joint_landmark_ekf", "fixed_lag_slam"}:
+            raise ValueError("range-aided mode must be known_anchor_ekf, joint_landmark_ekf, or fixed_lag_slam")
+        if self.fixed_lag < 2 or self.factor_iterations < 1:
+            raise ValueError("fixed-lag settings must be positive")
+        if self.robust_range_loss not in {"huber", "none"}:
+            raise ValueError("robust_range_loss must be huber or none")
         if self.range_std <= 0.0 or self.maximum_range <= 0.0:
             raise ValueError("range noise and maximum range must be positive")
         if not 0.0 <= self.dropout_probability <= 1.0:
@@ -286,7 +295,7 @@ class HarborRangeLocalization:
 
     def __init__(self, config: RangeAidedSLAMConfig):
         self.config = config
-        self.estimators: dict[str, RangeAidedEKF] = {}
+        self.estimators: dict[str, RangeAidedEKF | FixedLagRangeSLAM] = {}
         self.sensors: dict[str, RangeSensor] = {}
         self._last_onboard_position: dict[str, np.ndarray] = {}
         self._odometry_rngs: dict[str, np.random.Generator] = {}
@@ -298,7 +307,24 @@ class HarborRangeLocalization:
         truth_position = np.asarray(agent.model.position(truth), dtype=float)[:dimension]
         onboard_position = np.asarray(agent.model.position(onboard), dtype=float)[:dimension]
         if agent.name not in self.estimators:
-            self.estimators[agent.name] = RangeAidedEKF(self.config, onboard_position)
+            if self.config.mode == "fixed_lag_slam":
+                dimension = 3 if agent.model.kind == "rov" else 2
+                compatible = {
+                    beacon.name: np.asarray(beacon.initial_position[:dimension], dtype=float)
+                    for beacon in self.config.beacons
+                    if len(beacon.initial_position) >= dimension
+                }
+                fixed = {beacon.name for beacon in self.config.beacons if beacon.fixed}
+                self.estimators[agent.name] = FixedLagRangeSLAM(
+                    FactorGraphConfig(
+                        lag=self.config.fixed_lag,
+                        iterations=self.config.factor_iterations,
+                        range_std=self.config.range_std,
+                        odometry_std=max(float(np.mean(self.config.motion_std[:dimension])), 1.0e-3),
+                    ), onboard_position, compatible, fixed,
+                )
+            else:
+                self.estimators[agent.name] = RangeAidedEKF(self.config, onboard_position)
             seed_offset = sum((index + 1) * ord(char) for index, char in enumerate(agent.name))
             self.sensors[agent.name] = RangeSensor(
                 replace(self.config, seed=self.config.seed + seed_offset)
@@ -316,6 +342,23 @@ class HarborRangeLocalization:
             displacement = displacement + bias + self._odometry_rngs[agent.name].normal(
                 0.0, std
             )
+        if isinstance(estimator, FixedLagRangeSLAM):
+            graph_measurements = tuple(
+                GraphRange(m.beacon, m.distance, robust=self.config.robust_range_loss != "none")
+                for m in self.sensors[agent.name].measure(truth_position, step)
+            )
+            estimator.update(displacement, graph_measurements)
+            self._last_onboard_position[agent.name] = onboard_position.copy()
+            self.reports[agent.name].append(
+                ObservabilityReport(
+                    estimator.pose.size, estimator.last_report.rank,
+                    estimator.last_report.sigma_min, estimator.last_report.condition_number,
+                    estimator.last_report.mode == "fully-observable",
+                )
+            )
+            estimated = np.asarray(onboard, dtype=float).copy()
+            estimated[:dimension] = estimator.position
+            return estimated
         estimator.predict(displacement)
         measurements = self.sensors[agent.name].measure(truth_position, step)
         estimator.update(measurements)

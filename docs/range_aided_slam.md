@@ -32,6 +32,11 @@ The EKF uses a Joseph-form covariance update. Bias, Gaussian noise, maximum
 range, update rate, dropout, odometry drift, priors, and random seed are all
 configured under `range_aided_slam` in `config/harbor.yaml`.
 
+For the robust fixed-lag baseline, set `mode: fixed_lag_slam`. It supports 2D
+UGV/USV positions and full six-component ROV pose states, with explicit
+odometry, range, attitude, and beacon-prior factors. Huber reweighting records
+downweighted range factors instead of silently accepting them as truth.
+
 ## Observability
 
 The estimator stores a sliding window of measurement Jacobians and reports

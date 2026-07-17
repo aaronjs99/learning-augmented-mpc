@@ -32,6 +32,7 @@ POLICIES = (
     "Dead reckoning",
     "Known harbor map",
     "Joint landmark SLAM",
+    "Robust fixed-lag SLAM",
     "Joint SLAM + belief retry",
 )
 
@@ -90,6 +91,10 @@ def _localization(policy: str, config, seed: int):
     if policy == "Known harbor map":
         return HarborRangeLocalization(
             replace(configured, enabled=True, mode="known_anchor_ekf")
+        )
+    if policy == "Robust fixed-lag SLAM":
+        return HarborRangeLocalization(
+            replace(configured, enabled=True, mode="fixed_lag_slam")
         )
     return HarborRangeLocalization(
         replace(configured, enabled=True, mode="joint_landmark_ekf")

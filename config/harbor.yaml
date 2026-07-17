@@ -67,7 +67,11 @@ observation_noise:
 
 range_aided_slam:
   enabled: false
+  # Baselines: known_anchor_ekf, joint_landmark_ekf, fixed_lag_slam.
   mode: joint_landmark_ekf
+  fixed_lag: 8
+  factor_iterations: 4
+  robust_range_loss: huber
   range_std: 0.08
   range_bias: 0.0
   dropout_probability: 0.05

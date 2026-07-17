@@ -46,6 +46,7 @@ from .localization import (
     RangeSensor,
     load_range_aided_slam_config,
 )
+from .factor_graph import FactorGraphConfig, FactorGraphReport, FixedLagRangeSLAM, GraphRange, huber_weight
 from .mpc import HarborMPCConfig, load_harbor_mpc_config
 from .simulation import (
     HarborAgent,
@@ -107,6 +108,11 @@ __all__ = [
     "load_harbor_dynamic_envelope_criteria_config",
     "load_harbor_station_keeping_criteria_config",
     "load_range_aided_slam_config",
+    "FactorGraphConfig",
+    "FactorGraphReport",
+    "FixedLagRangeSLAM",
+    "GraphRange",
+    "huber_weight",
     "make_platform_model",
     "run_harbor_simulation",
 ]
