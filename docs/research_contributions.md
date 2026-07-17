@@ -192,16 +192,30 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       process uncertainty, Mahalanobis innovation gating, and a Joseph covariance
       update. Hidden plant effectiveness never enters the controller.
     - Across the same five stratified fault draws, recursive passive estimation
-      wins all five comparisons and lowers mean RMSE from `0.1507` to `0.0385`
-      (`72.85%` paired relative reduction; absolute bootstrap 95% interval
-      `[0.0792, 0.1437]`); recursive active probing reaches
-      `0.0342`. All rollouts are complete and collision-safe.
-    - The two active schedules tie under this noise realization. Inspector-
-      Gadget requires recoverable fallbacks for all seed-23 policies and for
-      the instantaneous estimator in seeds 11 and 71; other platforms remain
-      solver-clean. The defensible contribution is robust local identification
-      under heterogeneous noisy observations, not universal scheduling
-      dominance or hardware validation.
+      wins all five comparisons and lowers mean RMSE from `0.1529` to `0.0392`
+      (`72.42%` paired relative reduction; absolute bootstrap 95% interval
+      `[0.0779, 0.1496]`); recursive active probing reaches
+      `0.0344`. All rollouts are complete and collision-safe.
+    - The two active schedules tie under this noise realization. All 15
+      recursive-controller rollouts are solver-clean; the instantaneous
+      comparator retains one Inspector-Gadget fallback. The defensible
+      contribution is robust local identification under heterogeneous noisy
+      observations, not universal scheduling dominance or hardware validation.
+
+19. **Intent-bounded communicated obstacle prediction**
+    - Constant-velocity peer extrapolation is retained as an explicit ablation.
+      The new predictor caps along-track motion at communicated intent only when
+      current velocity is sufficiently aligned; unaligned motion remains
+      constant velocity.
+    - Each optimizer remains decentralized and keeps hard pairwise constraints.
+      No future peer trajectory, centralized solve, or physical tether is added.
+    - Across five matched noisy hidden-fault cases, goal-bounded prediction
+      reduces recoverable fallbacks from `7` to `0`, improves fallback-free case
+      rate from `80%` to `100%`, and changes mean completion cost by `-0.6`
+      steps. All pairs complete and remain collision-safe.
+    - Estimation RMSE is nearly unchanged (`0.03846 -> 0.03934`), isolating the
+      contribution as reduced false collision infeasibility rather than better
+      fault identification.
 
 ## Current Evidence
 

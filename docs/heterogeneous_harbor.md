@@ -170,16 +170,30 @@ python run.py harbor-fault-noise-study
 This repeats the same five hidden-fault draws with deterministic UGV/USV/ROV
 state-observation noise. Controller inputs are noisy; safety and completion are
 evaluated from plant truth. Recursive passive estimation reduces mean actuator
-RMSE from `0.1507` for the instantaneous fit to `0.0385`, a mean paired relative
-reduction of `72.85%`, and wins all five matched cases. The paired absolute
-reduction is `0.1122` with bootstrap 95% interval `[0.0792, 0.1437]`. Recursive active probing
-reaches `0.0342`. One-pass and information-aware probe order tie in this noisy
+RMSE from `0.1529` for the instantaneous fit to `0.0392`, a mean paired relative
+reduction of `72.42%`, and wins all five matched cases. The paired absolute
+reduction is `0.1137` with bootstrap 95% interval `[0.0779, 0.1496]`. Recursive
+active probing reaches `0.0344`. One-pass and information-aware probe order tie in this noisy
 ensemble, so the noise experiment supports recursive estimation, not a further
 scheduling advantage. Every rollout completes and remains collision-safe.
-Inspector-Gadget requires recoverable IPOPT fallbacks for every policy in seed
-23 and for the instantaneous estimator in seeds 11 and 71; every other
-platform is solver-clean. This is retained as numerical telemetry rather than
-hidden by the task-level success metric.
+All 15 recursive-controller rollouts are solver-clean; the instantaneous
+baseline retains one Inspector-Gadget fallback in seed 71.
+
+## Intent-Bounded Peer Prediction
+
+```text
+python run.py harbor-prediction-study
+```
+
+This ablation holds the safe-memory seed, recursive estimator, hidden faults,
+observation seeds, communication, and hard collision constraints fixed. The
+legacy constant-velocity model incurs seven recoverable Inspector-Gadget
+fallbacks in one of five cases. Capping aligned peer travel at its communicated
+goal reduces fallbacks `7 -> 0`, raises fallback-free case rate `80% -> 100%`,
+and changes mean completion cost by `-0.6` steps. All five pairs complete and
+remain collision-safe. Mean actuator RMSE changes only `0.03846 -> 0.03934`,
+supporting peer-prediction feasibility rather than improved identification as
+the mechanism.
 
 ## Initial Evidence
 

@@ -63,6 +63,8 @@ class HarborMPCConfig:
     identification_min_probes_per_channel: int = 2
     identification_max_rejections: int = 2
     identification_clearance_buffer: float = 0.4
+    obstacle_prediction_mode: str = "goal_bounded_velocity"
+    obstacle_prediction_alignment_threshold: float = 0.5
     ipopt_max_iter: int = 120
     ipopt_print_level: int = 0
 
@@ -108,6 +110,7 @@ class HarborMPCConfig:
             self.identification_target_std,
             self.identification_fault_focus_weight,
             self.identification_clearance_buffer,
+            self.obstacle_prediction_alignment_threshold,
         )
         if any(value < 0.0 for value in nonnegative):
             raise ValueError("harbor_mpc weights and slack bounds must be nonnegative")
@@ -141,6 +144,18 @@ class HarborMPCConfig:
             )
         if self.identification_strategy not in {"energy", "information"}:
             raise ValueError("identification_strategy must be energy or information")
+        if self.obstacle_prediction_mode not in {
+            "constant_velocity",
+            "goal_bounded_velocity",
+        }:
+            raise ValueError(
+                "obstacle_prediction_mode must be constant_velocity or "
+                "goal_bounded_velocity"
+            )
+        if self.obstacle_prediction_alignment_threshold > 1.0:
+            raise ValueError(
+                "obstacle_prediction_alignment_threshold must be in [0, 1]"
+            )
         if min(
             self.identification_prior_std,
             self.identification_measurement_noise,
@@ -942,8 +957,38 @@ class DistributedHarborMPC:
                 continue
             age = max(0, current_step - message.sent_step)
             times = (age + np.arange(1, horizon + 1))[:, None] * self.dt
-            predictions[other.name] = message.position + times * message.velocity
+            if self.config.obstacle_prediction_mode == "goal_bounded_velocity":
+                predictions[other.name] = _goal_bounded_velocity_prediction(
+                    message,
+                    times,
+                    self.config.obstacle_prediction_alignment_threshold,
+                )
+            else:
+                predictions[other.name] = message.position + times * message.velocity
         return predictions
+
+
+def _goal_bounded_velocity_prediction(
+    message: AgentMessage,
+    times: np.ndarray,
+    alignment_threshold: float,
+) -> np.ndarray:
+    """Extrapolate velocity without carrying an aligned agent past its intent."""
+    position = np.asarray(message.position, dtype=float).reshape(3)
+    velocity = np.asarray(message.velocity, dtype=float).reshape(3)
+    prediction_times = np.asarray(times, dtype=float).reshape(-1, 1)
+    speed = float(np.linalg.norm(velocity))
+    goal_delta = np.asarray(message.goal, dtype=float).reshape(3) - position
+    goal_distance = float(np.linalg.norm(goal_delta))
+    if speed <= 1e-9 or goal_distance <= 1e-9:
+        return np.repeat(position[None, :], len(prediction_times), axis=0)
+    direction = velocity / speed
+    alignment = float(np.dot(direction, goal_delta / goal_distance))
+    if alignment < alignment_threshold:
+        return position + prediction_times * velocity
+    along_track_remaining = max(float(np.dot(goal_delta, direction)), 0.0)
+    travel = np.minimum(speed * prediction_times, along_track_remaining)
+    return position + travel * direction
 
 
 def _estimate_control_effectiveness(

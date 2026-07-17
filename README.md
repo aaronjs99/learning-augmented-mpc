@@ -101,6 +101,11 @@ noise and robust recursive actuator identification:
 
 `python3 run.py harbor-fault-noise-study`
 
+Matched constant-velocity versus goal-bounded peer-motion prediction under the
+same noisy hidden-fault ensemble:
+
+`python3 run.py harbor-prediction-study`
+
 These commands overwrite curated artifacts in `results/latest/harbor/`. The
 robustness command writes one metrics JSON, one combined diagnostic, and one
 GIF. Plant parameters are hidden from the controllers. Joint adaptation first
@@ -117,6 +122,8 @@ physical actuator channel across the configured effectiveness range and writes
 aggregate paired statistics without generating redundant animations.
 The noisy study adds an instantaneous-versus-recursive estimator ablation and
 records solver recovery by platform and IPOPT status.
+The prediction study isolates the communicated obstacle model from estimation,
+safe memory, plant faults, and observation seeds.
 
 Useful overrides:
 

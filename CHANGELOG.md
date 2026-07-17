@@ -57,6 +57,9 @@ All notable repository-level changes are tracked here.
   uncertainty, innovation gating, Joseph covariance updates, and a matched
   noisy-fault ensemble artifact.
 - Per-agent and per-IPOPT-status fallback attribution in fault-study telemetry.
+- Goal-bounded communicated peer prediction with a matched legacy constant-
+  velocity ablation, eliminating seven false-conflict solver fallbacks without
+  weakening hard pairwise constraints.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.

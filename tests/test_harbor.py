@@ -26,12 +26,14 @@ from scripts.harbor.experiments import (
     generate_fault_ensemble,
     sweep_network_robustness,
 )
+from scripts.harbor.communication import AgentMessage
 from scripts.harbor.learning import run_distributed_harbor_lmpc
 from scripts.harbor.mpc import (
     HarborAgentOptimizer,
     _approach_pose_goal,
     _estimate_control_effectiveness,
     _estimate_diagonal_control_effectiveness,
+    _goal_bounded_velocity_prediction,
     _identification_channel,
     _information_identification_channel,
     _least_excited_channel,
@@ -43,9 +45,72 @@ from scripts.harbor.plotting import (
     save_network_robustness_heatmap,
 )
 from scripts.run_harbor_fault_generalization import summarize_fault_generalization
+from scripts.run_harbor_prediction_study import summarize_prediction_ablation
 
 
 class HarborTests(unittest.TestCase):
+    def test_goal_bounded_prediction_stops_aligned_motion_at_intent(self) -> None:
+        message = AgentMessage(
+            sender="peer",
+            sent_step=0,
+            position=np.array([0.0, 1.0, 0.0]),
+            velocity=np.array([2.0, 0.0, 0.0]),
+            goal=np.array([3.0, 1.0, 0.0]),
+            cruise_speed=2.0,
+        )
+        prediction = _goal_bounded_velocity_prediction(
+            message, np.array([[0.5], [1.0], [2.0], [3.0]]), 0.5
+        )
+        np.testing.assert_allclose(
+            prediction,
+            [[1.0, 1.0, 0.0], [2.0, 1.0, 0.0], [3.0, 1.0, 0.0], [3.0, 1.0, 0.0]],
+        )
+
+    def test_goal_bounded_prediction_preserves_unaligned_velocity(self) -> None:
+        message = AgentMessage(
+            sender="peer",
+            sent_step=0,
+            position=np.zeros(3),
+            velocity=np.array([1.0, 0.0, 0.0]),
+            goal=np.array([0.0, 2.0, 0.0]),
+            cruise_speed=1.0,
+        )
+        times = np.array([[1.0], [2.0]])
+        prediction = _goal_bounded_velocity_prediction(message, times, 0.5)
+        np.testing.assert_allclose(prediction, [[1.0, 0.0, 0.0], [2.0, 0.0, 0.0]])
+
+    def test_mpc_rejects_unknown_obstacle_prediction_mode(self) -> None:
+        with self.assertRaisesRegex(ValueError, "obstacle_prediction_mode"):
+            replace(
+                load_harbor_mpc_config(),
+                obstacle_prediction_mode="clairvoyant",
+            )
+
+    def test_prediction_ablation_summary_preserves_matched_pairs(self) -> None:
+        records = []
+        for seed, legacy_fallbacks, bounded_fallbacks in ((11, 3, 0), (23, 2, 0)):
+            for label, fallbacks, cost in (
+                ("Constant-velocity prediction", legacy_fallbacks, 155),
+                ("Goal-bounded prediction", bounded_fallbacks, 150),
+            ):
+                records.append(
+                    {
+                        "seed": seed,
+                        "controller": label,
+                        "solver_fallbacks": fallbacks,
+                        "all_goals_reached": True,
+                        "pairwise_violation_count": 0,
+                        "sustained_completion_cost": cost,
+                        "effectiveness_rmse": 0.04,
+                    }
+                )
+        paired = summarize_prediction_ablation(records)[
+            "paired_goal_bounded_vs_constant_velocity"
+        ]
+        self.assertEqual(paired["fallback_reduction"], 5)
+        self.assertEqual(paired["complete_safe_pairs"], 2)
+        self.assertEqual(paired["mean_completion_cost_delta"], -5.0)
+
     def test_observation_noise_is_reproducible_and_separate_from_truth(self) -> None:
         agents, simulation, communication = load_harbor_config()
 

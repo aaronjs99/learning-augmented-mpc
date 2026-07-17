@@ -73,6 +73,11 @@ def main() -> None:
         from scripts.run_harbor_fault_generalization import main as run_noise_study
 
         run_noise_study()
+    elif command == "harbor-prediction-study":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_prediction_study import main as run_prediction_study
+
+        run_prediction_study()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

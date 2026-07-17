@@ -58,6 +58,13 @@ scale, process-noise floor, and Mahalanobis innovation gate are configured by
 the four `effectiveness_rls_*` values. The legacy `diagonal` mode remains the
 instantaneous finite-difference comparator.
 
+`obstacle_prediction_mode` selects legacy unbounded `constant_velocity` or
+`goal_bounded_velocity` peer extrapolation. The latter retains constant
+velocity when peer motion is not aligned with communicated intent, but caps
+aligned along-track travel at the communicated goal. Alignment is controlled
+by `obstacle_prediction_alignment_threshold`. This changes only obstacle
+prediction; hard pairwise constraints and communication delay/TTL remain active.
+
 `active_identification` enables local constraint-aware calibration. Probe
 fraction, normalized energy target, interval, minimum successful probes per
 channel, maximum rejected probes, and extra communication-clearance guard are

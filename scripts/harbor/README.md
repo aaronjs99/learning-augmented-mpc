@@ -92,3 +92,8 @@ platform-specific state observations. It compares the instantaneous diagonal
 fit with recursive passive, recursive one-pass, and recursive information-aware
 controllers. Plant truth remains separate from controller observations, and
 the JSON attributes every recovery fallback to an agent and IPOPT status.
+
+`python run.py harbor-prediction-study` compares legacy constant-velocity and
+goal-bounded peer prediction using one common safe-memory seed and matched
+fault/noise cases. It writes one JSON and one three-panel figure covering
+fallbacks, task cost, and actuator-estimation error.

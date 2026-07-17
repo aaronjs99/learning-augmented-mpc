@@ -225,7 +225,9 @@ def main() -> None:
                     "pairwise_violation_count": trial.result.pairwise_violation_count,
                     "solver_fallbacks": trial.solver_fallbacks,
                     "solver_fallbacks_by_agent": trial.solver_fallbacks_by_agent,
+                    "solver_failure_steps_by_agent": trial.solver_failure_steps_by_agent,
                     "solver_failure_status_counts": trial.solver_failure_status_counts,
+                    "max_collision_slack": trial.max_collision_slack,
                     "effectiveness_rmse": float(
                         np.sqrt(np.mean((estimate - truth) ** 2))
                     ),

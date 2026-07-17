@@ -108,6 +108,8 @@ harbor_mpc:
   identification_min_probes_per_channel: 2
   identification_max_rejections: 2
   identification_clearance_buffer: 0.4
+  obstacle_prediction_mode: goal_bounded_velocity
+  obstacle_prediction_alignment_threshold: 0.5
   ipopt_max_iter: 250
   ipopt_print_level: 0
 

@@ -1,0 +1,305 @@
+{
+  "ensemble": {
+    "seeds": [
+      11,
+      23,
+      37,
+      53,
+      71
+    ],
+    "comparison": "common safe-memory, hidden fault, and observation seed"
+  },
+  "summary": {
+    "controllers": {
+      "Constant-velocity prediction": {
+        "trials": 5,
+        "total_solver_fallbacks": 7,
+        "fallback_free_rate": 0.8,
+        "completion_rate": 1.0,
+        "safety_rate": 1.0,
+        "mean_sustained_completion_cost": 163.8,
+        "mean_effectiveness_rmse": 0.038462646552232284
+      },
+      "Goal-bounded prediction": {
+        "trials": 5,
+        "total_solver_fallbacks": 0,
+        "fallback_free_rate": 1.0,
+        "completion_rate": 1.0,
+        "safety_rate": 1.0,
+        "mean_sustained_completion_cost": 163.2,
+        "mean_effectiveness_rmse": 0.03934347511433875
+      }
+    },
+    "paired_goal_bounded_vs_constant_velocity": {
+      "trials": 5,
+      "constant_velocity_fallbacks": 7,
+      "goal_bounded_fallbacks": 0,
+      "fallback_reduction": 7,
+      "complete_safe_pairs": 5,
+      "mean_completion_cost_delta": -0.6
+    }
+  },
+  "trials": [
+    {
+      "seed": 11,
+      "observation_seed": 112,
+      "controller": "Constant-velocity prediction",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "min_pairwise_distance": 1.3678263478323158,
+      "sustained_completion_cost": 206,
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "max_collision_slack": 1.152367910184873e-24,
+      "effectiveness_rmse": 0.06747477614957263
+    },
+    {
+      "seed": 11,
+      "observation_seed": 112,
+      "controller": "Goal-bounded prediction",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "min_pairwise_distance": 1.3678237787818033,
+      "sustained_completion_cost": 207,
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "max_collision_slack": 1.0140043515802997e-19,
+      "effectiveness_rmse": 0.06881714708831115
+    },
+    {
+      "seed": 23,
+      "observation_seed": 124,
+      "controller": "Constant-velocity prediction",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "min_pairwise_distance": 1.4719624643875213,
+      "sustained_completion_cost": 151,
+      "solver_fallbacks": 7,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 7,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26
+        ],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {
+        "Maximum_Iterations_Exceeded": 3,
+        "Infeasible_Problem_Detected": 4
+      },
+      "max_collision_slack": 1.0193620591811146e-24,
+      "effectiveness_rmse": 0.049087147902305756
+    },
+    {
+      "seed": 23,
+      "observation_seed": 124,
+      "controller": "Goal-bounded prediction",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "min_pairwise_distance": 1.4472265290230204,
+      "sustained_completion_cost": 148,
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "max_collision_slack": 6.64598066436007e-22,
+      "effectiveness_rmse": 0.05009594592419321
+    },
+    {
+      "seed": 37,
+      "observation_seed": 138,
+      "controller": "Constant-velocity prediction",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "min_pairwise_distance": 1.298768388142035,
+      "sustained_completion_cost": 147,
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "max_collision_slack": 1.0168458383257731e-24,
+      "effectiveness_rmse": 0.039940473815571365
+    },
+    {
+      "seed": 37,
+      "observation_seed": 138,
+      "controller": "Goal-bounded prediction",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "min_pairwise_distance": 1.2987688680985918,
+      "sustained_completion_cost": 147,
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "max_collision_slack": 8.729615079488272e-25,
+      "effectiveness_rmse": 0.039940841647987946
+    },
+    {
+      "seed": 53,
+      "observation_seed": 154,
+      "controller": "Constant-velocity prediction",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "min_pairwise_distance": 1.4923185132961503,
+      "sustained_completion_cost": 153,
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "max_collision_slack": 1.0061637592139159e-24,
+      "effectiveness_rmse": 0.00947836749686507
+    },
+    {
+      "seed": 53,
+      "observation_seed": 154,
+      "controller": "Goal-bounded prediction",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "min_pairwise_distance": 1.4556823390383513,
+      "sustained_completion_cost": 153,
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "max_collision_slack": 6.120775307179493e-24,
+      "effectiveness_rmse": 0.009901632407489687
+    },
+    {
+      "seed": 71,
+      "observation_seed": 172,
+      "controller": "Constant-velocity prediction",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "min_pairwise_distance": 1.587860730681889,
+      "sustained_completion_cost": 162,
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "max_collision_slack": 8.42159535016245e-24,
+      "effectiveness_rmse": 0.026332467396846602
+    },
+    {
+      "seed": 71,
+      "observation_seed": 172,
+      "controller": "Goal-bounded prediction",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "min_pairwise_distance": 1.2878582230237385,
+      "sustained_completion_cost": 161,
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "max_collision_slack": 8.35718423491375e-25,
+      "effectiveness_rmse": 0.027961808503711768
+    }
+  ]
+}

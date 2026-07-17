@@ -221,6 +221,22 @@ radially clipped before the update. This prevents one noisy transition from
 being interpreted as a large actuator loss while retaining a local causal
 estimator with no access to hidden fault values.
 
+For distributed collision prediction, a received peer message contains
+position `p`, velocity `v`, and goal `g`. Legacy prediction uses `p(t)=p+tv`
+for the full horizon. The goal-bounded model first computes
+
+```text
+d = v / ||v||
+a = d^T (g-p) / ||g-p||
+s_goal = max(d^T (g-p), 0)
+p(t) = p + d min(||v||t, s_goal),  when a >= a_min
+```
+
+and retains constant velocity when alignment `a` is below `a_min`. Thus a peer
+moving toward its communicated intent is not projected beyond it indefinitely.
+The model does not reveal a future trajectory or centralize the optimization;
+each agent still forms its own hard collision constraints from received data.
+
 Optional active identification makes missing excitation explicit. For channel
 `j`, the controller accumulates normalized command energy
 

@@ -32,6 +32,7 @@ class HarborRobustnessTrial:
     completion_step_sum: int
     solver_fallbacks: int
     solver_fallbacks_by_agent: dict[str, int]
+    solver_failure_steps_by_agent: dict[str, list[int]]
     solver_failure_status_counts: dict[str, int]
     max_collision_slack: float
     residual_history: dict[str, np.ndarray]
@@ -255,6 +256,10 @@ def run_model_mismatch_study(
                 completion_step_sum=completion_cost,
                 solver_fallbacks=controller.fallback_count,
                 solver_fallbacks_by_agent=controller.fallback_count_by_agent.copy(),
+                solver_failure_steps_by_agent={
+                    name: steps.copy()
+                    for name, steps in controller.failure_steps_by_agent.items()
+                },
                 solver_failure_status_counts=controller.failure_status_counts.copy(),
                 max_collision_slack=controller.max_collision_slack,
                 residual_history={
@@ -549,6 +554,96 @@ def run_actuator_fault_generalization(
     return cases
 
 
+def run_obstacle_prediction_generalization(
+    agents: list[HarborAgent],
+    simulation: HarborSimulationConfig,
+    communication: LinkConfig,
+    mpc_config: HarborMPCConfig,
+    base_disturbance: HarborDisturbanceConfig,
+    study_config: HarborFaultStudyConfig,
+    ensemble_config: HarborFaultEnsembleConfig,
+    observation_noise: HarborObservationNoiseConfig,
+) -> list[HarborFaultEnsembleCase]:
+    """Compare peer-motion predictors from one common clean trajectory seed."""
+    study_mpc = replace(
+        mpc_config,
+        prediction_horizon=study_config.prediction_horizon,
+        terminal_goal_weight=study_config.terminal_goal_weight,
+        terminal_slack_bound=study_config.terminal_slack_bound,
+        terminal_slack_weight=study_config.terminal_slack_weight,
+    )
+    seed_iterations = run_distributed_harbor_lmpc(
+        agents,
+        simulation,
+        communication,
+        replace(
+            study_mpc,
+            obstacle_prediction_mode="constant_velocity",
+            learning_iterations=1,
+            residual_adaptation=False,
+            control_effectiveness_adaptation=False,
+        ),
+    )
+    seed = min(
+        (record for record in seed_iterations if record.admitted),
+        key=lambda record: record.completion_step_sum,
+    )
+    modes = (
+        ("Constant-velocity prediction", "constant_velocity"),
+        ("Goal-bounded prediction", "goal_bounded_velocity"),
+    )
+    cases = []
+    for seed_value, disturbance in generate_fault_ensemble(
+        agents, base_disturbance, ensemble_config
+    ):
+        case_noise = replace(
+            observation_noise,
+            enabled=True,
+            seed=observation_noise.seed + seed_value,
+        )
+        evaluation = replace(
+            simulation,
+            guidance_update_interval_steps=study_mpc.replan_interval_steps,
+            goal_hold_steps=disturbance.evaluation_hold_steps,
+        )
+        trials = []
+        print(f"Prediction ensemble seed {seed_value}", flush=True)
+        for label, mode in modes:
+            trials.extend(
+                _run_fault_trials(
+                    agents,
+                    simulation,
+                    evaluation,
+                    communication,
+                    replace(study_mpc, obstacle_prediction_mode=mode),
+                    disturbance,
+                    seed.result,
+                    (
+                        (
+                            label,
+                            True,
+                            "recursive_diagonal",
+                            False,
+                            False,
+                            None,
+                            "energy",
+                            1,
+                        ),
+                    ),
+                    observation_noise=case_noise,
+                )
+            )
+        cases.append(
+            HarborFaultEnsembleCase(
+                seed=seed_value,
+                disturbance=disturbance,
+                observation_seed=case_noise.seed,
+                trials=tuple(trials),
+            )
+        )
+    return cases
+
+
 def _run_fault_trials(
     agents,
     simulation,
@@ -627,6 +722,10 @@ def _run_fault_trials(
                 completion_step_sum=completion_cost,
                 solver_fallbacks=controller.fallback_count,
                 solver_fallbacks_by_agent=controller.fallback_count_by_agent.copy(),
+                solver_failure_steps_by_agent={
+                    name: steps.copy()
+                    for name, steps in controller.failure_steps_by_agent.items()
+                },
                 solver_failure_status_counts=controller.failure_status_counts.copy(),
                 max_collision_slack=controller.max_collision_slack,
                 residual_history={
