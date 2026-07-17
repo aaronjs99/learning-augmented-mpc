@@ -162,6 +162,45 @@ class HarborTemporaryFaultEnsembleConfig:
         object.__setattr__(self, "seeds", seeds)
 
 
+@dataclass(frozen=True)
+class HarborConfirmationCriteriaConfig:
+    """Predeclared closed-loop gates for temporary-fault confirmation."""
+
+    controller_labels: tuple[str, ...] = (
+        "Fixed-covariance RLS",
+        "Innovation-threshold RLS",
+    )
+    minimum_adaptive_win_rate: float = 0.8
+    require_positive_bootstrap_lower_bound: bool = True
+    minimum_completion_rate: float = 1.0
+    minimum_safety_rate: float = 1.0
+    minimum_fallback_free_rate: float = 1.0
+    maximum_mean_completion_cost_delta: float = 0.0
+
+    def __post_init__(self) -> None:
+        labels = tuple(str(label) for label in self.controller_labels)
+        expected = (
+            "Fixed-covariance RLS",
+            "Innovation-threshold RLS",
+        )
+        if labels != expected:
+            raise ValueError(
+                "confirmation controllers must be fixed-covariance then "
+                "innovation-threshold RLS"
+            )
+        rates = (
+            self.minimum_adaptive_win_rate,
+            self.minimum_completion_rate,
+            self.minimum_safety_rate,
+            self.minimum_fallback_free_rate,
+        )
+        if any(not 0.0 <= value <= 1.0 for value in rates):
+            raise ValueError("confirmation rates must lie in [0, 1]")
+        if not np.isfinite(self.maximum_mean_completion_cost_delta):
+            raise ValueError("confirmation completion-cost bound must be finite")
+        object.__setattr__(self, "controller_labels", labels)
+
+
 def load_harbor_config(
     path: str | Path = DEFAULT_HARBOR_CONFIG,
 ) -> tuple[list[HarborAgent], HarborSimulationConfig, LinkConfig]:
@@ -357,6 +396,22 @@ def load_harbor_temporary_fault_ensemble_config(
         HarborTemporaryFaultEnsembleConfig,
         raw.get(section, {}),
         section,
+    )
+
+
+def load_harbor_confirmation_criteria_config(
+    path: str | Path = DEFAULT_HARBOR_CONFIG,
+) -> HarborConfirmationCriteriaConfig:
+    """Load the predeclared temporary-fault confirmation gates."""
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / config_path
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw = yaml.safe_load(stream) or {}
+    return _dataclass_from_mapping(
+        HarborConfirmationCriteriaConfig,
+        raw.get("temporary_fault_confirmation_criteria", {}),
+        "temporary_fault_confirmation_criteria",
     )
 
 

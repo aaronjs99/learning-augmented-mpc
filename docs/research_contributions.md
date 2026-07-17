@@ -261,10 +261,18 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       hidden restoration at step `40`. Both CUSUM variants share the interval;
       threshold RLS remains solver-clean. The artifact stores per-agent steps
       and status counts for direct audit.
-    - Threshold RLS is therefore a provisional candidate, not a confirmed final
-      method: it was selected after holdout inspection and needs a fresh
-      confirmation ensemble or hardware trial. Recovery and final-RMSE gains
-      are not claimed.
+    - Threshold RLS was selected only after holdout inspection, so a third,
+      frozen ten-case confirmation ensemble compares it solely with fixed RLS
+      under YAML-predeclared closed-loop gates.
+    - It passes every confirmation gate: `10/10` degraded-interval wins, RMSE
+      `0.17460 -> 0.10147` (`40.93%` paired relative reduction), absolute paired
+      bootstrap interval `[0.05717, 0.09093]`, completion cost `147.8 -> 144.3`,
+      and `100%` completion, safety, and fallback-free rates across 20 rollouts.
+    - Recovery improvement remains unsupported because its interval crosses
+      zero, and final RMSE worsens. Event recall is `73.75%` with `3.2` unmatched
+      inflations per run. Thus the confirmed scope is degradation tracking and
+      closed-loop task performance in simulation, not certified diagnosis,
+      recovery convergence, population-level generalization, or hardware proof.
 
 ## Current Evidence
 

@@ -39,8 +39,14 @@ def summarize_time_varying_faults(
     records: list[dict], bootstrap_samples: int = 5000
 ) -> dict:
     """Aggregate tracking and task metrics for matched observation seeds."""
+    present_labels = {record["controller"] for record in records}
+    labels = tuple(label for label in CONTROLLER_LABELS if label in present_labels)
+    if not labels or labels[0] != CONTROLLER_LABELS[0]:
+        raise ValueError(
+            "temporary-fault records require the fixed-covariance comparator"
+        )
     controllers = {}
-    for label in CONTROLLER_LABELS:
+    for label in labels:
         selected = [record for record in records if record["controller"] == label]
         delays = [
             record["mean_detection_delay"]
@@ -81,7 +87,10 @@ def summarize_time_varying_faults(
             "mean_change_detections": float(
                 np.mean(
                     [
-                        sum(len(steps) for steps in record["change_steps_by_agent"].values())
+                        sum(
+                            len(steps)
+                            for steps in record["change_steps_by_agent"].values()
+                        )
                         for record in selected
                     ]
                 )
@@ -102,20 +111,20 @@ def summarize_time_varying_faults(
     }
     seeds = sorted({record["seed"] for record in records})
     fixed = np.asarray(
-        [by_key[(seed, CONTROLLER_LABELS[0])]["fault_interval_rmse"] for seed in seeds]
+        [by_key[(seed, labels[0])]["fault_interval_rmse"] for seed in seeds]
     )
     fixed_final = np.asarray(
         [
-            by_key[(seed, CONTROLLER_LABELS[0])]["final_effectiveness_rmse"]
+            by_key[(seed, labels[0])]["final_effectiveness_rmse"]
             for seed in seeds
         ]
     )
     fixed_recovery = np.asarray(
-        [by_key[(seed, CONTROLLER_LABELS[0])]["recovery_rmse"] for seed in seeds]
+        [by_key[(seed, labels[0])]["recovery_rmse"] for seed in seeds]
     )
     paired = {}
     rng = np.random.default_rng(20260716)
-    for label in CONTROLLER_LABELS[1:]:
+    for label in labels[1:]:
         adaptive = np.asarray(
             [by_key[(seed, label)]["fault_interval_rmse"] for seed in seeds]
         )
@@ -129,7 +138,11 @@ def summarize_time_varying_faults(
         final_reduction = fixed_final - adaptive_final
         recovery_reduction = fixed_recovery - adaptive_recovery
         rmse_bootstrap = np.mean(
-            rng.choice(reduction, size=(bootstrap_samples, len(reduction)), replace=True),
+            rng.choice(
+                reduction,
+                size=(bootstrap_samples, len(reduction)),
+                replace=True,
+            ),
             axis=1,
         )
         recovery_bootstrap = np.mean(
@@ -168,7 +181,7 @@ def summarize_time_varying_faults(
                 np.mean(
                     [
                         by_key[(seed, label)]["sustained_completion_cost"]
-                        - by_key[(seed, CONTROLLER_LABELS[0])][
+                        - by_key[(seed, labels[0])][
                             "sustained_completion_cost"
                         ]
                         for seed in seeds
@@ -176,24 +189,26 @@ def summarize_time_varying_faults(
                 )
             ),
         }
-    passive_label = "Chi-square CUSUM RLS"
-    active_label = "CUSUM-triggered probing RLS"
-    passive_fault = np.asarray(
-        [by_key[(seed, passive_label)]["fault_interval_rmse"] for seed in seeds]
-    )
-    active_fault = np.asarray(
-        [by_key[(seed, active_label)]["fault_interval_rmse"] for seed in seeds]
-    )
-    passive_recovery = np.asarray(
-        [by_key[(seed, passive_label)]["recovery_rmse"] for seed in seeds]
-    )
-    active_recovery = np.asarray(
-        [by_key[(seed, active_label)]["recovery_rmse"] for seed in seeds]
-    )
-    return {
+    summary = {
         "controllers": controllers,
         "paired_vs_fixed": paired,
-        "triggered_probing_vs_passive_cusum": {
+    }
+    passive_label = "Chi-square CUSUM RLS"
+    active_label = "CUSUM-triggered probing RLS"
+    if passive_label in labels and active_label in labels:
+        passive_fault = np.asarray(
+            [by_key[(seed, passive_label)]["fault_interval_rmse"] for seed in seeds]
+        )
+        active_fault = np.asarray(
+            [by_key[(seed, active_label)]["fault_interval_rmse"] for seed in seeds]
+        )
+        passive_recovery = np.asarray(
+            [by_key[(seed, passive_label)]["recovery_rmse"] for seed in seeds]
+        )
+        active_recovery = np.asarray(
+            [by_key[(seed, active_label)]["recovery_rmse"] for seed in seeds]
+        )
+        summary["triggered_probing_vs_passive_cusum"] = {
             "trials": len(seeds),
             "degraded_interval_wins": int(
                 np.count_nonzero(active_fault < passive_fault)
@@ -222,8 +237,8 @@ def summarize_time_varying_faults(
                     by_key[(seed, passive_label)]["solver_fallbacks"] for seed in seeds
                 )
             ),
-        },
-    }
+        }
+    return summary
 
 
 def _score_inflation_events(

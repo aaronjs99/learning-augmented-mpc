@@ -254,8 +254,8 @@ shared the 22 fallbacks and increased cost by `7.8` steps. Recovery intervals
 favor threshold RLS on average, but the paired interval crosses zero, and final
 RMSE is unchanged. Therefore threshold RLS is the provisional robust candidate;
 CUSUM and triggered probing remain informative ablations, not selected methods.
-A fresh confirmation ensemble or hardware experiment is required because this
-candidate was selected after inspecting the holdout.
+At that stage, a fresh confirmation ensemble or hardware experiment was
+required because the candidate was selected after inspecting the holdout.
 
 The case-`719` failure is localized rather than inferred from an aggregate:
 only the Clearpath Heron USV reports `Infeasible_Problem_Detected`, on steps
@@ -265,6 +265,31 @@ solver-clean and reaches the USV goal at step `46`; passive CUSUM reaches it at
 step `111` through the deterministic guidance fallback. This establishes an
 estimator/controller feasibility coupling around the restoration interval, but
 does not by itself identify which estimated channel or constraint causes it.
+
+### Independent confirmation
+
+```text
+python run.py harbor-temporary-fault-generalization --confirmation
+```
+
+After candidate selection, a third YAML seed set was frozen with ten new
+Latin-hypercube fault/timing draws and new observation seeds. Only fixed-
+covariance and innovation-threshold RLS were run. The predeclared gate required
+at least `80%` paired wins, a positive paired-bootstrap lower bound, `100%`
+completion/safety/fallback-free rates, and non-increasing mean completion cost.
+
+Threshold RLS passed every gate: it won `10/10` cases, reduced degraded-
+interval RMSE `0.17460 -> 0.10147` (`40.93%` mean paired relative reduction),
+and produced an absolute reduction interval `[0.05717, 0.09093]`. Mean
+completion cost changed `147.8 -> 144.3` (`-3.5` steps); all 20 rollouts
+completed, remained collision-safe, and required no fallback.
+
+The confirmation does not establish recovery convergence. Recovery RMSE changes
+only `0.13705 -> 0.13569`, with a paired interval crossing zero, and final RMSE
+worsens `0.10689 -> 0.13056`. Event recall is `73.75%`, with `3.2` unmatched
+inflations per run. The confirmed simulation claim is therefore improved
+tracking during temporary actuator degradation with preserved safety and lower
+task cost under the configured heterogeneous distributed MPC benchmark.
 
 ## Initial Evidence
 

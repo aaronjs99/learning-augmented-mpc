@@ -1280,20 +1280,29 @@ def save_time_varying_fault_plot(records, summary, path: str | Path) -> Path:
     return output
 
 
-def save_temporary_fault_generalization_plot(records, summary, path: str | Path) -> Path:
+def save_temporary_fault_generalization_plot(
+    records,
+    summary,
+    path: str | Path,
+    *,
+    study_title: str = "Generalization Across Hidden Temporary Actuator Faults",
+) -> Path:
     """Plot paired adaptation benefits across hidden temporary-fault cases."""
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    labels = (
-        "Innovation-threshold RLS",
-        "Chi-square CUSUM RLS",
-        "CUSUM-triggered probing RLS",
+    fixed_label = "Fixed-covariance RLS"
+    label_metadata = {
+        "Innovation-threshold RLS": ("Threshold", "#2f9c95"),
+        "Chi-square CUSUM RLS": ("CUSUM", "#3974a8"),
+        "CUSUM-triggered probing RLS": ("CUSUM + probes", "#7048a8"),
+    }
+    labels = tuple(
+        label for label in label_metadata if label in summary["controllers"]
     )
-    short_labels = ("Threshold", "CUSUM", "CUSUM + probes")
-    colors = ("#2f9c95", "#3974a8", "#7048a8")
+    short_labels = tuple(label_metadata[label][0] for label in labels)
+    colors = tuple(label_metadata[label][1] for label in labels)
     seeds = sorted({record["seed"] for record in records})
     by_key = {(record["seed"], record["controller"]): record for record in records}
-    fixed_label = "Fixed-covariance RLS"
     fig, axes = plt.subplots(2, 2, figsize=(15.0, 9.0))
     fault_axis, recovery_axis, cost_axis, event_axis = axes.flat
     case_x = np.arange(len(seeds))
@@ -1361,7 +1370,7 @@ def save_temporary_fault_generalization_plot(records, summary, path: str | Path)
         "fallback_free_rate"
     ]
     fig.suptitle(
-        "Generalization Across Hidden Temporary Actuator Faults\n"
+        f"{study_title}\n"
         f"threshold-RLS wins {threshold['adaptive_wins']}/{threshold['trials']}; "
         f"mean RMSE reduction "
         f"{100.0 * threshold['mean_relative_rmse_reduction']:.1f}%; "

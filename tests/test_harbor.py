@@ -16,6 +16,7 @@ from scripts.harbor import (
     HarborDisturbanceConfig,
     HarborObservationNoiseConfig,
     load_harbor_config,
+    load_harbor_confirmation_criteria_config,
     load_harbor_disturbance_config,
     load_harbor_fault_ensemble_config,
     load_harbor_fault_config,
@@ -53,6 +54,9 @@ from scripts.run_harbor_fault_generalization import summarize_fault_generalizati
 from scripts.run_harbor_prediction_study import summarize_prediction_ablation
 from scripts.run_harbor_time_varying_fault_study import (
     summarize_time_varying_faults,
+)
+from scripts.run_harbor_temporary_fault_generalization import (
+    evaluate_confirmation,
 )
 
 
@@ -188,6 +192,49 @@ class HarborTests(unittest.TestCase):
             comparison["mean_relative_final_rmse_reduction"], 0.5
         )
         self.assertAlmostEqual(comparison["mean_completion_cost_delta"], -5.0)
+
+    def test_confirmation_gate_accepts_clean_consistent_threshold_gain(self) -> None:
+        records = []
+        for seed in range(10):
+            for label, rmse, cost, events in (
+                ("Fixed-covariance RLS", 0.20, 50, 0),
+                ("Innovation-threshold RLS", 0.10, 45, 2),
+            ):
+                records.append(
+                    {
+                        "seed": seed,
+                        "controller": label,
+                        "fault_interval_rmse": rmse,
+                        "recovery_rmse": rmse,
+                        "final_effectiveness_rmse": rmse,
+                        "sustained_completion_cost": cost,
+                        "solver_fallbacks": 0,
+                        "all_goals_reached": True,
+                        "pairwise_violation_count": 0,
+                        "max_collision_slack": 0.0,
+                        "change_steps_by_agent": {"agent": list(range(events))},
+                        "event_recall": 0.5 if events else 0.0,
+                        "false_inflations": 0,
+                        "mean_detection_delay": 1.0 if events else None,
+                        "probe_count": 0,
+                    }
+                )
+        summary = summarize_time_varying_faults(records, bootstrap_samples=200)
+        self.assertNotIn("triggered_probing_vs_passive_cusum", summary)
+        criteria = load_harbor_confirmation_criteria_config()
+        self.assertEqual(
+            criteria.controller_labels,
+            ("Fixed-covariance RLS", "Innovation-threshold RLS"),
+        )
+        result = evaluate_confirmation(summary, criteria)
+        self.assertTrue(result["passed"])
+        self.assertTrue(all(result["checks"].values()))
+        rejected = evaluate_confirmation(
+            summary,
+            replace(criteria, maximum_mean_completion_cost_delta=-10.0),
+        )
+        self.assertFalse(rejected["passed"])
+        self.assertFalse(rejected["checks"]["completion_cost_delta"])
 
     def test_scheduled_faults_switch_execution_truth_at_configured_steps(self) -> None:
         agents, simulation, communication = load_harbor_config()

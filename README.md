@@ -117,6 +117,10 @@ Stratified temporary-fault development and separately seeded holdout studies:
 
 `python3 run.py harbor-temporary-fault-generalization --holdout`
 
+Frozen fixed-versus-threshold confirmation after candidate selection:
+
+`python3 run.py harbor-temporary-fault-generalization --confirmation`
+
 These commands overwrite curated artifacts in `results/latest/harbor/`. The
 robustness command writes one metrics JSON, one combined diagnostic, and one
 GIF. Plant parameters are hidden from the controllers. Joint adaptation first
@@ -140,7 +144,9 @@ execution, records plant truth only for offline scoring, and compares matched
 local estimators without giving any controller the change times or magnitudes.
 The temporary-fault ensemble commands additionally vary every actuator loss,
 per-agent onset, duration, and observation seed. The holdout seeds are separate
-from development and must not be used for controller tuning.
+from development and must not be used for controller tuning. The confirmation
+command uses a third seed set, only the selected threshold-RLS and fixed
+comparator, and YAML-predeclared closed-loop pass/fail gates.
 
 Useful overrides:
 

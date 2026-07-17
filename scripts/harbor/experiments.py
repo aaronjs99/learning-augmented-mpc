@@ -787,6 +787,7 @@ def run_temporary_fault_generalization(
     experiment_config: HarborTimeVaryingFaultConfig,
     ensemble_config: HarborTemporaryFaultEnsembleConfig,
     observation_noise: HarborObservationNoiseConfig,
+    controller_labels: tuple[str, ...] | None = None,
 ) -> list[HarborFaultEnsembleCase]:
     """Evaluate temporary-fault adaptation across hidden severities and timings."""
     study_mpc = replace(
@@ -836,6 +837,7 @@ def run_temporary_fault_generalization(
             seed.result,
             experiment_config,
             noise,
+            controller_labels=controller_labels,
         )
         cases.append(
             HarborFaultEnsembleCase(
@@ -858,8 +860,18 @@ def _run_temporary_fault_trials(
     seed_result,
     experiment_config,
     observation_noise,
+    controller_labels: tuple[str, ...] | None = None,
 ) -> list[HarborRobustnessTrial]:
     """Run the matched passive and event-triggered temporary-fault policies."""
+    available = {
+        "Fixed-covariance RLS",
+        "Innovation-threshold RLS",
+        "Chi-square CUSUM RLS",
+        "CUSUM-triggered probing RLS",
+    }
+    selected = available if controller_labels is None else set(controller_labels)
+    if not selected or not selected <= available:
+        raise ValueError("temporary-fault controller labels must be known and nonempty")
     study_mpc = replace(
         study_mpc,
         effectiveness_rls_change_warmup_steps=(
@@ -875,6 +887,8 @@ def _run_temporary_fault_trials(
         ("Innovation-threshold RLS", True, "threshold"),
         ("Chi-square CUSUM RLS", True, "cusum"),
     ):
+        if label not in selected:
+            continue
         trials.extend(
             _run_fault_trials(
                 agents,
@@ -885,52 +899,68 @@ def _run_temporary_fault_trials(
                     study_mpc,
                     effectiveness_rls_adaptive_covariance=adaptive,
                     effectiveness_rls_change_detector=detector,
-                    effectiveness_rls_change_threshold=experiment_config.change_threshold,
+                    effectiveness_rls_change_threshold=(
+                        experiment_config.change_threshold
+                    ),
                     effectiveness_rls_covariance_inflation=(
                         experiment_config.covariance_inflation
                     ),
                 ),
                 disturbance,
                 seed_result,
-                ((label, True, "recursive_diagonal", False, False, None, "energy", 1),),
+                (
+                    (
+                        label,
+                        True,
+                        "recursive_diagonal",
+                        False,
+                        False,
+                        None,
+                        "energy",
+                        1,
+                    ),
+                ),
                 observation_noise=observation_noise,
             )
         )
-    trials.extend(
-        _run_fault_trials(
-            agents,
-            simulation,
-            evaluation,
-            communication,
-            replace(
-                study_mpc,
-                effectiveness_rls_adaptive_covariance=True,
-                effectiveness_rls_change_detector="cusum",
-                effectiveness_rls_change_threshold=experiment_config.change_threshold,
-                effectiveness_rls_covariance_inflation=(
-                    experiment_config.covariance_inflation
+    if "CUSUM-triggered probing RLS" in selected:
+        trials.extend(
+            _run_fault_trials(
+                agents,
+                simulation,
+                evaluation,
+                communication,
+                replace(
+                    study_mpc,
+                    effectiveness_rls_adaptive_covariance=True,
+                    effectiveness_rls_change_detector="cusum",
+                    effectiveness_rls_change_threshold=(
+                        experiment_config.change_threshold
+                    ),
+                    effectiveness_rls_covariance_inflation=(
+                        experiment_config.covariance_inflation
+                    ),
+                    identification_reset_on_change=True,
+                    identification_arm_on_change=True,
+                    identification_arm_on_loss_only=True,
                 ),
-                identification_reset_on_change=True,
-                identification_arm_on_change=True,
-                identification_arm_on_loss_only=True,
-            ),
-            disturbance,
-            seed_result,
-            (
+                disturbance,
+                seed_result,
                 (
-                    "CUSUM-triggered probing RLS",
-                    True,
-                    "recursive_diagonal",
-                    False,
-                    True,
-                    None,
-                    "information",
-                    1,
+                    (
+                        "CUSUM-triggered probing RLS",
+                        True,
+                        "recursive_diagonal",
+                        False,
+                        True,
+                        None,
+                        "information",
+                        1,
+                    ),
                 ),
-            ),
-            observation_noise=observation_noise,
+                observation_noise=observation_noise,
+            )
         )
-    )
     return trials
 
 

@@ -28,3 +28,5 @@ ignored. Core artifacts include:
 - `horizon_efficiency.png`: liveness, completion cost, and mean NLP latency.
 - `temporary_fault_generalization.{json,png}`: stratified development cases.
 - `temporary_fault_holdout.{json,png}`: separately seeded one-way evaluation.
+- `temporary_fault_confirmation.{json,png}`: frozen threshold-RLS confirmation
+  with machine-readable acceptance gates.

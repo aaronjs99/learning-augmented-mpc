@@ -74,7 +74,8 @@ probing dormant until such an event; `identification_reset_on_change` then
 clears only that agent's local excitation, information, quota, and rejection
 state. The execution-plant schedule remains unavailable to both mechanisms.
 
-`temporary_fault_ensemble` and `temporary_fault_holdout` define separate,
+`temporary_fault_ensemble`, `temporary_fault_holdout`, and
+`temporary_fault_confirmation` define separate,
 reproducible Latin-hypercube studies over physical-channel loss severity plus
 per-agent fault onset and duration. The holdout section is reserved for one-way
 evaluation after development settings are fixed. `change_warmup_steps` rejects
@@ -82,6 +83,12 @@ startup transients and `change_cooldown_steps` sets the detector refractory
 period. `identification_arm_on_loss_only` prevents active probing from being
 reopened by a likely restoration event; the direction uses only the local RLS
 estimate update, never plant truth.
+
+`temporary_fault_confirmation_criteria` contains the frozen acceptance gates
+used after threshold-RLS candidate selection: paired-win rate, positive
+bootstrap lower bound, completion, safety, fallback-free operation, and mean
+task-cost delta. The confirmation command runs only fixed-covariance and
+threshold RLS and writes every individual gate result into its JSON artifact.
 
 `obstacle_prediction_mode` selects legacy unbounded `constant_velocity` or
 `goal_bounded_velocity` peer extrapolation. The latter retains constant
