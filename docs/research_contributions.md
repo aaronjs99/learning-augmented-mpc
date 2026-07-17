@@ -184,6 +184,25 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       fault. After the correction, all ten active ensemble rollouts complete
       and remain swept-safe without fallback.
 
+18. **Noise-robust local recursive actuator identification**
+    - Seeded platform-specific observation channels separate controller-visible
+      UGV/USV/ROV measurements from execution truth while preserving each
+      platform's angle, domain, and dynamic-state contracts.
+    - A normalized covariance-form recursive estimator uses forgetting,
+      process uncertainty, Mahalanobis innovation gating, and a Joseph covariance
+      update. Hidden plant effectiveness never enters the controller.
+    - Across the same five stratified fault draws, recursive passive estimation
+      wins all five comparisons and lowers mean RMSE from `0.1507` to `0.0385`
+      (`72.85%` paired relative reduction; absolute bootstrap 95% interval
+      `[0.0792, 0.1437]`); recursive active probing reaches
+      `0.0342`. All rollouts are complete and collision-safe.
+    - The two active schedules tie under this noise realization. Inspector-
+      Gadget requires recoverable fallbacks for all seed-23 policies and for
+      the instantaneous estimator in seeds 11 and 71; other platforms remain
+      solver-clean. The defensible contribution is robust local identification
+      under heterogeneous noisy observations, not universal scheduling
+      dominance or hardware validation.
+
 ## Current Evidence
 
 The nominal horizon study exposes where learning helps and where it does not:

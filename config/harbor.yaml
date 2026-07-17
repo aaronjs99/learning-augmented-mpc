@@ -54,6 +54,17 @@ actuator_fault_ensemble:
   effectiveness_max: 0.98
   bootstrap_samples: 5000
 
+observation_noise:
+  enabled: false
+  seed: 101
+  kind_state_std:
+    # UGV: [x, y, yaw, forward speed, yaw rate]
+    ugv: [0.01, 0.01, 0.005, 0.02, 0.01]
+    # USV: [x, y, yaw, surge, sway, yaw rate]
+    usv: [0.03, 0.03, 0.01, 0.03, 0.02, 0.01]
+    # ROV: [x, y, z, roll, pitch, yaw, u, v, w, p, q, r]
+    rov: [0.02, 0.02, 0.015, 0.008, 0.008, 0.01, 0.02, 0.02, 0.015, 0.008, 0.008, 0.008]
+
 harbor_mpc:
   prediction_horizon: 12
   replan_interval_steps: 1
@@ -78,6 +89,10 @@ harbor_mpc:
   residual_max_speed: 0.35
   control_effectiveness_adaptation: false
   effectiveness_estimator_gain: 0.25
+  effectiveness_rls_forgetting_factor: 0.995
+  effectiveness_rls_measurement_noise: 0.02
+  effectiveness_rls_process_noise: 0.00001
+  effectiveness_rls_innovation_gate: 3.0
   effectiveness_min: 0.5
   effectiveness_max: 1.2
   effectiveness_excitation_threshold: 0.05

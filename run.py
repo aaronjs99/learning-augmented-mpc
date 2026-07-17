@@ -68,6 +68,11 @@ def main() -> None:
         from scripts.run_harbor_fault_generalization import main as run_generalization
 
         run_generalization()
+    elif command == "harbor-fault-noise-study":
+        sys.argv = [sys.argv[0], *sys.argv[2:], "--with-observation-noise"]
+        from scripts.run_harbor_fault_generalization import main as run_noise_study
+
+        run_noise_study()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

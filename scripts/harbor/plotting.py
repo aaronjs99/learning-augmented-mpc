@@ -943,18 +943,39 @@ def save_actuator_fault_diagnostics(
     return output
 
 
-def save_fault_generalization_plot(records, summary, path: str | Path) -> Path:
+def save_fault_generalization_plot(
+    records,
+    summary,
+    path: str | Path,
+    *,
+    noisy_observations: bool = False,
+) -> Path:
     """Plot paired identification and task metrics across hidden fault draws."""
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     seeds = sorted({record["seed"] for record in records})
-    labels = (
-        "Passive diagonal MPC",
-        "One-pass active MPC",
-        "Information-aware MPC",
-    )
-    short_labels = ("Passive", "One-pass", "Information-aware")
-    colors = ("#58a66f", "#2f9c95", "#7048a8")
+    available = {record["controller"] for record in records}
+    if "Recursive diagonal MPC" in available:
+        labels = (
+            "Instantaneous diagonal MPC",
+            "Recursive diagonal MPC",
+            "Recursive one-pass MPC",
+            "Recursive information-aware MPC",
+        )
+        short_labels = ("Instantaneous", "Recursive", "One-pass", "Information-aware")
+        colors = ("#b66a50", "#58a66f", "#2f9c95", "#7048a8")
+        one_pass_label = labels[2]
+        information_label = labels[3]
+    else:
+        labels = (
+            "Passive diagonal MPC",
+            "One-pass active MPC",
+            "Information-aware MPC",
+        )
+        short_labels = ("Passive", "One-pass", "Information-aware")
+        colors = ("#58a66f", "#2f9c95", "#7048a8")
+        one_pass_label = labels[1]
+        information_label = labels[2]
     by_key = {
         (record["seed"], record["controller"]): record for record in records
     }
@@ -973,10 +994,10 @@ def save_fault_generalization_plot(records, summary, path: str | Path) -> Path:
     rmse_axis.legend()
 
     one_pass = np.asarray(
-        [by_key[(seed, labels[1])]["effectiveness_rmse"] for seed in seeds]
+        [by_key[(seed, one_pass_label)]["effectiveness_rmse"] for seed in seeds]
     )
     information = np.asarray(
-        [by_key[(seed, labels[2])]["effectiveness_rmse"] for seed in seeds]
+        [by_key[(seed, information_label)]["effectiveness_rmse"] for seed in seeds]
     )
     lower = min(float(np.min(one_pass)), float(np.min(information))) * 0.9
     upper = max(float(np.max(one_pass)), float(np.max(information))) * 1.1
@@ -1012,7 +1033,7 @@ def save_fault_generalization_plot(records, summary, path: str | Path) -> Path:
                 linewidths=2.0,
                 color="#111111",
                 zorder=5,
-                label="solver-invalid" if label == labels[0] else None,
+                label="solver fallback" if label == labels[0] else None,
             )
     cost_axis.set_title("Sustained-Completion Cost")
     cost_axis.set_ylabel("first-hit sum with horizon penalty")
@@ -1057,15 +1078,26 @@ def save_fault_generalization_plot(records, summary, path: str | Path) -> Path:
     )
     fig.colorbar(image, ax=coverage_axis, fraction=0.03, pad=0.02)
 
-    paired = summary["equal_budget_information_vs_one_pass"]
-    ci_low, ci_high = paired["paired_mean_reduction_bootstrap_95_ci"]
-    fig.suptitle(
-        "Information-Aware Identification Across Stratified Actuator Faults\n"
-        f"wins {paired['information_wins']}/{paired['trials']}; "
-        f"mean paired RMSE reduction={paired['mean_rmse_reduction']:.4f} "
-        f"(bootstrap 95% CI [{ci_low:.4f}, {ci_high:.4f}])",
-        fontsize=15,
-    )
+    if noisy_observations:
+        paired = summary["recursive_vs_instantaneous"]
+        ci_low, ci_high = paired["paired_mean_reduction_bootstrap_95_ci"]
+        title = (
+            "Robust Recursive Identification Across Stratified Actuator Faults "
+            "with Onboard Sensor Noise\n"
+            f"wins {paired['recursive_wins']}/{paired['trials']}; "
+            f"mean paired RMSE reduction={paired['mean_rmse_reduction']:.4f} "
+            f"(bootstrap 95% CI [{ci_low:.4f}, {ci_high:.4f}])"
+        )
+    else:
+        paired = summary["equal_budget_information_vs_one_pass"]
+        ci_low, ci_high = paired["paired_mean_reduction_bootstrap_95_ci"]
+        title = (
+            "Information-Aware Identification Across Stratified Actuator Faults\n"
+            f"wins {paired['information_wins']}/{paired['trials']}; "
+            f"mean paired RMSE reduction={paired['mean_rmse_reduction']:.4f} "
+            f"(bootstrap 95% CI [{ci_low:.4f}, {ci_high:.4f}])"
+        )
+    fig.suptitle(title, fontsize=15)
     fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.93))
     fig.savefig(output, dpi=180, bbox_inches="tight")
     plt.close(fig)

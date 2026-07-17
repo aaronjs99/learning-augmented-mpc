@@ -51,6 +51,12 @@ All notable repository-level changes are tracked here.
   restored for station keeping, eliminating a severe-waterjet-fault stall.
 - Frozen actuator-model transfer in retained LMPC trials so repeated-task
   comparisons do not silently re-identify under low excitation.
+- Seeded platform-specific controller observations with true-state safety
+  evaluation, physical projection, and per-agent noise configuration.
+- Robust recursive diagonal actuator identification with forgetting, process
+  uncertainty, innovation gating, Joseph covariance updates, and a matched
+  noisy-fault ensemble artifact.
+- Per-agent and per-IPOPT-status fallback attribution in fault-study telemetry.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.

@@ -44,6 +44,10 @@ class HarborMPCConfig:
     control_effectiveness_adaptation: bool = False
     effectiveness_estimator_mode: str = "scalar"
     effectiveness_estimator_gain: float = 0.25
+    effectiveness_rls_forgetting_factor: float = 0.995
+    effectiveness_rls_measurement_noise: float = 0.02
+    effectiveness_rls_process_noise: float = 1.0e-5
+    effectiveness_rls_innovation_gate: float = 3.0
     effectiveness_min: float = 0.5
     effectiveness_max: float = 1.2
     effectiveness_excitation_threshold: float = 0.05
@@ -91,6 +95,9 @@ class HarborMPCConfig:
             self.residual_estimator_gain,
             self.residual_max_speed,
             self.effectiveness_estimator_gain,
+            self.effectiveness_rls_measurement_noise,
+            self.effectiveness_rls_process_noise,
+            self.effectiveness_rls_innovation_gate,
             self.effectiveness_min,
             self.effectiveness_max,
             self.effectiveness_excitation_threshold,
@@ -108,11 +115,23 @@ class HarborMPCConfig:
             raise ValueError("residual_estimator_gain must be in [0, 1]")
         if self.effectiveness_estimator_gain > 1.0:
             raise ValueError("effectiveness_estimator_gain must be in [0, 1]")
+        if not 0.0 < self.effectiveness_rls_forgetting_factor <= 1.0:
+            raise ValueError("effectiveness_rls_forgetting_factor must be in (0, 1]")
+        if min(
+            self.effectiveness_rls_measurement_noise,
+            self.effectiveness_rls_innovation_gate,
+        ) <= 0.0:
+            raise ValueError("RLS measurement noise and innovation gate must be positive")
         if not self.effectiveness_min <= 1.0 <= self.effectiveness_max:
             raise ValueError("effectiveness bounds must contain the nominal value 1")
-        if self.effectiveness_estimator_mode not in {"scalar", "diagonal"}:
+        if self.effectiveness_estimator_mode not in {
+            "scalar",
+            "diagonal",
+            "recursive_diagonal",
+        }:
             raise ValueError(
-                "effectiveness_estimator_mode must be scalar or diagonal"
+                "effectiveness_estimator_mode must be scalar, diagonal, or "
+                "recursive_diagonal"
             )
         if self.identification_probe_fraction > 1.0:
             raise ValueError("identification_probe_fraction must be in [0, 1]")
@@ -600,6 +619,11 @@ class DistributedHarborMPC:
                     )
                 self.control_effectiveness_estimates[agent.name] = estimate.copy()
         self.effectiveness_history = {agent.name: [] for agent in agents}
+        self.effectiveness_covariances = {
+            agent.name: np.eye(agent.model.control_dim)
+            * config.identification_prior_std**2
+            for agent in agents
+        }
         self.excitation_energy = {
             agent.name: np.zeros(agent.model.control_dim, dtype=float)
             for agent in agents
@@ -784,17 +808,31 @@ class DistributedHarborMPC:
         )
         self.information_matrices[agent.name] += jacobian.T @ jacobian
         if self.config.control_effectiveness_adaptation:
-            self.control_effectiveness_estimates[agent.name] = (
-                _estimate_effectiveness_vector(
+            if self.config.effectiveness_estimator_mode == "recursive_diagonal":
+                estimate, covariance = _recursive_diagonal_effectiveness_update(
                     agent.model,
                     previous_state,
                     previous_control,
                     np.asarray(current_state, dtype=float),
                     self.dt,
                     self.control_effectiveness_estimates[agent.name],
+                    self.effectiveness_covariances[agent.name],
                     self.config,
                 )
-            )
+                self.control_effectiveness_estimates[agent.name] = estimate
+                self.effectiveness_covariances[agent.name] = covariance
+            else:
+                self.control_effectiveness_estimates[agent.name] = (
+                    _estimate_effectiveness_vector(
+                        agent.model,
+                        previous_state,
+                        previous_control,
+                        np.asarray(current_state, dtype=float),
+                        self.dt,
+                        self.control_effectiveness_estimates[agent.name],
+                        self.config,
+                    )
+                )
         if not self.config.residual_adaptation:
             return
         effectiveness = self.control_effectiveness_estimates[agent.name]
@@ -1003,6 +1041,72 @@ def _effectiveness_sensitivity_matrix(
     if normalize_dynamic_state:
         sensitivity /= _dynamic_state_scale(model)[:, None]
     return sensitivity
+
+
+def _recursive_diagonal_effectiveness_update(
+    model: PlatformModel,
+    previous_state: np.ndarray,
+    previous_control: np.ndarray,
+    current_state: np.ndarray,
+    dt: float,
+    prior: np.ndarray,
+    covariance: np.ndarray,
+    config: HarborMPCConfig,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Update per-actuator gains with robust covariance-form recursive LS."""
+    prior = np.asarray(prior, dtype=float).reshape(model.control_dim)
+    covariance = np.asarray(covariance, dtype=float).reshape(
+        model.control_dim, model.control_dim
+    )
+    dynamic = slice(model.pose_dim, model.state_dim)
+    scale = _dynamic_state_scale(model)
+    predicted = model.step(
+        previous_state, prior * np.asarray(previous_control, dtype=float), dt
+    )[dynamic]
+    innovation = (np.asarray(current_state, dtype=float)[dynamic] - predicted) / scale
+    sensitivity = _effectiveness_sensitivity_matrix(
+        model,
+        previous_state,
+        previous_control,
+        dt,
+        prior,
+        config,
+        normalize_dynamic_state=True,
+    )
+
+    identity = np.eye(model.control_dim)
+    predicted_covariance = (
+        covariance / config.effectiveness_rls_forgetting_factor
+        + config.effectiveness_rls_process_noise * identity
+    )
+    measurement_covariance = (
+        config.effectiveness_rls_measurement_noise**2
+        * np.eye(model.state_dim - model.pose_dim)
+    )
+    innovation_covariance = (
+        sensitivity @ predicted_covariance @ sensitivity.T
+        + measurement_covariance
+    )
+    inverse_innovation = np.linalg.pinv(innovation_covariance, hermitian=True)
+    mahalanobis = float(
+        np.sqrt(max(float(innovation.T @ inverse_innovation @ innovation), 0.0))
+    )
+    if mahalanobis > config.effectiveness_rls_innovation_gate:
+        innovation *= config.effectiveness_rls_innovation_gate / mahalanobis
+
+    gain = predicted_covariance @ sensitivity.T @ inverse_innovation
+    estimate = np.clip(
+        prior + gain @ innovation,
+        config.effectiveness_min,
+        config.effectiveness_max,
+    )
+    correction = identity - gain @ sensitivity
+    updated_covariance = (
+        correction @ predicted_covariance @ correction.T
+        + gain @ measurement_covariance @ gain.T
+    )
+    updated_covariance = 0.5 * (updated_covariance + updated_covariance.T)
+    return estimate, updated_covariance
 
 
 def _posterior_effectiveness_std(

@@ -14,6 +14,7 @@ from .models import make_platform_model
 from .simulation import (
     HarborAgent,
     HarborDisturbanceConfig,
+    HarborObservationNoiseConfig,
     HarborSimulationConfig,
     OperatingDomain,
 )
@@ -217,6 +218,22 @@ def load_harbor_fault_ensemble_config(
         HarborFaultEnsembleConfig,
         raw.get("actuator_fault_ensemble", {}),
         "actuator_fault_ensemble",
+    )
+
+
+def load_harbor_observation_noise_config(
+    path: str | Path = DEFAULT_HARBOR_CONFIG,
+) -> HarborObservationNoiseConfig:
+    """Load strict platform-aware onboard observation noise settings."""
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / config_path
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw = yaml.safe_load(stream) or {}
+    return _dataclass_from_mapping(
+        HarborObservationNoiseConfig,
+        raw.get("observation_noise", {}),
+        "observation_noise",
     )
 
 

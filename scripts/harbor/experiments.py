@@ -13,6 +13,7 @@ from .mpc import DistributedHarborMPC, HarborMPCConfig
 from .simulation import (
     HarborAgent,
     HarborDisturbanceConfig,
+    HarborObservationNoiseConfig,
     HarborResult,
     HarborSimulationConfig,
     run_harbor_simulation,
@@ -30,6 +31,8 @@ class HarborRobustnessTrial:
     source_controller: str | None
     completion_step_sum: int
     solver_fallbacks: int
+    solver_fallbacks_by_agent: dict[str, int]
+    solver_failure_status_counts: dict[str, int]
     max_collision_slack: float
     residual_history: dict[str, np.ndarray]
     final_residual_estimates: dict[str, np.ndarray]
@@ -49,6 +52,7 @@ class HarborFaultEnsembleCase:
 
     seed: int
     disturbance: HarborDisturbanceConfig
+    observation_seed: int | None
     trials: tuple[HarborRobustnessTrial, ...]
 
 
@@ -250,6 +254,8 @@ def run_model_mismatch_study(
                 source_controller=None,
                 completion_step_sum=completion_cost,
                 solver_fallbacks=controller.fallback_count,
+                solver_fallbacks_by_agent=controller.fallback_count_by_agent.copy(),
+                solver_failure_status_counts=controller.failure_status_counts.copy(),
                 max_collision_slack=controller.max_collision_slack,
                 residual_history={
                     name: np.asarray(values, dtype=float)
@@ -450,6 +456,7 @@ def run_actuator_fault_generalization(
     base_disturbance: HarborDisturbanceConfig,
     study_config: HarborFaultStudyConfig,
     ensemble_config: HarborFaultEnsembleConfig,
+    observation_noise: HarborObservationNoiseConfig | None = None,
 ) -> list[HarborFaultEnsembleCase]:
     """Compare equal-budget probe policies over stratified hidden faults."""
     study_mpc = replace(
@@ -474,24 +481,46 @@ def run_actuator_fault_generalization(
         (record for record in seed_iterations if record.admitted),
         key=lambda record: record.completion_step_sum,
     )
-    definitions = (
-        ("Passive diagonal MPC", True, "diagonal", False, False, None, "energy", 1),
-        ("One-pass active MPC", True, "diagonal", False, True, None, "energy", 1),
-        (
-            "Information-aware MPC",
-            True,
-            "diagonal",
-            False,
-            True,
-            None,
-            "information",
-            1,
-        ),
-    )
+    if observation_noise is not None and observation_noise.enabled:
+        definitions = (
+            ("Instantaneous diagonal MPC", True, "diagonal", False, False, None, "energy", 1),
+            ("Recursive diagonal MPC", True, "recursive_diagonal", False, False, None, "energy", 1),
+            ("Recursive one-pass MPC", True, "recursive_diagonal", False, True, None, "energy", 1),
+            (
+                "Recursive information-aware MPC",
+                True,
+                "recursive_diagonal",
+                False,
+                True,
+                None,
+                "information",
+                1,
+            ),
+        )
+    else:
+        definitions = (
+            ("Passive diagonal MPC", True, "diagonal", False, False, None, "energy", 1),
+            ("One-pass active MPC", True, "diagonal", False, True, None, "energy", 1),
+            (
+                "Information-aware MPC",
+                True,
+                "diagonal",
+                False,
+                True,
+                None,
+                "information",
+                1,
+            ),
+        )
     cases = []
     for seed_value, disturbance in generate_fault_ensemble(
         agents, base_disturbance, ensemble_config
     ):
+        case_noise = (
+            replace(observation_noise, seed=observation_noise.seed + seed_value)
+            if observation_noise is not None and observation_noise.enabled
+            else None
+        )
         evaluation = replace(
             simulation,
             guidance_update_interval_steps=study_mpc.replan_interval_steps,
@@ -507,11 +536,13 @@ def run_actuator_fault_generalization(
             disturbance,
             seed.result,
             definitions,
+            observation_noise=case_noise,
         )
         cases.append(
             HarborFaultEnsembleCase(
                 seed=seed_value,
                 disturbance=disturbance,
+                observation_seed=(case_noise.seed if case_noise is not None else None),
                 trials=tuple(trials),
             )
         )
@@ -527,6 +558,7 @@ def _run_fault_trials(
     disturbance,
     seed_result,
     definitions,
+    observation_noise: HarborObservationNoiseConfig | None = None,
 ) -> list[HarborRobustnessTrial]:
     """Run matched fault definitions from one common safe trajectory."""
     trials = []
@@ -573,6 +605,7 @@ def _run_fault_trials(
             communication,
             control_provider=controller,
             disturbance=disturbance,
+            observation_noise=observation_noise,
         )
         completion_cost = sum(
             step if step is not None else simulation.horizon + 1
@@ -593,6 +626,8 @@ def _run_fault_trials(
                 source_controller=source_label,
                 completion_step_sum=completion_cost,
                 solver_fallbacks=controller.fallback_count,
+                solver_fallbacks_by_agent=controller.fallback_count_by_agent.copy(),
+                solver_failure_status_counts=controller.failure_status_counts.copy(),
                 max_collision_slack=controller.max_collision_slack,
                 residual_history={
                     name: np.asarray(values, dtype=float)

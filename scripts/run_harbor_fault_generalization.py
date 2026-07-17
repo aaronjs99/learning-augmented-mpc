@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from scripts.harbor import (
     load_harbor_fault_config,
     load_harbor_fault_ensemble_config,
     load_harbor_fault_study_config,
+    load_harbor_observation_noise_config,
 )
 from scripts.harbor.experiments import run_actuator_fault_generalization
 from scripts.harbor.mpc import load_harbor_mpc_config
@@ -24,6 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default=str(DEFAULT_HARBOR_CONFIG))
     parser.add_argument("--artifact-dir", default="results/latest/harbor")
+    parser.add_argument("--with-observation-noise", action="store_true")
     return parser.parse_args()
 
 
@@ -68,11 +71,22 @@ def summarize_fault_generalization(records, bootstrap_samples: int) -> dict:
         (record["seed"], record["controller"]): record for record in records
     }
     seeds = sorted({record["seed"] for record in records})
+    labels = {record["controller"] for record in records}
+    one_pass_label = (
+        "Recursive one-pass MPC"
+        if "Recursive one-pass MPC" in labels
+        else "One-pass active MPC"
+    )
+    information_label = (
+        "Recursive information-aware MPC"
+        if "Recursive information-aware MPC" in labels
+        else "Information-aware MPC"
+    )
     one_pass = np.asarray(
-        [by_key[(seed, "One-pass active MPC")]["effectiveness_rmse"] for seed in seeds]
+        [by_key[(seed, one_pass_label)]["effectiveness_rmse"] for seed in seeds]
     )
     information = np.asarray(
-        [by_key[(seed, "Information-aware MPC")]["effectiveness_rmse"] for seed in seeds]
+        [by_key[(seed, information_label)]["effectiveness_rmse"] for seed in seeds]
     )
     differences = one_pass - information
     rng = np.random.default_rng(20260716)
@@ -82,14 +96,50 @@ def summarize_fault_generalization(records, bootstrap_samples: int) -> dict:
     )
     cost_differences = np.asarray(
         [
-            by_key[(seed, "Information-aware MPC")]["sustained_completion_cost"]
-            - by_key[(seed, "One-pass active MPC")]["sustained_completion_cost"]
+            by_key[(seed, information_label)]["sustained_completion_cost"]
+            - by_key[(seed, one_pass_label)]["sustained_completion_cost"]
             for seed in seeds
         ],
         dtype=float,
     )
+    recursive_comparison = None
+    if "Recursive diagonal MPC" in labels and "Instantaneous diagonal MPC" in labels:
+        instantaneous = np.asarray(
+            [
+                by_key[(seed, "Instantaneous diagonal MPC")]["effectiveness_rmse"]
+                for seed in seeds
+            ]
+        )
+        recursive = np.asarray(
+            [
+                by_key[(seed, "Recursive diagonal MPC")]["effectiveness_rmse"]
+                for seed in seeds
+            ]
+        )
+        recursive_differences = instantaneous - recursive
+        recursive_bootstrap = np.mean(
+            rng.choice(
+                recursive_differences,
+                size=(bootstrap_samples, len(recursive_differences)),
+                replace=True,
+            ),
+            axis=1,
+        )
+        recursive_comparison = {
+            "trials": len(seeds),
+            "recursive_wins": int(np.count_nonzero(recursive_differences > 0.0)),
+            "mean_rmse_reduction": float(np.mean(recursive_differences)),
+            "mean_relative_rmse_reduction": float(
+                np.mean(recursive_differences / np.maximum(instantaneous, 1e-12))
+            ),
+            "paired_mean_reduction_bootstrap_95_ci": [
+                float(value)
+                for value in np.quantile(recursive_bootstrap, [0.025, 0.975])
+            ],
+        }
     return {
         "controllers": controllers,
+        "recursive_vs_instantaneous": recursive_comparison,
         "equal_budget_information_vs_one_pass": {
             "trials": len(seeds),
             "information_wins": int(np.count_nonzero(differences > 0.0)),
@@ -114,6 +164,11 @@ def main() -> None:
     args = parse_args()
     agents, simulation, communication = load_harbor_config(args.config)
     ensemble_config = load_harbor_fault_ensemble_config(args.config)
+    observation_noise = load_harbor_observation_noise_config(args.config)
+    if args.with_observation_noise:
+        observation_noise = replace(observation_noise, enabled=True)
+    else:
+        observation_noise = None
     cases = run_actuator_fault_generalization(
         agents,
         simulation,
@@ -122,6 +177,7 @@ def main() -> None:
         load_harbor_fault_config(args.config),
         load_harbor_fault_study_config(args.config),
         ensemble_config,
+        observation_noise=observation_noise,
     )
     records = []
     for case in cases:
@@ -156,6 +212,7 @@ def main() -> None:
             records.append(
                 {
                     "seed": case.seed,
+                    "observation_seed": case.observation_seed,
                     "controller": trial.label,
                     "valid": trial.valid,
                     "all_goals_reached": trial.result.all_goals_reached,
@@ -167,6 +224,8 @@ def main() -> None:
                     "min_pairwise_distance": trial.result.min_pairwise_distance,
                     "pairwise_violation_count": trial.result.pairwise_violation_count,
                     "solver_fallbacks": trial.solver_fallbacks,
+                    "solver_fallbacks_by_agent": trial.solver_fallbacks_by_agent,
+                    "solver_failure_status_counts": trial.solver_failure_status_counts,
                     "effectiveness_rmse": float(
                         np.sqrt(np.mean((estimate - truth) ** 2))
                     ),
@@ -189,17 +248,29 @@ def main() -> None:
             "effectiveness_max": ensemble_config.effectiveness_max,
             "sampling": "per-channel Latin hypercube",
         },
+        "observation_noise": (
+            {
+                "enabled": True,
+                "base_seed": observation_noise.seed,
+                "kind_state_std": observation_noise.kind_state_std,
+                "agent_state_std": observation_noise.agent_state_std,
+            }
+            if observation_noise is not None
+            else {"enabled": False}
+        ),
         "summary": summary,
         "trials": records,
     }
     output = Path(args.artifact_dir)
     output.mkdir(parents=True, exist_ok=True)
-    data_path = output / "fault_generalization.json"
+    stem = "fault_noise_generalization" if observation_noise is not None else "fault_generalization"
+    data_path = output / f"{stem}.json"
     data_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     figure = save_fault_generalization_plot(
         records,
         summary,
-        output / "fault_generalization.png",
+        output / f"{stem}.png",
+        noisy_observations=observation_noise is not None,
     )
     print(json.dumps(summary, indent=2))
     print(f"Saved fault-generalization data: {data_path}")

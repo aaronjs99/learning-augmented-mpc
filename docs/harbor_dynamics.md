@@ -195,6 +195,32 @@ than treated as independently commandable motors. An unidentifiable actuator
 combination therefore reflects insufficient excitation, not a missing
 allocation model.
 
+The noisy benchmark gives each agent only a seeded local observation
+
+```text
+y_k = project_D(x_k + epsilon_k),  epsilon_k ~ N(0, diag(sigma_platform^2))
+```
+
+where `project_D` wraps angles and enforces platform pose-domain and dynamic-
+state bounds. The plant transition, collision checks, and completion metrics
+still use `x_k`. The robust estimator normalizes dynamic-state innovation by
+the platform's velocity/rate limits and applies a covariance-form recursive
+update:
+
+```text
+P_k^- = P_(k-1) / lambda + Q
+e_k = z_k - z_model(alpha_hat_(k-1))
+S_k = J_k P_k^- J_k^T + R
+K_k = P_k^- J_k^T S_k^-1
+alpha_hat_k = clip(alpha_hat_(k-1) + K_k e_k)
+P_k = (I-K_k J_k) P_k^- (I-K_k J_k)^T + K_k R K_k^T
+```
+
+If `sqrt(e_k^T S_k^-1 e_k)` exceeds the configured gate, the innovation is
+radially clipped before the update. This prevents one noisy transition from
+being interpreted as a large actuator loss while retaining a local causal
+estimator with no access to hidden fault values.
+
 Optional active identification makes missing excitation explicit. For channel
 `j`, the controller accumulates normalized command energy
 

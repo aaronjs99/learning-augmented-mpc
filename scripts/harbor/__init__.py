@@ -10,6 +10,7 @@ from .config import (
     load_harbor_fault_config,
     load_harbor_fault_ensemble_config,
     load_harbor_fault_study_config,
+    load_harbor_observation_noise_config,
 )
 from .models import (
     PlatformModel,
@@ -24,6 +25,7 @@ from .simulation import (
     HarborAgent,
     HarborDisturbanceConfig,
     HarborResult,
+    HarborObservationNoiseConfig,
     HarborSimulationConfig,
     OperatingDomain,
     run_harbor_simulation,
@@ -41,6 +43,7 @@ __all__ = [
     "HarborSimulationConfig",
     "LinkConfig",
     "HarborMPCConfig",
+    "HarborObservationNoiseConfig",
     "OperatingDomain",
     "PlatformModel",
     "ROVModel",
@@ -53,6 +56,7 @@ __all__ = [
     "load_harbor_fault_ensemble_config",
     "load_harbor_fault_study_config",
     "load_harbor_mpc_config",
+    "load_harbor_observation_noise_config",
     "make_platform_model",
     "run_harbor_simulation",
 ]

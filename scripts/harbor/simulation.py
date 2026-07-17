@@ -8,7 +8,7 @@ from typing import Protocol
 import numpy as np
 
 from .communication import CommunicationNetwork, LinkConfig
-from .models import PlatformModel
+from .models import PlatformModel, wrap_angle
 
 
 @dataclass(frozen=True)
@@ -223,10 +223,99 @@ class HarborDisturbanceConfig:
 
 
 @dataclass(frozen=True)
+class HarborObservationNoiseConfig:
+    """Seeded onboard state-measurement noise, separate from plant truth."""
+
+    enabled: bool = False
+    seed: int = 0
+    kind_state_std: dict[str, tuple[float, ...]] = field(default_factory=dict)
+    agent_state_std: dict[str, tuple[float, ...]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.seed < 0:
+            raise ValueError("observation-noise seed must be nonnegative")
+        for field_name in ("kind_state_std", "agent_state_std"):
+            values = {}
+            for name, configured in getattr(self, field_name).items():
+                key = str(name).strip()
+                array = np.asarray(configured, dtype=float).reshape(-1)
+                if not key or len(array) == 0 or not np.all(np.isfinite(array)):
+                    raise ValueError(
+                        f"{field_name} entries must be named finite vectors"
+                    )
+                if np.any(array < 0.0):
+                    raise ValueError(
+                        f"{field_name} standard deviations must be nonnegative"
+                    )
+                values[key] = tuple(float(value) for value in array)
+            object.__setattr__(self, field_name, values)
+
+    def state_std(self, agent: HarborAgent) -> np.ndarray:
+        """Return the configured standard deviation for one local state."""
+        configured = self.agent_state_std.get(
+            agent.name,
+            self.kind_state_std.get(agent.model.kind, (0.0,) * agent.model.state_dim),
+        )
+        values = np.asarray(configured, dtype=float)
+        if values.shape != (agent.model.state_dim,):
+            raise ValueError(
+                f"{agent.name} observation noise must have "
+                f"{agent.model.state_dim} entries"
+            )
+        return values
+
+    def measure(
+        self,
+        agent: HarborAgent,
+        state: np.ndarray,
+        rng: np.random.Generator,
+    ) -> np.ndarray:
+        """Generate one noisy local state while preserving angle topology."""
+        truth = np.asarray(state, dtype=float)
+        if not self.enabled:
+            return truth.copy()
+        measured = truth + rng.normal(0.0, self.state_std(agent))
+        angle_indices = (2,) if agent.model.pose_dim == 3 else (3, 4, 5)
+        for index in angle_indices:
+            measured[index] = wrap_angle(measured[index])
+        measured = agent.domain.project(agent.model, measured)
+        model = agent.model
+        if model.kind == "ugv":
+            measured[3] = np.clip(
+                measured[3], -model.max_reverse_speed, model.max_speed
+            )
+            if model.variant == "dynamic_skid_steer":
+                measured[4] = np.clip(
+                    measured[4], -model.max_yaw_rate, model.max_yaw_rate
+                )
+        elif model.kind == "usv":
+            measured[3] = np.clip(measured[3], 0.0, model.max_speed)
+            if model.variant == "marine_3dof":
+                measured[4] = np.clip(
+                    measured[4], -model.max_sway_speed, model.max_sway_speed
+                )
+                measured[5] = np.clip(
+                    measured[5], -model.max_yaw_rate, model.max_yaw_rate
+                )
+        else:
+            measured[6:8] = np.clip(
+                measured[6:8], -model.max_horizontal_speed, model.max_horizontal_speed
+            )
+            measured[8] = np.clip(
+                measured[8], -model.max_vertical_speed, model.max_vertical_speed
+            )
+            measured[9:12] = np.clip(
+                measured[9:12], -model.max_angular_rate, model.max_angular_rate
+            )
+        return measured
+
+
+@dataclass(frozen=True)
 class HarborResult:
     """Trajectories and communication telemetry for one rollout."""
 
     states: dict[str, np.ndarray]
+    observed_states: dict[str, np.ndarray]
     positions: dict[str, np.ndarray]
     controls: dict[str, np.ndarray]
     applied_controls: dict[str, np.ndarray]
@@ -264,6 +353,7 @@ def run_harbor_simulation(
     communication: LinkConfig,
     control_provider: HarborControlProvider | None = None,
     disturbance: HarborDisturbanceConfig | None = None,
+    observation_noise: HarborObservationNoiseConfig | None = None,
 ) -> HarborResult:
     """Simulate independent platforms coordinated only by received messages."""
     if len(agents) < 2:
@@ -275,6 +365,18 @@ def run_harbor_simulation(
     by_name = {agent.name: agent for agent in agents}
     current = {agent.name: np.asarray(agent.start, dtype=float).copy() for agent in agents}
     histories = {name: [state.copy()] for name, state in current.items()}
+    sensor = observation_noise or HarborObservationNoiseConfig()
+    seed_sequence = np.random.SeedSequence(sensor.seed)
+    sensor_rngs = {
+        agent.name: np.random.default_rng(child)
+        for agent, child in zip(agents, seed_sequence.spawn(len(agents)), strict=True)
+    }
+    observed_histories = {
+        agent.name: [
+            sensor.measure(agent, current[agent.name], sensor_rngs[agent.name])
+        ]
+        for agent in agents
+    }
     controls = {name: [] for name in names}
     applied_controls = {name: [] for name in names}
     plant = disturbance or HarborDisturbanceConfig()
@@ -290,10 +392,13 @@ def run_harbor_simulation(
     network = CommunicationNetwork(names, communication)
 
     for step in range(config.horizon):
+        measured = {
+            name: observed_histories[name][-1] for name in names
+        }
         observations = {
             name: (
-                agent.model.position(current[name]),
-                agent.model.velocity(current[name]) + plant.current(agent.model),
+                agent.model.position(measured[name]),
+                agent.model.velocity(measured[name]) + plant.current(agent.model),
                 agent.model.goal_position(agent.goal),
                 _platform_speed(agent.model),
             )
@@ -315,7 +420,7 @@ def run_harbor_simulation(
                 route_indices[name] < len(route) - 1
                 and _intermediate_waypoint_complete(
                     agent,
-                    current[name],
+                    measured[name],
                     route,
                     route_indices[name],
                     config,
@@ -328,12 +433,16 @@ def run_harbor_simulation(
             goal_distance = float(np.linalg.norm(goal_delta))
             at_final_goal = route_indices[name] == len(route) - 1
             reached_navigation_goal = _goal_reached(
-                agent, current[name], navigation_goal, config
+                agent, measured[name], navigation_goal, config
             )
+            if (
+                at_final_goal
+                and first_goal_steps[name] is None
+                and _goal_reached(agent, current[name], agent.goal, config)
+            ):
+                first_goal_steps[name] = step
             if at_final_goal and reached_navigation_goal:
                 desired_velocity = np.zeros(3)
-                if first_goal_steps[name] is None:
-                    first_goal_steps[name] = step
             else:
                 desired_velocity = np.zeros(3)
                 if goal_distance > config.goal_tolerance:
@@ -371,7 +480,7 @@ def run_harbor_simulation(
             if update_guidance:
                 if control_provider is None:
                     proposed_control = agent.model.guidance_control(
-                        current[name],
+                        measured[name],
                         desired_velocity,
                         config.dt,
                         desired_pose=navigation_goal,
@@ -382,7 +491,7 @@ def run_harbor_simulation(
                 else:
                     proposed_control = control_provider.control(
                         agent=agent,
-                        state=current[name],
+                        state=measured[name],
                         navigation_goal=navigation_goal,
                         desired_velocity=desired_velocity,
                         inbox=inboxes[name],
@@ -413,6 +522,11 @@ def run_harbor_simulation(
         current = next_states
         for name in names:
             histories[name].append(current[name].copy())
+            observed_histories[name].append(
+                sensor.measure(
+                    by_name[name], current[name], sensor_rngs[name]
+                )
+            )
             goal_hold_counts[name] = (
                 goal_hold_counts[name] + 1
                 if _goal_reached(by_name[name], current[name], by_name[name].goal, config)
@@ -449,6 +563,9 @@ def run_harbor_simulation(
     min_distance, violation_count = _pairwise_metrics(position_arrays, by_name)
     return HarborResult(
         states=state_arrays,
+        observed_states={
+            name: np.asarray(values) for name, values in observed_histories.items()
+        },
         positions=position_arrays,
         controls={name: np.asarray(values) for name, values in controls.items()},
         applied_controls={

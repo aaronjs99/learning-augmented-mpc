@@ -14,10 +14,12 @@ from PIL import Image
 from scripts.harbor import (
     DEFAULT_HARBOR_CONFIG,
     HarborDisturbanceConfig,
+    HarborObservationNoiseConfig,
     load_harbor_config,
     load_harbor_disturbance_config,
     load_harbor_fault_ensemble_config,
     load_harbor_fault_config,
+    load_harbor_observation_noise_config,
     run_harbor_simulation,
 )
 from scripts.harbor.experiments import (
@@ -33,6 +35,7 @@ from scripts.harbor.mpc import (
     _identification_channel,
     _information_identification_channel,
     _least_excited_channel,
+    _recursive_diagonal_effectiveness_update,
     load_harbor_mpc_config,
 )
 from scripts.harbor.plotting import (
@@ -43,6 +46,66 @@ from scripts.run_harbor_fault_generalization import summarize_fault_generalizati
 
 
 class HarborTests(unittest.TestCase):
+    def test_observation_noise_is_reproducible_and_separate_from_truth(self) -> None:
+        agents, simulation, communication = load_harbor_config()
+
+        class ZeroController:
+            def control(self, *, agent, **_):
+                return np.zeros(agent.model.control_dim)
+
+        selected = agents[:2]
+        noise = replace(load_harbor_observation_noise_config(), enabled=True)
+        arguments = dict(
+            agents=selected,
+            config=replace(simulation, horizon=3, goal_hold_steps=4),
+            communication=replace(communication, enabled=False),
+            control_provider=ZeroController(),
+            observation_noise=noise,
+        )
+        first = run_harbor_simulation(**arguments)
+        second = run_harbor_simulation(**arguments)
+        noiseless = run_harbor_simulation(
+            **{**arguments, "observation_noise": replace(noise, enabled=False)}
+        )
+
+        for agent in selected:
+            np.testing.assert_allclose(first.states[agent.name], second.states[agent.name])
+            np.testing.assert_allclose(
+                first.observed_states[agent.name], second.observed_states[agent.name]
+            )
+            np.testing.assert_allclose(
+                first.states[agent.name], noiseless.states[agent.name]
+            )
+            self.assertGreater(
+                np.linalg.norm(
+                    first.observed_states[agent.name] - first.states[agent.name]
+                ),
+                0.0,
+            )
+            observed = first.observed_states[agent.name]
+            if agent.model.kind == "ugv":
+                self.assertTrue(np.all(np.abs(observed[:, 3]) <= agent.model.max_speed))
+                self.assertTrue(
+                    np.all(np.abs(observed[:, 4]) <= agent.model.max_yaw_rate)
+                )
+        self.assertEqual(
+            first.pairwise_violation_count, noiseless.pairwise_violation_count
+        )
+
+    def test_observation_noise_rejects_wrong_platform_dimension(self) -> None:
+        agents, simulation, communication = load_harbor_config()
+        bad_noise = HarborObservationNoiseConfig(
+            enabled=True,
+            kind_state_std={"ugv": (0.1, 0.1)},
+        )
+        with self.assertRaisesRegex(ValueError, "must have 5 entries"):
+            run_harbor_simulation(
+                agents[:2],
+                replace(simulation, horizon=1),
+                replace(communication, enabled=False),
+                observation_noise=bad_noise,
+            )
+
     def test_planar_mpc_uses_line_of_sight_yaw_then_final_heading(self) -> None:
         agents, _, _ = load_harbor_config()
         for agent in (agents[0], agents[2]):
@@ -268,6 +331,49 @@ class HarborTests(unittest.TestCase):
                     config,
                 )
             np.testing.assert_allclose(estimate, truth, atol=1e-9)
+
+    def test_recursive_estimator_rejects_noise_and_recovers_channel_losses(self) -> None:
+        agents, simulation, _ = load_harbor_config()
+        agent = agents[0]
+        model = agent.model
+        config = replace(
+            load_harbor_mpc_config(),
+            effectiveness_estimator_mode="recursive_diagonal",
+            effectiveness_rls_measurement_noise=0.03,
+        )
+        truth = np.linspace(0.68, 0.88, model.control_dim)
+        estimate = np.ones(model.control_dim)
+        covariance = (
+            np.eye(model.control_dim) * config.identification_prior_std**2
+        )
+        state = agent.start.copy()
+        rng = np.random.default_rng(4)
+        for step in range(250):
+            channel = step % model.control_dim
+            command = np.zeros(model.control_dim)
+            direction = 1.0 if (step // model.control_dim) % 2 == 0 else -1.0
+            command[channel] = 0.35 * direction * model.control_scale()[channel]
+            next_state = model.step(
+                state, truth * command, simulation.dt
+            )
+            measured = next_state.copy()
+            measured[model.pose_dim :] += rng.normal(
+                0.0, 0.012, model.state_dim - model.pose_dim
+            )
+            estimate, covariance = _recursive_diagonal_effectiveness_update(
+                model,
+                state,
+                command,
+                measured,
+                simulation.dt,
+                estimate,
+                covariance,
+                config,
+            )
+            state = next_state
+
+        np.testing.assert_allclose(estimate, truth, atol=0.01)
+        self.assertTrue(np.all(np.linalg.eigvalsh(covariance) >= -1e-12))
 
     def test_bluerov2_heavy_allocation_is_full_rank_and_bounded(self) -> None:
         agents, _, _ = load_harbor_config()

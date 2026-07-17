@@ -86,3 +86,9 @@ equal-budget one-pass, and fault-focused information-aware MPC over the YAML
 Latin-hypercube ensemble. It saves paired RMSE, sustained-completion, validity,
 safety, hidden-fault coverage, and physical probe-order evidence as one JSON
 file and one nonredundant four-panel figure.
+
+`python run.py harbor-fault-noise-study` repeats that ensemble with deterministic
+platform-specific state observations. It compares the instantaneous diagonal
+fit with recursive passive, recursive one-pass, and recursive information-aware
+controllers. Plant truth remains separate from controller observations, and
+the JSON attributes every recovery fallback to an agent and IPOPT status.

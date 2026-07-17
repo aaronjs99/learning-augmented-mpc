@@ -46,6 +46,18 @@ effectiveness bounds, and paired-bootstrap sample count. It does not replace
 the fixed `actuator_fault_study`; the two sections support single-case tracing
 and multi-case generalization respectively.
 
+`observation_noise` configures seeded local state-observation noise separately
+for UGV, USV, and ROV state layouts, with optional per-agent overrides. Angles
+are wrapped and measured dynamic states are projected to each platform's
+physical bounds before they reach guidance or MPC. The execution plant and all
+safety/completion metrics continue to use the unobserved true state.
+
+`effectiveness_estimator_mode: recursive_diagonal` enables the covariance-form
+local actuator estimator. Its forgetting factor, normalized measurement-noise
+scale, process-noise floor, and Mahalanobis innovation gate are configured by
+the four `effectiveness_rls_*` values. The legacy `diagonal` mode remains the
+instantaneous finite-difference comparator.
+
 `active_identification` enables local constraint-aware calibration. Probe
 fraction, normalized energy target, interval, minimum successful probes per
 channel, maximum rejected probes, and extra communication-clearance guard are

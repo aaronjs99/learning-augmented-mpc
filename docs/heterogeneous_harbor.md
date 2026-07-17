@@ -158,8 +158,28 @@ adaptation completes safely but incurs fallbacks in two cases.
 
 Five stratified cases are a controlled generalization check, not a population-
 level guarantee. The bootstrap interval describes this configured ensemble;
-hardware trials, more fault draws, sensor noise, and time-varying failures are
-still required for a broad statistical claim.
+hardware trials, more fault draws, and time-varying failures are still required
+for a broad statistical claim.
+
+## Noisy Local-Observation Study
+
+```text
+python run.py harbor-fault-noise-study
+```
+
+This repeats the same five hidden-fault draws with deterministic UGV/USV/ROV
+state-observation noise. Controller inputs are noisy; safety and completion are
+evaluated from plant truth. Recursive passive estimation reduces mean actuator
+RMSE from `0.1507` for the instantaneous fit to `0.0385`, a mean paired relative
+reduction of `72.85%`, and wins all five matched cases. The paired absolute
+reduction is `0.1122` with bootstrap 95% interval `[0.0792, 0.1437]`. Recursive active probing
+reaches `0.0342`. One-pass and information-aware probe order tie in this noisy
+ensemble, so the noise experiment supports recursive estimation, not a further
+scheduling advantage. Every rollout completes and remains collision-safe.
+Inspector-Gadget requires recoverable IPOPT fallbacks for every policy in seed
+23 and for the instantaneous estimator in seeds 11 and 71; every other
+platform is solver-clean. This is retained as numerical telemetry rather than
+hidden by the task-level success metric.
 
 ## Initial Evidence
 
