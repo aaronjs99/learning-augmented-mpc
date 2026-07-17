@@ -144,12 +144,12 @@ def _observability(localization, agents) -> dict[str, dict] | None:
                 -1
             ].state_dimension,
             "pose_observable": localization.estimators[agent.name].pose_observable(),
-            "deferred_landmark_updates": localization.estimators[
-                agent.name
-            ].deferred_landmark_updates,
-            "landmark_only_updates": localization.estimators[
-                agent.name
-            ].landmark_only_updates,
+            "deferred_landmark_updates": getattr(
+                localization.estimators[agent.name], "deferred_landmark_updates", 0
+            ),
+            "landmark_only_updates": getattr(
+                localization.estimators[agent.name], "landmark_only_updates", 0
+            ),
         }
         for agent in agents
     }

@@ -107,6 +107,10 @@ class FixedLagRangeSLAM:
     def pose(self) -> np.ndarray:
         return self.poses[-1].copy()
 
+    def pose_observable(self) -> bool:
+        """Match the EKF observability interface for study reporting."""
+        return self.last_report.mode == "fully-observable"
+
     @property
     def landmark_estimates(self) -> dict[str, np.ndarray]:
         return {name: value.copy() for name, value in self._landmarks.items()}
