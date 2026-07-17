@@ -95,6 +95,7 @@ class FixedLagRangeSLAM:
         self.poses: list[np.ndarray] = [pose]
         self._prior_pose = pose.copy()
         self._prior_information = np.eye(self.pose_dimension) / config.prior_std**2
+        self.position_covariance = np.eye(dimension) * config.prior_std**2
         self.last_report = FactorGraphReport(0, 0.0, float("inf"),
                                              "gauge-underdetermined", 0.0, 0, 1, 0)
         self.telemetry: list[dict] = []
@@ -194,6 +195,13 @@ class FixedLagRangeSLAM:
             self._prior_pose = self.poses[1].copy()
             self.poses.pop(0)
         singular = np.linalg.svd(jacobian, compute_uv=False) if jacobian.size else np.array([])
+        information = jacobian.T @ jacobian + self.config.damping * np.eye(vector.size)
+        covariance = np.linalg.pinv(information, hermitian=True)
+        last_pose_start = (len(self.poses) - 1) * self.pose_dimension
+        self.position_covariance = covariance[
+            last_pose_start:last_pose_start + self._landmark_dimension(),
+            last_pose_start:last_pose_start + self._landmark_dimension(),
+        ]
         rank = int(np.count_nonzero(singular > self.config.rank_tolerance))
         smallest = float(singular[-1]) if singular.size else 0.0
         condition = float(singular[0] / smallest) if smallest > self.config.rank_tolerance else float("inf")
@@ -211,5 +219,6 @@ class FixedLagRangeSLAM:
         self.last_report = report
         self.telemetry.append({"rank": rank, "sigma_min": smallest, "condition_number": condition,
                                "mode": mode, "rejected_ranges": rejected,
-                               "window_size": len(self.poses)})
+                               "window_size": len(self.poses),
+                               "position_covariance_trace": float(np.trace(self.position_covariance))})
         return report

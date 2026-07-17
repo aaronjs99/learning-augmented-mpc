@@ -47,4 +47,4 @@ def test_full_rov_pose_has_attitude_factors_and_psd_covariance_proxy():
     assert estimator.pose.shape == (6,)
     assert report.window_size == 2
     assert np.all(np.isfinite(estimator.pose))
-
+    assert np.all(np.linalg.eigvalsh(estimator.position_covariance) >= -1.0e-10)

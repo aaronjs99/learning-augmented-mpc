@@ -432,9 +432,7 @@ class HarborRangeLocalization:
         if estimator is None:
             return {"position_covariance": np.eye(3), "observability": None}
         if isinstance(estimator, FixedLagRangeSLAM):
-            covariance = np.eye(estimator.position.size) * max(
-                estimator.last_report.condition_number, 1.0
-            )
+            covariance = estimator.position_covariance.copy()
             report = estimator.last_report
         else:
             covariance = estimator.covariance[:estimator.dimension, :estimator.dimension].copy()
