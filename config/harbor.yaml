@@ -166,6 +166,39 @@ temporary_fault_recovery_confirmation_criteria:
   maximum_mean_final_rmse_delta: 0.0
   maximum_mean_completion_cost_delta: 0.0
 
+temporary_fault_transient_recovery_development:
+  seeds: [3907, 4013, 4127, 4241, 4357]
+  observation_seed_offset: 6000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 5000
+
+temporary_fault_transient_recovery_confirmation:
+  seeds: [7927, 8039, 8161, 8273, 8389, 8501, 8623, 8737, 8851, 8963]
+  observation_seed_offset: 10000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 10000
+
+temporary_fault_transient_recovery_confirmation_criteria:
+  controller_labels: [Fixed-covariance RLS, Innovation-threshold RLS, Transient-offset threshold RLS]
+  minimum_recovery_win_rate: 0.8
+  require_positive_bootstrap_lower_bound: true
+  minimum_completion_rate: 1.0
+  minimum_safety_rate: 1.0
+  minimum_fallback_free_rate: 1.0
+  maximum_mean_fault_interval_rmse_delta: 0.000000001
+  maximum_mean_final_rmse_delta: 0.0
+  maximum_mean_completion_cost_delta: 0.0
+
 harbor_mpc:
   prediction_horizon: 12
   replan_interval_steps: 1
@@ -185,6 +218,8 @@ harbor_mpc:
   collision_buffer: 0.12
   collision_slack_weight: 100000.0
   collision_slack_bound: 0.0
+  domain_boundary_margin: 0.15
+  domain_boundary_slack_weight: 100000.0
   residual_adaptation: false
   residual_estimator_gain: 0.35
   residual_max_speed: 0.35
@@ -203,6 +238,12 @@ harbor_mpc:
   effectiveness_rls_change_warmup_steps: 0
   effectiveness_recovery_prior_gain: 0.0
   effectiveness_recovery_direction_tolerance: 0.000001
+  effectiveness_recovery_prior_mode: embedded
+  effectiveness_recovery_offset_decay: 0.80
+  effectiveness_recovery_require_full_rank: true
+  effectiveness_recovery_rank_tolerance: 0.00000001
+  effectiveness_recovery_max_episodes_per_agent: 1
+  effectiveness_recovery_minimum_dwell_steps: 16
   effectiveness_rls_cusum_drift: 2.5
   effectiveness_rls_cusum_threshold: 12.0
   effectiveness_min: 0.5
@@ -350,7 +391,7 @@ agents:
   - name: surface_vessel
     profile: clearpath_heron_full_payload
     start: [0.0, -4.0, 1.5708, 0.0, 0.0, 0.0]
-    goal: [0.0, 2.5, 0.0]
+    goal: [0.0, 2.2, 0.0]
     radius: 0.50
     domain:
       x: [-5.0, 5.0]

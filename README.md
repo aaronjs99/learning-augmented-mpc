@@ -127,6 +127,12 @@ Recovery-prior development and separately frozen confirmation:
 
 `python3 run.py harbor-temporary-fault-generalization --recovery-confirmation`
 
+Rank-gated transient-recovery development and frozen confirmation:
+
+`python3 run.py harbor-temporary-fault-generalization --transient-recovery-development`
+
+`python3 run.py harbor-temporary-fault-generalization --transient-recovery-confirmation`
+
 These commands overwrite curated artifacts in `results/latest/harbor/`. The
 robustness command writes one metrics JSON, one combined diagnostic, and one
 GIF. Plant parameters are hidden from the controllers. Joint adaptation first
@@ -157,6 +163,18 @@ comparator, and YAML-predeclared closed-loop pass/fail gates.
 The recovery-prior commands evaluate an aggregate-direction-gated,
 channel-selective nominal prior. Its independent confirmation did not pass every
 gate, so ordinary innovation-threshold RLS remains the confirmed default.
+The transient comparator keeps raw RLS untouched and applies a decaying,
+rank-gated controller offset for at most one armed loss/recovery episode per
+agent. Its confirmation result and every predeclared gate are stored in the
+matching JSON artifact. The dwell-gated transient comparator passed its
+independent simulation confirmation and is the confirmed recovery
+accommodation layered over the ordinary threshold-RLS estimator.
+
+Harbor MPC keeps the physical operating-domain boundary hard. A configurable
+interior warning band uses bounded, heavily penalized slack so underactuated
+marine agents can recover inside their valid medium without converting land or
+surface penetration into an accepted solution. Maximum warning-band use is
+reported separately from collision slack.
 
 Useful overrides:
 

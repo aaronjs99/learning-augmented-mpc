@@ -55,6 +55,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="run the frozen recovery-prior confirmation ensemble",
     )
+    mode.add_argument(
+        "--transient-recovery-development",
+        action="store_true",
+        help="compare a decaying controller offset with ordinary threshold RLS",
+    )
+    mode.add_argument(
+        "--transient-recovery-confirmation",
+        action="store_true",
+        help="run the frozen rank-gated transient recovery confirmation",
+    )
     return parser.parse_args()
 
 
@@ -103,10 +113,13 @@ def evaluate_confirmation(
     }
 
 
-def summarize_recovery_prior(records: list[dict], bootstrap_samples: int) -> dict:
-    """Compare recovery-prior threshold RLS with ordinary threshold RLS."""
+def summarize_recovery_prior(
+    records: list[dict],
+    bootstrap_samples: int,
+    candidate_label: str = "Recovery-prior threshold RLS",
+) -> dict:
+    """Compare one recovery-aware threshold RLS with ordinary threshold RLS."""
     baseline_label = "Innovation-threshold RLS"
-    candidate_label = "Recovery-prior threshold RLS"
     seeds = sorted({record["seed"] for record in records})
     by_key = {(record["seed"], record["controller"]): record for record in records}
 
@@ -227,9 +240,39 @@ def evaluate_recovery_confirmation(
 def main() -> None:
     """Run the stratified ensemble and replace its compact artifacts."""
     args = parse_args()
+    transient_mode = (
+        args.transient_recovery_development
+        or args.transient_recovery_confirmation
+    )
+    recovery_confirmation_mode = (
+        args.recovery_confirmation or args.transient_recovery_confirmation
+    )
     agents, simulation, communication = load_harbor_config(args.config)
     base_disturbance, experiment = load_harbor_time_varying_fault_config(args.config)
-    if args.recovery_development or args.recovery_confirmation:
+    if transient_mode:
+        if args.transient_recovery_confirmation:
+            ensemble_section = "temporary_fault_transient_recovery_confirmation"
+            evaluation_role = "transient_recovery_confirmation"
+            artifact_stem = "temporary_fault_transient_recovery_confirmation"
+            recovery_criteria = load_harbor_recovery_confirmation_criteria_config(
+                args.config,
+                section=(
+                    "temporary_fault_transient_recovery_confirmation_criteria"
+                ),
+            )
+            controller_labels = recovery_criteria.controller_labels
+        else:
+            ensemble_section = "temporary_fault_transient_recovery_development"
+            evaluation_role = "transient_recovery_development"
+            artifact_stem = "temporary_fault_transient_recovery_development"
+            controller_labels = (
+                "Fixed-covariance RLS",
+                "Innovation-threshold RLS",
+                "Transient-offset threshold RLS",
+            )
+            recovery_criteria = None
+        criteria = None
+    elif args.recovery_development or args.recovery_confirmation:
         if args.recovery_confirmation:
             ensemble_section = "temporary_fault_recovery_confirmation"
             evaluation_role = "recovery_confirmation"
@@ -289,11 +332,18 @@ def main() -> None:
         cases, agents, simulation, experiment.event_detection_window_steps
     )
     summary = summarize_time_varying_faults(records, ensemble.bootstrap_samples)
-    recovery_comparison = (
-        summarize_recovery_prior(records, ensemble.bootstrap_samples)
-        if args.recovery_development or args.recovery_confirmation
-        else None
-    )
+    if transient_mode:
+        recovery_comparison = summarize_recovery_prior(
+            records,
+            ensemble.bootstrap_samples,
+            candidate_label="Transient-offset threshold RLS",
+        )
+    elif args.recovery_development or args.recovery_confirmation:
+        recovery_comparison = summarize_recovery_prior(
+            records, ensemble.bootstrap_samples
+        )
+    else:
+        recovery_comparison = None
     output = Path(args.artifact_dir)
     output.mkdir(parents=True, exist_ok=True)
     data_path = output / f"{artifact_stem}.json"
@@ -308,11 +358,29 @@ def main() -> None:
             "cusum_threshold": mpc_config.effectiveness_rls_cusum_threshold,
             "event_detection_window_steps": experiment.event_detection_window_steps,
             "recovery_prior_gain": experiment.recovery_prior_gain,
+            "recovery_offset_decay": mpc_config.effectiveness_recovery_offset_decay,
+            "recovery_minimum_dwell_steps": (
+                mpc_config.effectiveness_recovery_minimum_dwell_steps
+            ),
+            "recovery_require_full_rank": (
+                mpc_config.effectiveness_recovery_require_full_rank
+            ),
+            "recovery_rank_tolerance": (
+                mpc_config.effectiveness_recovery_rank_tolerance
+            ),
+            "recovery_episode_hysteresis": True,
+            "recovery_max_episodes_per_agent": (
+                mpc_config.effectiveness_recovery_max_episodes_per_agent
+            ),
             "controller_blind_to_hidden_schedule": True,
             "deployment_candidate": (
-                "Recovery-prior threshold RLS"
-                if args.recovery_development or args.recovery_confirmation
-                else "Innovation-threshold RLS"
+                "Transient-offset threshold RLS"
+                if transient_mode
+                else (
+                    "Recovery-prior threshold RLS"
+                    if args.recovery_development or args.recovery_confirmation
+                    else "Innovation-threshold RLS"
+                )
             ),
             "candidate_status": (
                 "confirmation under evaluation"
@@ -325,22 +393,45 @@ def main() -> None:
         "trials": records,
     }
     if recovery_comparison is not None:
-        payload["recovery_prior_vs_threshold"] = recovery_comparison
-        payload["experiment"]["candidate_status"] = "recovery prior under development"
-    if args.recovery_confirmation:
+        comparison_key = (
+            "transient_recovery_vs_threshold"
+            if transient_mode
+            else "recovery_prior_vs_threshold"
+        )
+        payload[comparison_key] = recovery_comparison
+        payload["experiment"]["candidate_status"] = (
+            "transient recovery offset under development"
+            if transient_mode
+            else "recovery prior under development"
+        )
+    if recovery_confirmation_mode:
         assert recovery_comparison is not None and recovery_criteria is not None
         recovery_confirmation = evaluate_recovery_confirmation(
             recovery_comparison, recovery_criteria
         )
-        payload["recovery_confirmation_criteria"] = asdict(recovery_criteria)
-        payload["recovery_confirmation_result"] = recovery_confirmation
+        result_prefix = (
+            "transient_recovery_confirmation"
+            if args.transient_recovery_confirmation
+            else "recovery_confirmation"
+        )
+        payload[f"{result_prefix}_criteria"] = asdict(recovery_criteria)
+        payload[f"{result_prefix}_result"] = recovery_confirmation
+        method_name = (
+            "transient recovery offset"
+            if args.transient_recovery_confirmation
+            else "recovery prior"
+        )
         payload["experiment"]["candidate_status"] = (
-            "recovery prior confirmed in simulation"
+            f"{method_name} confirmed in simulation"
             if recovery_confirmation["passed"]
-            else "recovery confirmation criteria not met"
+            else f"{method_name} confirmation criteria not met"
         )
         payload["experiment"]["deployment_candidate"] = (
-            "Recovery-prior threshold RLS"
+            (
+                "Transient-offset threshold RLS"
+                if args.transient_recovery_confirmation
+                else "Recovery-prior threshold RLS"
+            )
             if recovery_confirmation["passed"]
             else "Innovation-threshold RLS"
         )
@@ -360,28 +451,37 @@ def main() -> None:
         summary,
         figure_path,
         study_title=(
-            "Channel-Selective Recovery-Prior Development"
-            if args.recovery_development
+            (
+                "Independent Transient Recovery-Offset Confirmation"
+                if args.transient_recovery_confirmation
+                else "Transient Recovery-Offset Development"
+            )
+            if transient_mode
             else (
-                "Independent Recovery-Prior Confirmation"
-                if args.recovery_confirmation
+                "Channel-Selective Recovery-Prior Development"
+                if args.recovery_development
                 else (
-                    "Independent Threshold-RLS Confirmation"
-                    if args.confirmation
-                    else "Generalization Across Hidden Temporary Actuator Faults"
+                    "Independent Recovery-Prior Confirmation"
+                    if recovery_confirmation_mode
+                    else (
+                        "Independent Threshold-RLS Confirmation"
+                        if args.confirmation
+                        else "Generalization Across Hidden Temporary Actuator Faults"
+                    )
                 )
             )
         ),
         headline=(
             (
-                f"recovery-prior wins {recovery_comparison['recovery_wins']}/"
+                f"{'transient-offset' if transient_mode else 'recovery-prior'} "
+                f"wins {recovery_comparison['recovery_wins']}/"
                 f"{recovery_comparison['trials']}; mean recovery RMSE reduction "
                 f"{100.0 * recovery_comparison['mean_relative_recovery_rmse_reduction']:.1f}%; "
                 f"fallback-free {100.0 * recovery_comparison['fallback_free_rate']:.0f}%"
                 + (
                     f"; overall gate "
                     f"{'PASSED' if recovery_confirmation['passed'] else 'FAILED'}"
-                    if args.recovery_confirmation
+                    if recovery_confirmation_mode
                     else ""
                 )
             )
@@ -392,8 +492,13 @@ def main() -> None:
     print(json.dumps(summary, indent=2))
     if args.confirmation:
         print(json.dumps(payload["confirmation_result"], indent=2))
-    if args.recovery_confirmation:
-        print(json.dumps(payload["recovery_confirmation_result"], indent=2))
+    if recovery_confirmation_mode:
+        result_key = (
+            "transient_recovery_confirmation_result"
+            if args.transient_recovery_confirmation
+            else "recovery_confirmation_result"
+        )
+        print(json.dumps(payload[result_key], indent=2))
     print(f"Saved temporary-fault generalization data: {data_path}")
     print(f"Saved temporary-fault generalization plot: {figure_path}")
 

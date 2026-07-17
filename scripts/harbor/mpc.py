@@ -38,6 +38,8 @@ class HarborMPCConfig:
     collision_buffer: float = 0.1
     collision_slack_weight: float = 100000.0
     collision_slack_bound: float = 0.0
+    domain_boundary_margin: float = 0.0
+    domain_boundary_slack_weight: float = 100000.0
     residual_adaptation: bool = False
     residual_estimator_gain: float = 0.35
     residual_max_speed: float = 0.35
@@ -57,6 +59,12 @@ class HarborMPCConfig:
     effectiveness_rls_change_warmup_steps: int = 0
     effectiveness_recovery_prior_gain: float = 0.0
     effectiveness_recovery_direction_tolerance: float = 1.0e-6
+    effectiveness_recovery_prior_mode: str = "embedded"
+    effectiveness_recovery_offset_decay: float = 0.90
+    effectiveness_recovery_require_full_rank: bool = True
+    effectiveness_recovery_rank_tolerance: float = 1.0e-8
+    effectiveness_recovery_max_episodes_per_agent: int = 1
+    effectiveness_recovery_minimum_dwell_steps: int = 0
     effectiveness_rls_cusum_drift: float = 1.5
     effectiveness_rls_cusum_threshold: float = 4.0
     effectiveness_min: float = 0.5
@@ -116,6 +124,8 @@ class HarborMPCConfig:
             self.collision_buffer,
             self.collision_slack_weight,
             self.collision_slack_bound,
+            self.domain_boundary_margin,
+            self.domain_boundary_slack_weight,
             self.residual_estimator_gain,
             self.residual_max_speed,
             self.effectiveness_estimator_gain,
@@ -128,6 +138,7 @@ class HarborMPCConfig:
             self.effectiveness_rls_cusum_threshold,
             self.effectiveness_recovery_prior_gain,
             self.effectiveness_recovery_direction_tolerance,
+            self.effectiveness_recovery_rank_tolerance,
             self.effectiveness_min,
             self.effectiveness_max,
             self.effectiveness_excitation_threshold,
@@ -159,6 +170,26 @@ class HarborMPCConfig:
             raise ValueError("effectiveness_rls_covariance_inflation must be at least 1")
         if self.effectiveness_recovery_prior_gain > 1.0:
             raise ValueError("effectiveness_recovery_prior_gain must be in [0, 1]")
+        if self.effectiveness_recovery_prior_mode not in {"embedded", "transient"}:
+            raise ValueError(
+                "effectiveness_recovery_prior_mode must be embedded or transient"
+            )
+        if not 0.0 <= self.effectiveness_recovery_offset_decay < 1.0:
+            raise ValueError("effectiveness_recovery_offset_decay must be in [0, 1)")
+        if int(self.effectiveness_recovery_max_episodes_per_agent) != (
+            self.effectiveness_recovery_max_episodes_per_agent
+        ) or self.effectiveness_recovery_max_episodes_per_agent < 0:
+            raise ValueError(
+                "effectiveness_recovery_max_episodes_per_agent must be a "
+                "nonnegative integer"
+            )
+        if int(self.effectiveness_recovery_minimum_dwell_steps) != (
+            self.effectiveness_recovery_minimum_dwell_steps
+        ) or self.effectiveness_recovery_minimum_dwell_steps < 0:
+            raise ValueError(
+                "effectiveness_recovery_minimum_dwell_steps must be a "
+                "nonnegative integer"
+            )
         if self.effectiveness_rls_change_detector not in {"threshold", "cusum"}:
             raise ValueError(
                 "effectiveness_rls_change_detector must be threshold or cusum"
@@ -209,6 +240,7 @@ class HarborMPCStep:
     control: np.ndarray
     predicted_states: np.ndarray
     max_collision_slack: float
+    max_domain_buffer_slack: float
     max_terminal_slack: float
 
 
@@ -254,6 +286,7 @@ class HarborAgentOptimizer:
         self.dt = dt
         self.learning = learning
         self.last_status = "not_run"
+        self.last_failure_diagnostics: dict[str, Any] = {}
         self._build_problem()
 
     def solve(
@@ -295,15 +328,21 @@ class HarborAgentOptimizer:
         opti.set_initial(self.states, warm_states.T)
         opti.set_initial(self.controls, warm_controls.T)
         opti.set_initial(self.collision_slack, 0.0)
+        opti.set_initial(self.domain_buffer_slack, 0.0)
         try:
             solution = opti.solve()
         except RuntimeError:
             self.last_status = str(opti.stats().get("return_status", "unknown"))
+            self.last_failure_diagnostics = self._collect_failure_diagnostics()
             raise
         self.last_status = str(opti.stats().get("return_status", "unknown"))
+        self.last_failure_diagnostics = {}
         states = np.asarray(solution.value(self.states), dtype=float).T
         collision = np.asarray(
             solution.value(self.collision_slack), dtype=float
+        ).reshape(-1)
+        domain_buffer = np.asarray(
+            solution.value(self.domain_buffer_slack), dtype=float
         ).reshape(-1)
         terminal = (
             np.asarray(solution.value(self.terminal_slack), dtype=float).reshape(-1)
@@ -316,8 +355,44 @@ class HarborAgentOptimizer:
             ),
             predicted_states=states,
             max_collision_slack=float(np.max(collision, initial=0.0)),
+            max_domain_buffer_slack=float(
+                np.max(domain_buffer, initial=0.0)
+            ),
             max_terminal_slack=float(np.max(np.abs(terminal), initial=0.0)),
         )
+
+    def _collect_failure_diagnostics(self, limit: int = 6) -> dict[str, Any]:
+        """Capture the largest constraint residuals at IPOPT's final iterate."""
+        try:
+            values = np.asarray(
+                self.opti.debug.value(self.opti.g), dtype=float
+            ).reshape(-1)
+            lower = np.asarray(
+                self.opti.debug.value(self.opti.lbg), dtype=float
+            ).reshape(-1)
+            upper = np.asarray(
+                self.opti.debug.value(self.opti.ubg), dtype=float
+            ).reshape(-1)
+        except Exception:
+            return {"status": self.last_status, "constraints": []}
+        violations = np.maximum(lower - values, values - upper)
+        indices = np.argsort(violations)[::-1]
+        constraints = []
+        for index in indices[:limit]:
+            violation = float(max(violations[index], 0.0))
+            if violation <= 1.0e-7:
+                break
+            constraints.append(
+                {
+                    "index": int(index),
+                    "violation": violation,
+                    "value": float(values[index]),
+                    "lower": float(lower[index]),
+                    "upper": float(upper[index]),
+                    "description": str(self.opti.debug.g_describe(int(index))),
+                }
+            )
+        return {"status": self.last_status, "constraints": constraints}
 
     def _build_problem(self) -> None:
         ca = self.ca
@@ -332,6 +407,8 @@ class HarborAgentOptimizer:
         states = opti.variable(nx, horizon + 1)
         controls = opti.variable(nu, horizon)
         collision_slack = opti.variable(obstacle_count, horizon)
+        domain_axes = 3 if model.kind == "rov" else 2
+        domain_buffer_slack = opti.variable(2 * domain_axes, horizon)
         p_initial = opti.parameter(nx, 1)
         p_goal = opti.parameter(pose_dim, 1)
         p_previous_control = opti.parameter(nu, 1)
@@ -349,7 +426,10 @@ class HarborAgentOptimizer:
         opti.subject_to(
             opti.bounded(0.0, collision_slack, cfg.collision_slack_bound)
         )
-        self._apply_bounds(opti, states, controls)
+        opti.subject_to(
+            opti.bounded(0.0, domain_buffer_slack, cfg.domain_boundary_margin)
+        )
+        self._apply_bounds(opti, states, controls, domain_buffer_slack)
         if cfg.active_identification:
             opti.subject_to(
                 ca.times(
@@ -401,6 +481,7 @@ class HarborAgentOptimizer:
                 )
 
         cost += cfg.collision_slack_weight * ca.sum1(ca.vec(collision_slack))
+        cost += cfg.domain_boundary_slack_weight * ca.sumsqr(domain_buffer_slack)
         terminal_pose = states[:pose_dim, horizon]
         if self.learning:
             sample_count = cfg.terminal_samples
@@ -453,6 +534,7 @@ class HarborAgentOptimizer:
         self.states = states
         self.controls = controls
         self.collision_slack = collision_slack
+        self.domain_buffer_slack = domain_buffer_slack
         self.p_initial = p_initial
         self.p_goal = p_goal
         self.p_previous_control = p_previous_control
@@ -484,26 +566,36 @@ class HarborAgentOptimizer:
             value += 2.0 * (1.0 - ca.cos(pose[index] - goal[index]))
         return value
 
-    def _apply_bounds(self, opti, states, controls) -> None:
+    def _apply_bounds(self, opti, states, controls, domain_buffer_slack) -> None:
         model = self.agent.model
         domain = self.agent.domain
-        opti.subject_to(
-            opti.bounded(domain.x_bounds[0], states[0, :], domain.x_bounds[1])
-        )
-        opti.subject_to(
-            opti.bounded(domain.y_bounds[0], states[1, :], domain.y_bounds[1])
-        )
+        margin = self.config.domain_boundary_margin
+        predicted_states = states[:, 1:]
+        domains = [domain.x_bounds, domain.y_bounds]
+        if model.kind == "rov":
+            domains.append(domain.z_bounds)
+        for axis, bounds in enumerate(domains):
+            values = predicted_states[axis, :]
+            lower_slack = domain_buffer_slack[2 * axis, :]
+            upper_slack = domain_buffer_slack[2 * axis + 1, :]
+            opti.subject_to(opti.bounded(bounds[0], values, bounds[1]))
+            opti.subject_to(values >= bounds[0] + margin - lower_slack)
+            opti.subject_to(values <= bounds[1] - margin + upper_slack)
         if model.kind == "ugv":
             minimum_speed = -model.max_reverse_speed if model.variant in {
                 "kinematic_bicycle",
                 "dynamic_skid_steer",
             } else 0.0
             opti.subject_to(
-                opti.bounded(minimum_speed, states[3, :], model.max_speed)
+                opti.bounded(minimum_speed, predicted_states[3, :], model.max_speed)
             )
             if model.variant == "dynamic_skid_steer":
                 opti.subject_to(
-                    opti.bounded(-model.max_yaw_rate, states[4, :], model.max_yaw_rate)
+                    opti.bounded(
+                        -model.max_yaw_rate,
+                        predicted_states[4, :],
+                        model.max_yaw_rate,
+                    )
                 )
                 opti.subject_to(
                     opti.bounded(
@@ -536,18 +628,22 @@ class HarborAgentOptimizer:
                     opti.bounded(-steering_bound, controls[1, :], steering_bound)
                 )
         elif model.kind == "usv":
-            opti.subject_to(opti.bounded(0.0, states[3, :], model.max_speed))
+            opti.subject_to(
+                opti.bounded(0.0, predicted_states[3, :], model.max_speed)
+            )
             if model.variant == "marine_3dof":
                 opti.subject_to(
                     opti.bounded(
                         -model.max_sway_speed,
-                        states[4, :],
+                        predicted_states[4, :],
                         model.max_sway_speed,
                     )
                 )
                 opti.subject_to(
                     opti.bounded(
-                        -model.max_yaw_rate, states[5, :], model.max_yaw_rate
+                        -model.max_yaw_rate,
+                        predicted_states[5, :],
+                        model.max_yaw_rate,
                     )
                 )
             thrust_bound = (
@@ -568,26 +664,23 @@ class HarborAgentOptimizer:
             )
         else:
             opti.subject_to(
-                opti.bounded(domain.z_bounds[0], states[2, :], domain.z_bounds[1])
-            )
-            opti.subject_to(
                 opti.bounded(
                     -model.max_horizontal_speed,
-                    states[6:8, :],
+                    predicted_states[6:8, :],
                     model.max_horizontal_speed,
                 )
             )
             opti.subject_to(
                 opti.bounded(
                     -model.max_vertical_speed,
-                    states[8, :],
+                    predicted_states[8, :],
                     model.max_vertical_speed,
                 )
             )
             opti.subject_to(
                 opti.bounded(
                     -model.max_angular_rate,
-                    states[9:12, :],
+                    predicted_states[9:12, :],
                     model.max_angular_rate,
                 )
             )
@@ -671,7 +764,16 @@ class DistributedHarborMPC:
                         f"{agent.name} initial effectiveness is outside estimator bounds"
                     )
                 self.control_effectiveness_estimates[agent.name] = estimate.copy()
+        self.raw_effectiveness_estimates = {
+            name: estimate.copy()
+            for name, estimate in self.control_effectiveness_estimates.items()
+        }
+        self.recovery_effectiveness_offsets = {
+            agent.name: np.zeros(agent.model.control_dim, dtype=float)
+            for agent in agents
+        }
         self.effectiveness_history = {agent.name: [] for agent in agents}
+        self.raw_effectiveness_history = {agent.name: [] for agent in agents}
         self.effectiveness_covariances = {
             agent.name: np.eye(agent.model.control_dim)
             * config.identification_prior_std**2
@@ -679,6 +781,25 @@ class DistributedHarborMPC:
         }
         self.effectiveness_change_steps_by_agent = {
             agent.name: [] for agent in agents
+        }
+        self.recovery_offset_steps_by_agent = {agent.name: [] for agent in agents}
+        self.recovery_offset_rejections_by_agent = {
+            agent.name: 0 for agent in agents
+        }
+        self.recovery_offset_unarmed_rejections_by_agent = {
+            agent.name: 0 for agent in agents
+        }
+        self.recovery_offset_episode_limit_rejections_by_agent = {
+            agent.name: 0 for agent in agents
+        }
+        self.recovery_offset_dwell_rejections_by_agent = {
+            agent.name: 0 for agent in agents
+        }
+        self.recovery_offset_armed_by_agent = {
+            agent.name: False for agent in agents
+        }
+        self.recovery_offset_armed_step_by_agent: dict[str, int | None] = {
+            agent.name: None for agent in agents
         }
         self.effectiveness_change_evidence_by_agent = {
             agent.name: 0.0 for agent in agents
@@ -724,6 +845,7 @@ class DistributedHarborMPC:
         self.fallback_count = 0
         self.solve_time_seconds = 0.0
         self.max_collision_slack = 0.0
+        self.max_domain_buffer_slack = 0.0
         self.max_terminal_slack = 0.0
         self.solve_count_by_agent = {agent.name: 0 for agent in agents}
         self.fallback_count_by_agent = {agent.name: 0 for agent in agents}
@@ -731,6 +853,9 @@ class DistributedHarborMPC:
             agent.name: [] for agent in agents
         }
         self.failure_status_counts: dict[str, int] = {}
+        self.failure_diagnostics_by_agent: dict[str, list[dict[str, Any]]] = {
+            agent.name: [] for agent in agents
+        }
 
     def control(
         self,
@@ -810,6 +935,24 @@ class DistributedHarborMPC:
                 self.failure_status_counts[status] = (
                     self.failure_status_counts.get(status, 0) + 1
                 )
+                if not self.failure_diagnostics_by_agent[agent.name]:
+                    diagnostic_optimizer = self.optimizers[agent.name]
+                    diagnostic = {
+                        "step": int(step),
+                        "state": np.asarray(state, dtype=float).tolist(),
+                        "previous_control": self.previous_controls[
+                            agent.name
+                        ].tolist(),
+                        "control_effectiveness": self.control_effectiveness_estimates[
+                            agent.name
+                        ].tolist(),
+                        **diagnostic_optimizer.last_failure_diagnostics,
+                    }
+                    self.failure_diagnostics_by_agent[agent.name].append(diagnostic)
+                    print(
+                        f"MPC failure diagnostic for {agent.name}: {diagnostic}",
+                        flush=True,
+                    )
                 control = agent.model.guidance_control(
                     state, desired_velocity, dt, desired_pose=navigation_goal
                 )
@@ -823,6 +966,10 @@ class DistributedHarborMPC:
             self.solve_count_by_agent[agent.name] += 1
             self.max_collision_slack = max(
                 self.max_collision_slack, solution.max_collision_slack
+            )
+            self.max_domain_buffer_slack = max(
+                self.max_domain_buffer_slack,
+                solution.max_domain_buffer_slack,
             )
             self.max_terminal_slack = max(
                 self.max_terminal_slack, solution.max_terminal_slack
@@ -845,6 +992,9 @@ class DistributedHarborMPC:
         self.effectiveness_history[agent.name].append(
             self.control_effectiveness_estimates[agent.name].copy()
         )
+        self.raw_effectiveness_history[agent.name].append(
+            self.raw_effectiveness_estimates[agent.name].copy()
+        )
         self.excitation_history[agent.name].append(
             self.excitation_energy[agent.name].copy()
         )
@@ -865,12 +1015,17 @@ class DistributedHarborMPC:
         previous_control = self.previous_controls[agent.name]
         normalized = previous_control / agent.model.control_scale()
         self.excitation_energy[agent.name] += normalized * normalized
+        recursive_prior = (
+            self.raw_effectiveness_estimates[agent.name]
+            if self.config.effectiveness_recovery_prior_mode == "transient"
+            else self.control_effectiveness_estimates[agent.name]
+        )
         normalized_sensitivity = _effectiveness_sensitivity_matrix(
             agent.model,
             previous_state,
             previous_control,
             self.dt,
-            self.control_effectiveness_estimates[agent.name],
+            recursive_prior,
             self.config,
             normalize_dynamic_state=True,
         )
@@ -880,9 +1035,7 @@ class DistributedHarborMPC:
         self.information_matrices[agent.name] += jacobian.T @ jacobian
         if self.config.control_effectiveness_adaptation:
             if self.config.effectiveness_estimator_mode == "recursive_diagonal":
-                previous_effectiveness = self.control_effectiveness_estimates[
-                    agent.name
-                ].copy()
+                previous_effectiveness = recursive_prior.copy()
                 allow_change = (
                     current_step >= self.config.effectiveness_rls_change_warmup_steps
                     and current_step
@@ -896,7 +1049,7 @@ class DistributedHarborMPC:
                         previous_control,
                         np.asarray(current_state, dtype=float),
                         self.dt,
-                        self.control_effectiveness_estimates[agent.name],
+                        recursive_prior,
                         self.effectiveness_covariances[agent.name],
                         self.config,
                         change_evidence=(
@@ -921,7 +1074,10 @@ class DistributedHarborMPC:
                         estimate,
                         self.config.effectiveness_recovery_direction_tolerance,
                     )
-                    if recovery_detected:
+                    if (
+                        recovery_detected
+                        and self.config.effectiveness_recovery_prior_mode == "embedded"
+                    ):
                         estimate = _apply_nominal_recovery_prior(
                             previous_effectiveness,
                             estimate,
@@ -930,6 +1086,78 @@ class DistributedHarborMPC:
                             self.config.effectiveness_min,
                             self.config.effectiveness_max,
                         )
+                    if self.config.effectiveness_recovery_prior_mode == "transient":
+                        if loss_detected:
+                            self.recovery_effectiveness_offsets[agent.name].fill(0.0)
+                            episode_count = len(
+                                self.recovery_offset_steps_by_agent[agent.name]
+                            )
+                            episode_limit = (
+                                self.config.effectiveness_recovery_max_episodes_per_agent
+                            )
+                            within_budget = (
+                                episode_limit == 0 or episode_count < episode_limit
+                            )
+                            if (
+                                within_budget
+                                and not self.recovery_offset_armed_by_agent[agent.name]
+                            ):
+                                self.recovery_offset_armed_by_agent[agent.name] = True
+                                self.recovery_offset_armed_step_by_agent[agent.name] = (
+                                    current_step
+                                )
+                            if not within_budget:
+                                self.recovery_offset_armed_by_agent[agent.name] = False
+                                self.recovery_offset_armed_step_by_agent[agent.name] = None
+                                self.recovery_offset_episode_limit_rejections_by_agent[
+                                    agent.name
+                                ] += 1
+                        elif recovery_detected:
+                            armed = self.recovery_offset_armed_by_agent[agent.name]
+                            armed_step = self.recovery_offset_armed_step_by_agent[
+                                agent.name
+                            ]
+                            if not armed:
+                                self.recovery_offset_unarmed_rejections_by_agent[
+                                    agent.name
+                                ] += 1
+                            elif (
+                                armed_step is not None
+                                and current_step - armed_step
+                                < self.config.effectiveness_recovery_minimum_dwell_steps
+                            ):
+                                self.recovery_offset_dwell_rejections_by_agent[
+                                    agent.name
+                                ] += 1
+                            else:
+                                identifiable = (
+                                    not self.config.effectiveness_recovery_require_full_rank
+                                    or _has_full_column_rank(
+                                        normalized_sensitivity,
+                                        self.config.effectiveness_recovery_rank_tolerance,
+                                    )
+                                )
+                                self.recovery_offset_armed_by_agent[agent.name] = False
+                                self.recovery_offset_armed_step_by_agent[agent.name] = None
+                                if identifiable:
+                                    self.recovery_effectiveness_offsets[agent.name] = (
+                                        _channel_selective_recovery_offset(
+                                            previous_effectiveness,
+                                            estimate,
+                                            self.config.effectiveness_recovery_prior_gain,
+                                            self.config.effectiveness_recovery_direction_tolerance,
+                                        )
+                                    )
+                                    self.recovery_offset_steps_by_agent[agent.name].append(
+                                        current_step
+                                    )
+                                else:
+                                    self.recovery_effectiveness_offsets[agent.name].fill(
+                                        0.0
+                                    )
+                                    self.recovery_offset_rejections_by_agent[
+                                        agent.name
+                                    ] += 1
                     permit_identification = (
                         not self.config.identification_arm_on_loss_only
                         or loss_detected
@@ -947,7 +1175,20 @@ class DistributedHarborMPC:
                         and permit_identification
                     ):
                         self.identification_change_armed_by_agent[agent.name] = True
-                self.control_effectiveness_estimates[agent.name] = estimate
+                if self.config.effectiveness_recovery_prior_mode == "transient":
+                    self.raw_effectiveness_estimates[agent.name] = estimate
+                    offset = self.recovery_effectiveness_offsets[agent.name]
+                    self.control_effectiveness_estimates[agent.name] = np.clip(
+                        estimate + offset,
+                        self.config.effectiveness_min,
+                        self.config.effectiveness_max,
+                    )
+                    self.recovery_effectiveness_offsets[agent.name] = (
+                        self.config.effectiveness_recovery_offset_decay * offset
+                    )
+                else:
+                    self.control_effectiveness_estimates[agent.name] = estimate
+                    self.raw_effectiveness_estimates[agent.name] = estimate.copy()
                 self.effectiveness_covariances[agent.name] = covariance
             else:
                 self.control_effectiveness_estimates[agent.name] = (
@@ -960,6 +1201,9 @@ class DistributedHarborMPC:
                         self.control_effectiveness_estimates[agent.name],
                         self.config,
                     )
+                )
+                self.raw_effectiveness_estimates[agent.name] = (
+                    self.control_effectiveness_estimates[agent.name].copy()
                 )
         if not self.config.residual_adaptation:
             return
@@ -1175,9 +1419,33 @@ def _apply_nominal_recovery_prior(
     """Pull only positively changing actuator channels toward nominal health."""
     previous = np.asarray(previous, dtype=float)
     result = np.asarray(updated, dtype=float).copy()
-    recovering = result - previous > direction_tolerance
-    result[recovering] += gain * (1.0 - result[recovering])
+    result += _channel_selective_recovery_offset(
+        previous, result, gain, direction_tolerance
+    )
     return np.clip(result, lower, upper)
+
+
+def _channel_selective_recovery_offset(
+    previous: np.ndarray,
+    updated: np.ndarray,
+    gain: float,
+    direction_tolerance: float,
+) -> np.ndarray:
+    """Return a nominal-health offset only for positively changing channels."""
+    previous = np.asarray(previous, dtype=float)
+    updated = np.asarray(updated, dtype=float)
+    offset = np.zeros_like(updated)
+    recovering = updated - previous > direction_tolerance
+    offset[recovering] = gain * (1.0 - updated[recovering])
+    return offset
+
+
+def _has_full_column_rank(matrix: np.ndarray, tolerance: float) -> bool:
+    """Return whether local measurements identify every actuator direction."""
+    matrix = np.asarray(matrix, dtype=float)
+    if matrix.ndim != 2 or matrix.shape[1] == 0:
+        return False
+    return bool(np.linalg.matrix_rank(matrix, tol=tolerance) == matrix.shape[1])
 
 
 def _dynamic_state_scale(model: PlatformModel) -> np.ndarray:

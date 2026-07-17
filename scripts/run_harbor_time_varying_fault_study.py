@@ -24,6 +24,7 @@ CONTROLLER_LABELS = (
     "Fixed-covariance RLS",
     "Innovation-threshold RLS",
     "Recovery-prior threshold RLS",
+    "Transient-offset threshold RLS",
     "Chi-square CUSUM RLS",
     "CUSUM-triggered probing RLS",
 )
@@ -72,6 +73,9 @@ def summarize_time_varying_faults(
             ),
             "fallback_free_rate": float(
                 np.mean([record["solver_fallbacks"] == 0 for record in selected])
+            ),
+            "max_domain_buffer_slack": float(
+                max(record.get("max_domain_buffer_slack", 0.0) for record in selected)
             ),
             "completion_rate": float(
                 np.mean([record["all_goals_reached"] for record in selected])
@@ -363,6 +367,12 @@ def build_time_varying_fault_records(
                         ].tolist()
                         for agent in agents
                     },
+                    "raw_effectiveness_estimate_history": {
+                        agent.name: trial.raw_effectiveness_history[agent.name][
+                            :count
+                        ].tolist()
+                        for agent in agents
+                    },
                     "applied_effectiveness_history": {
                         agent.name: trial.result.applied_effectiveness[agent.name][
                             :count
@@ -391,6 +401,21 @@ def build_time_varying_fault_records(
                     ),
                     "final_effectiveness_rmse": global_history[-1],
                     "change_steps_by_agent": trial.effectiveness_change_steps_by_agent,
+                    "recovery_offset_steps_by_agent": (
+                        trial.recovery_offset_steps_by_agent
+                    ),
+                    "recovery_offset_rejections_by_agent": (
+                        trial.recovery_offset_rejections_by_agent
+                    ),
+                    "recovery_offset_unarmed_rejections_by_agent": (
+                        trial.recovery_offset_unarmed_rejections_by_agent
+                    ),
+                    "recovery_offset_episode_limit_rejections_by_agent": (
+                        trial.recovery_offset_episode_limit_rejections_by_agent
+                    ),
+                    "recovery_offset_dwell_rejections_by_agent": (
+                        trial.recovery_offset_dwell_rejections_by_agent
+                    ),
                     "valid": trial.valid,
                     "all_goals_reached": trial.result.all_goals_reached,
                     "first_goal_steps": trial.result.first_goal_steps,
@@ -401,6 +426,7 @@ def build_time_varying_fault_records(
                     "min_pairwise_distance": trial.result.min_pairwise_distance,
                     "pairwise_violation_count": trial.result.pairwise_violation_count,
                     "max_collision_slack": trial.max_collision_slack,
+                    "max_domain_buffer_slack": trial.max_domain_buffer_slack,
                     "solver_fallbacks": trial.solver_fallbacks,
                     "solver_fallbacks_by_agent": trial.solver_fallbacks_by_agent,
                     "solver_failure_steps_by_agent": (

@@ -290,6 +290,38 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       a repeatable short-horizon recovery effect, not promotion to the default
       controller or a broad novelty claim.
 
+22. **Estimator-decoupled, rank-gated transient recovery accommodation**
+    - Raw event-adaptive RLS remains the estimator state. A separate decaying
+      controller offset acts only on positively recovering channels, so a
+      nominal-health prior cannot recursively accumulate as estimator bias.
+    - A model-derived full-column-rank gate rejects locally underdetermined
+      recovery updates, including the eight-input/six-residual ROV map without
+      platform-name special cases. Loss/recovery hysteresis adds a causal dwell
+      and one-episode budget while remaining blind to hidden schedules.
+    - Five development cases give `4/5` wins, `1.08%` lower recovery RMSE, and
+      paired interval `[0.00060, 0.00257]` with no fault, final, cost, safety, or
+      solver regression.
+    - A separately frozen ten-case confirmation passes every predeclared gate:
+      `10/10` recovery wins, `0.85%` mean relative improvement, paired interval
+      `[0.000826, 0.001421]`, numerical-zero fault-interval delta, slightly
+      better final RMSE, unchanged task cost, and `100%` completion, safety,
+      and fallback-free rates.
+    - The contribution is the heterogeneous estimator-controller architecture
+      and independently gated evidence, not invention of RLS, rank tests,
+      temporal hysteresis, or nominal priors in isolation.
+
+23. **Hard-domain MPC with a separately audited interior warning band**
+    - Land, water, and depth bounds remain hard for all predicted states. A
+      bounded quadratic slack applies only to an interior warning margin and is
+      reported independently from collision slack.
+    - This resolves an underactuated Heron recursive-feasibility failure caused
+      by outward momentum at the shoreline. The exact diagnostic case changes
+      from 15 USV solver fallbacks to zero without allowing a predicted state
+      outside the water domain.
+    - The final ten-case confirmation is fully safe and fallback-free; maximum
+      adaptive warning-band use is `7.07e-6 m`. This is a robust integration and
+      auditability contribution, not a claim that soft constraint bands are new.
+
 ## Current Evidence
 
 The nominal horizon study exposes where learning helps and where it does not:

@@ -224,13 +224,17 @@ class HarborRecoveryConfirmationCriteriaConfig:
 
     def __post_init__(self) -> None:
         labels = tuple(str(label) for label in self.controller_labels)
-        expected = (
-            "Fixed-covariance RLS",
-            "Innovation-threshold RLS",
+        valid_candidates = {
             "Recovery-prior threshold RLS",
-        )
-        if labels != expected:
-            raise ValueError("recovery confirmation controllers are fixed")
+            "Transient-offset threshold RLS",
+        }
+        if (
+            labels[:2]
+            != ("Fixed-covariance RLS", "Innovation-threshold RLS")
+            or len(labels) != 3
+            or labels[2] not in valid_candidates
+        ):
+            raise ValueError("recovery confirmation controllers are invalid")
         rates = (
             self.minimum_recovery_win_rate,
             self.minimum_completion_rate,
@@ -465,14 +469,14 @@ def load_harbor_confirmation_criteria_config(
 
 def load_harbor_recovery_confirmation_criteria_config(
     path: str | Path = DEFAULT_HARBOR_CONFIG,
+    section: str = "temporary_fault_recovery_confirmation_criteria",
 ) -> HarborRecoveryConfirmationCriteriaConfig:
-    """Load predeclared recovery-prior confirmation gates."""
+    """Load predeclared actuator-recovery confirmation gates."""
     config_path = Path(path)
     if not config_path.is_absolute():
         config_path = PROJECT_ROOT / config_path
     with config_path.open("r", encoding="utf-8") as stream:
         raw = yaml.safe_load(stream) or {}
-    section = "temporary_fault_recovery_confirmation_criteria"
     return _dataclass_from_mapping(
         HarborRecoveryConfirmationCriteriaConfig,
         raw.get(section, {}),

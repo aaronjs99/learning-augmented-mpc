@@ -38,11 +38,13 @@ from scripts.harbor.mpc import (
     HarborAgentOptimizer,
     _approach_pose_goal,
     _apply_nominal_recovery_prior,
+    _channel_selective_recovery_offset,
     _estimate_control_effectiveness,
     _estimate_diagonal_control_effectiveness,
     _effectiveness_change_is_loss,
     _effectiveness_change_is_recovery,
     _goal_bounded_velocity_prediction,
+    _has_full_column_rank,
     _identification_channel,
     _information_identification_channel,
     _least_excited_channel,
@@ -103,6 +105,43 @@ class HarborTests(unittest.TestCase):
                 upper=1.2,
             ),
             updated,
+        )
+        np.testing.assert_allclose(
+            _channel_selective_recovery_offset(
+                previous,
+                updated,
+                gain=0.5,
+                direction_tolerance=1.0e-6,
+            ),
+            [0.15, 0.0, 0.0],
+        )
+
+    def test_transient_recovery_configuration_is_strict(self) -> None:
+        config = load_harbor_mpc_config()
+        transient = replace(
+            config,
+            effectiveness_recovery_prior_mode="transient",
+            effectiveness_recovery_offset_decay=0.9,
+        )
+        self.assertEqual(transient.effectiveness_recovery_prior_mode, "transient")
+        with self.assertRaises(ValueError):
+            replace(config, effectiveness_recovery_prior_mode="unknown")
+        with self.assertRaises(ValueError):
+            replace(config, effectiveness_recovery_offset_decay=1.0)
+        with self.assertRaises(ValueError):
+            replace(config, effectiveness_recovery_max_episodes_per_agent=-1)
+        with self.assertRaises(ValueError):
+            replace(config, effectiveness_recovery_minimum_dwell_steps=-1)
+
+    def test_recovery_identifiability_gate_requires_full_column_rank(self) -> None:
+        self.assertTrue(
+            _has_full_column_rank(np.array([[1.0, 0.0], [0.0, 2.0]]), 1.0e-8)
+        )
+        self.assertFalse(
+            _has_full_column_rank(np.ones((6, 8), dtype=float), 1.0e-8)
+        )
+        self.assertFalse(
+            _has_full_column_rank(np.array([[1.0, 1.0], [2.0, 2.0]]), 1.0e-8)
         )
 
     def test_recursive_estimator_can_request_active_identification(self) -> None:
@@ -335,6 +374,13 @@ class HarborTests(unittest.TestCase):
             criteria,
         )
         self.assertTrue(accepted["passed"])
+        transient_criteria = load_harbor_recovery_confirmation_criteria_config(
+            section="temporary_fault_transient_recovery_confirmation_criteria"
+        )
+        self.assertEqual(
+            transient_criteria.controller_labels[-1],
+            "Transient-offset threshold RLS",
+        )
 
     def test_scheduled_faults_switch_execution_truth_at_configured_steps(self) -> None:
         agents, simulation, communication = load_harbor_config()
@@ -1122,6 +1168,52 @@ class HarborTests(unittest.TestCase):
             identification_probe_mask=mask,
         )
         self.assertAlmostEqual(result.control[1], probe[1], places=8)
+
+    def test_usv_domain_buffer_preserves_hard_water_boundary(self) -> None:
+        agents, simulation, _ = load_harbor_config()
+        agent = agents[2]
+        other = agents[0]
+        config = replace(
+            load_harbor_mpc_config(),
+            prediction_horizon=3,
+            active_identification=False,
+        )
+        optimizer = HarborAgentOptimizer(
+            agent=agent,
+            other_agents=[other],
+            config=config,
+            dt=simulation.dt,
+            learning=False,
+        )
+        state = np.array([0.0, 2.84, np.pi / 2.0, 0.08, 0.0, 0.0])
+        warm_states = [state.copy()]
+        for _ in range(config.prediction_horizon):
+            warm_states.append(
+                agent.model.step(
+                    warm_states[-1],
+                    np.zeros(agent.model.control_dim),
+                    simulation.dt,
+                )
+            )
+        result = optimizer.solve(
+            state=state,
+            goal=agent.goal,
+            obstacle_predictions={other.name: np.full((3, 3), 100.0)},
+            safe_states=np.repeat(state[None, :], 3, axis=0),
+            safe_costs=np.zeros(config.terminal_samples),
+            warm_states=np.asarray(warm_states),
+            warm_controls=np.zeros((3, agent.model.control_dim)),
+            previous_control=np.zeros(agent.model.control_dim),
+            position_drift=np.zeros(3),
+            control_effectiveness=np.ones(agent.model.control_dim),
+            identification_probe=np.zeros(agent.model.control_dim),
+            identification_probe_mask=np.zeros(agent.model.control_dim),
+        )
+        self.assertGreater(result.max_domain_buffer_slack, 0.0)
+        self.assertLessEqual(
+            float(np.max(result.predicted_states[:, 1])),
+            agent.domain.y_bounds[1] + 1.0e-9,
+        )
 
     def test_hidden_current_advects_only_marine_execution_plant(self) -> None:
         agents, simulation, communication = load_harbor_config()

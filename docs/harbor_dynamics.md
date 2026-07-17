@@ -216,6 +216,24 @@ alpha_hat_k = clip(alpha_hat_(k-1) + K_k e_k)
 P_k = (I-K_k J_k) P_k^- (I-K_k J_k)^T + K_k R K_k^T
 ```
 
+For each bounded position coordinate, MPC applies the physical domain to
+predicted states `x_1,...,x_N`, while the measured initial state remains the
+fixed equality `x_0=y_k`. With domain interval `[l,u]`, warning margin `m`, and
+bounded warning-band slacks `s^-`, `s^+`, the constraints are
+
+```text
+l <= x_t <= u
+x_t >= l + m - s_t^-
+x_t <= u - m + s_t^+
+0 <= s_t^-, s_t^+ <= m
+J_domain = w_domain sum_t (||s_t^-||_2^2 + ||s_t^+||_2^2)
+```
+
+Warning-band use therefore cannot relax the true land, water, or depth
+boundary. It is reported separately from collision slack. Applying dynamic-
+state bounds only to future states also avoids requiring a noisy fixed
+observation to satisfy two inconsistent constraints.
+
 If `sqrt(e_k^T S_k^-1 e_k)` exceeds the configured gate, the innovation is
 radially clipped before the update. This prevents one noisy transition from
 being interpreted as a large actuator loss while retaining a local causal
@@ -308,6 +326,34 @@ claim that covariance resetting or event-triggered fault accommodation is new.
 Independent evidence improves average recovery tracking but fails stricter
 final-bias and task-cost gates, so it remains an ablation rather than the
 deployed estimator.
+
+### Rank-gated transient recovery offset
+
+The second recovery architecture leaves the recursive estimator state
+`z_k=eta_hat_k` untouched. A loss event arms one later recovery action. On the
+first aggregate-positive update, the controller requires the normalized local
+sensitivity matrix to have full column rank,
+
+```text
+rank(S_k) = n_u.
+```
+
+This model-derived gate naturally rejects locally underdetermined input maps,
+including the eight-thruster ROV update when only six dynamic-state residuals
+are available. For positively recovering channels, it creates
+
+```text
+b_(j,k) = gamma_recovery (1 - z_(j,k)),
+eta_controller,k = clip(z_k + b_k),
+b_(k+1) = rho b_k,
+```
+
+while nonpositive channels receive zero offset. Raw RLS always recurses on
+`z_k`, never `eta_controller,k`, so the nominal prior cannot accumulate as
+estimator bias. Hysteresis consumes the arm after one recovery event, and the
+configured per-agent episode budget suppresses repeated post-goal false events.
+Positive events before the minimum causal dwell are rejected without consuming
+the arm, allowing a later locally detected restoration to act.
 
 For distributed collision prediction, a received peer message contains
 position `p`, velocity `v`, and goal `g`. Legacy prediction uses `p(t)=p+tv`

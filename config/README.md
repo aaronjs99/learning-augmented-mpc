@@ -30,6 +30,9 @@ solver-clean, and uses no collision slack.
 `seed_learning_from_mpc` chooses whether a clean, lower-cost plain MPC rollout
 replaces guidance as the first learned safe trajectory. It is enabled for the
 physical experiment and disabled only in the frozen reduced benchmark.
+`domain_boundary_margin` creates an interior warning band around each operating
+domain. The true domain remains hard; bounded warning-band slack is penalized by
+`domain_boundary_slack_weight` and reported independently from collision slack.
 
 `actuator_fault_study` defines hidden effectiveness vectors by agent name, so
 RobEn and Inspector-Gadget can have different left/right drive faults even
@@ -89,6 +92,11 @@ used after threshold-RLS candidate selection: paired-win rate, positive
 bootstrap lower bound, completion, safety, fallback-free operation, and mean
 task-cost delta. The confirmation command runs only fixed-covariance and
 threshold RLS and writes every individual gate result into its JSON artifact.
+The transient-recovery sections define separate development and confirmation
+seeds for a controller-only recovery offset. `effectiveness_recovery_offset_decay`
+sets its geometric decay, the rank tolerance gates locally identifiable input
+maps, the minimum dwell rejects premature positive events without consuming the
+arm, and the episode limit prevents repeated post-goal false recovery actions.
 
 `obstacle_prediction_mode` selects legacy unbounded `constant_velocity` or
 `goal_bounded_velocity` peer extrapolation. The latter retains constant

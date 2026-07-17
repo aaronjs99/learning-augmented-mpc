@@ -1295,6 +1295,10 @@ def save_temporary_fault_generalization_plot(
     label_metadata = {
         "Innovation-threshold RLS": ("Threshold", "#2f9c95"),
         "Recovery-prior threshold RLS": ("Threshold + recovery prior", "#d18f32"),
+        "Transient-offset threshold RLS": (
+            "Threshold + transient offset",
+            "#9b6a35",
+        ),
         "Chi-square CUSUM RLS": ("CUSUM", "#3974a8"),
         "CUSUM-triggered probing RLS": ("CUSUM + probes", "#7048a8"),
     }
@@ -1342,8 +1346,18 @@ def save_temporary_fault_generalization_plot(
     cost_axis.set_title("Task-Cost Tradeoff")
     cost_axis.set_ylabel("adaptive cost - fixed cost")
 
-    recovery_label = "Recovery-prior threshold RLS"
-    if recovery_label in labels:
+    recovery_label = next(
+        (
+            label
+            for label in (
+                "Recovery-prior threshold RLS",
+                "Transient-offset threshold RLS",
+            )
+            if label in labels
+        ),
+        None,
+    )
+    if recovery_label is not None:
         platform_names = tuple(
             by_key[(seeds[0], recovery_label)]["platform_recovery_rmse"]
         )
@@ -1370,8 +1384,20 @@ def save_temporary_fault_generalization_plot(
             ],
         )
         event_axis.axhline(0.0, color="#555555", linewidth=1, linestyle="--")
-        event_axis.set_title("Recovery-Prior Benefit by Platform")
-        event_axis.set_ylabel("threshold RMSE - recovery-prior RMSE")
+        method_name = (
+            "Transient-Offset"
+            if recovery_label == "Transient-offset threshold RLS"
+            else "Recovery-Prior"
+        )
+        event_axis.set_title(f"{method_name} Benefit by Platform")
+        event_axis.set_ylabel(
+            "threshold RMSE - "
+            + (
+                "transient-offset RMSE"
+                if method_name == "Transient-Offset"
+                else "recovery-prior RMSE"
+            )
+        )
         event_axis.set_xticks(
             platform_x,
             [

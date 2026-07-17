@@ -40,11 +40,18 @@ class HarborRobustnessTrial:
     solver_failure_steps_by_agent: dict[str, list[int]]
     solver_failure_status_counts: dict[str, int]
     max_collision_slack: float
+    max_domain_buffer_slack: float
     residual_history: dict[str, np.ndarray]
     final_residual_estimates: dict[str, np.ndarray]
     effectiveness_history: dict[str, np.ndarray]
+    raw_effectiveness_history: dict[str, np.ndarray]
     final_effectiveness_estimates: dict[str, np.ndarray]
     effectiveness_change_steps_by_agent: dict[str, list[int]]
+    recovery_offset_steps_by_agent: dict[str, list[int]]
+    recovery_offset_rejections_by_agent: dict[str, int]
+    recovery_offset_unarmed_rejections_by_agent: dict[str, int]
+    recovery_offset_episode_limit_rejections_by_agent: dict[str, int]
+    recovery_offset_dwell_rejections_by_agent: dict[str, int]
     excitation_history: dict[str, np.ndarray]
     information_std_history: dict[str, np.ndarray]
     probe_count_by_agent: dict[str, int]
@@ -268,6 +275,7 @@ def run_model_mismatch_study(
                 },
                 solver_failure_status_counts=controller.failure_status_counts.copy(),
                 max_collision_slack=controller.max_collision_slack,
+                max_domain_buffer_slack=controller.max_domain_buffer_slack,
                 residual_history={
                     name: np.asarray(values, dtype=float)
                     for name, values in controller.residual_history.items()
@@ -280,6 +288,10 @@ def run_model_mismatch_study(
                     name: np.asarray(values, dtype=float)
                     for name, values in controller.effectiveness_history.items()
                 },
+                raw_effectiveness_history={
+                    name: np.asarray(values, dtype=float)
+                    for name, values in controller.raw_effectiveness_history.items()
+                },
                 final_effectiveness_estimates={
                     name: value.copy()
                     for name, value in controller.control_effectiveness_estimates.items()
@@ -288,6 +300,22 @@ def run_model_mismatch_study(
                     name: steps.copy()
                     for name, steps in controller.effectiveness_change_steps_by_agent.items()
                 },
+                recovery_offset_steps_by_agent={
+                    name: steps.copy()
+                    for name, steps in controller.recovery_offset_steps_by_agent.items()
+                },
+                recovery_offset_rejections_by_agent=dict(
+                    controller.recovery_offset_rejections_by_agent
+                ),
+                recovery_offset_unarmed_rejections_by_agent=dict(
+                    controller.recovery_offset_unarmed_rejections_by_agent
+                ),
+                recovery_offset_episode_limit_rejections_by_agent=dict(
+                    controller.recovery_offset_episode_limit_rejections_by_agent
+                ),
+                recovery_offset_dwell_rejections_by_agent=dict(
+                    controller.recovery_offset_dwell_rejections_by_agent
+                ),
                 excitation_history={
                     name: np.asarray(values, dtype=float)
                     for name, values in controller.excitation_history.items()
@@ -867,10 +895,14 @@ def _run_temporary_fault_trials(
         "Fixed-covariance RLS",
         "Innovation-threshold RLS",
         "Recovery-prior threshold RLS",
+        "Transient-offset threshold RLS",
         "Chi-square CUSUM RLS",
         "CUSUM-triggered probing RLS",
     }
-    default = available - {"Recovery-prior threshold RLS"}
+    default = available - {
+        "Recovery-prior threshold RLS",
+        "Transient-offset threshold RLS",
+    }
     selected = default if controller_labels is None else set(controller_labels)
     if not selected or not selected <= available:
         raise ValueError("temporary-fault controller labels must be known and nonempty")
@@ -884,16 +916,24 @@ def _run_temporary_fault_trials(
         ),
     )
     trials = []
-    for label, adaptive, detector, recovery_gain in (
-        ("Fixed-covariance RLS", False, "threshold", 0.0),
-        ("Innovation-threshold RLS", True, "threshold", 0.0),
+    for label, adaptive, detector, recovery_gain, recovery_mode in (
+        ("Fixed-covariance RLS", False, "threshold", 0.0, "embedded"),
+        ("Innovation-threshold RLS", True, "threshold", 0.0, "embedded"),
         (
             "Recovery-prior threshold RLS",
             True,
             "threshold",
             experiment_config.recovery_prior_gain,
+            "embedded",
         ),
-        ("Chi-square CUSUM RLS", True, "cusum", 0.0),
+        (
+            "Transient-offset threshold RLS",
+            True,
+            "threshold",
+            experiment_config.recovery_prior_gain,
+            "transient",
+        ),
+        ("Chi-square CUSUM RLS", True, "cusum", 0.0, "embedded"),
     ):
         if label not in selected:
             continue
@@ -914,6 +954,7 @@ def _run_temporary_fault_trials(
                         experiment_config.covariance_inflation
                     ),
                     effectiveness_recovery_prior_gain=recovery_gain,
+                    effectiveness_recovery_prior_mode=recovery_mode,
                 ),
                 disturbance,
                 seed_result,
@@ -1057,6 +1098,7 @@ def _run_fault_trials(
                 },
                 solver_failure_status_counts=controller.failure_status_counts.copy(),
                 max_collision_slack=controller.max_collision_slack,
+                max_domain_buffer_slack=controller.max_domain_buffer_slack,
                 residual_history={
                     name: np.asarray(values, dtype=float)
                     for name, values in controller.residual_history.items()
@@ -1069,6 +1111,10 @@ def _run_fault_trials(
                     name: np.asarray(values, dtype=float)
                     for name, values in controller.effectiveness_history.items()
                 },
+                raw_effectiveness_history={
+                    name: np.asarray(values, dtype=float)
+                    for name, values in controller.raw_effectiveness_history.items()
+                },
                 final_effectiveness_estimates={
                     name: value.copy()
                     for name, value in controller.control_effectiveness_estimates.items()
@@ -1077,6 +1123,22 @@ def _run_fault_trials(
                     name: steps.copy()
                     for name, steps in controller.effectiveness_change_steps_by_agent.items()
                 },
+                recovery_offset_steps_by_agent={
+                    name: steps.copy()
+                    for name, steps in controller.recovery_offset_steps_by_agent.items()
+                },
+                recovery_offset_rejections_by_agent=dict(
+                    controller.recovery_offset_rejections_by_agent
+                ),
+                recovery_offset_unarmed_rejections_by_agent=dict(
+                    controller.recovery_offset_unarmed_rejections_by_agent
+                ),
+                recovery_offset_episode_limit_rejections_by_agent=dict(
+                    controller.recovery_offset_episode_limit_rejections_by_agent
+                ),
+                recovery_offset_dwell_rejections_by_agent=dict(
+                    controller.recovery_offset_dwell_rejections_by_agent
+                ),
                 excitation_history={
                     name: np.asarray(values, dtype=float)
                     for name, values in controller.excitation_history.items()

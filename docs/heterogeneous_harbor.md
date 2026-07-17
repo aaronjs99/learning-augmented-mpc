@@ -314,6 +314,41 @@ recovery benefit comes from UGV 2 and the USV; UGV 1 is slightly worse. The
 recovery prior remains experimental, while ordinary innovation-threshold RLS
 remains the confirmed deployment candidate.
 
+### Rank-gated transient recovery confirmation
+
+```text
+python run.py harbor-temporary-fault-generalization --transient-recovery-development
+python run.py harbor-temporary-fault-generalization --transient-recovery-confirmation
+```
+
+The transient comparator leaves raw threshold RLS unchanged and adds a decaying
+controller-only offset after a loss-armed, positive local event. Full-column-
+rank sensitivity, a 16-step causal dwell, and a one-episode budget reject
+underdetermined, premature, and repeated recovery actions. Hidden fault times
+and values remain available only to offline scoring.
+
+Five development cases give `4/5` recovery wins, `1.08%` lower mean recovery
+RMSE, and paired interval `[0.00060, 0.00257]`. A separately frozen ten-case
+confirmation passes every YAML-predeclared gate: `10/10` recovery wins,
+`0.85%` mean relative recovery improvement, and paired interval
+`[0.000826, 0.001421]`. Degraded-interval RMSE changes only by numerical noise
+(`3.69e-14`), final RMSE improves by `2.67e-7`, and mean task cost is unchanged.
+All 30 development/confirmation rollouts complete, remain collision-safe, and
+are fallback-free. This supports the transient offset over ordinary threshold
+RLS for the configured simulation benchmark; it is not hardware validation or
+a general fault-identification guarantee.
+
+### Medium-boundary recursive feasibility
+
+The USV goal now retains `0.3 m` hull clearance from the shoreline. The MPC
+keeps the true operating domain hard and adds a `0.15 m` interior warning band
+with bounded quadratic slack. In the previously failing temporary-fault case,
+this changes the threshold controller from 15 USV fallbacks to zero while
+remaining complete and safe. Across the final ten-case confirmation, the
+largest adaptive warning-band use is `7.07e-6 m`; hard-domain penetration and
+collision slack remain zero. Warning-band use is reported separately so
+recursive feasibility cannot be mistaken for relaxed land/water safety.
+
 ## Initial Evidence
 
 Run the deterministic ablation without creating an output file:
