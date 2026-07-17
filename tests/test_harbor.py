@@ -20,11 +20,13 @@ from scripts.harbor import (
     load_harbor_fault_ensemble_config,
     load_harbor_fault_config,
     load_harbor_observation_noise_config,
+    load_harbor_temporary_fault_ensemble_config,
     load_harbor_time_varying_fault_config,
     run_harbor_simulation,
 )
 from scripts.harbor.experiments import (
     generate_fault_ensemble,
+    generate_temporary_fault_ensemble,
     sweep_network_robustness,
 )
 from scripts.harbor.communication import AgentMessage
@@ -35,6 +37,7 @@ from scripts.harbor.mpc import (
     _approach_pose_goal,
     _estimate_control_effectiveness,
     _estimate_diagonal_control_effectiveness,
+    _effectiveness_change_is_loss,
     _goal_bounded_velocity_prediction,
     _identification_channel,
     _information_identification_channel,
@@ -54,6 +57,15 @@ from scripts.run_harbor_time_varying_fault_study import (
 
 
 class HarborTests(unittest.TestCase):
+    def test_effectiveness_change_direction_separates_loss_and_recovery(self) -> None:
+        prior = np.array([0.9, 0.8, 0.7])
+        self.assertTrue(
+            _effectiveness_change_is_loss(prior, np.array([0.8, 0.75, 0.65]))
+        )
+        self.assertFalse(
+            _effectiveness_change_is_loss(prior, np.array([1.0, 0.9, 0.8]))
+        )
+
     def test_recursive_estimator_can_request_active_identification(self) -> None:
         agents, simulation, _ = load_harbor_config()
         agent = agents[0]
@@ -398,6 +410,62 @@ class HarborTests(unittest.TestCase):
                 disturbance.agent_control_effectiveness[agents[0].name],
                 disturbance.agent_control_effectiveness[agents[1].name],
             )
+
+    def test_temporary_fault_ensemble_varies_hidden_timing_and_channels(self) -> None:
+        agents, _, _ = load_harbor_config()
+        base, _ = load_harbor_time_varying_fault_config()
+        config = load_harbor_temporary_fault_ensemble_config()
+        first = generate_temporary_fault_ensemble(agents, base, config)
+        second = generate_temporary_fault_ensemble(agents, base, config)
+
+        self.assertEqual(
+            [(seed, observation_seed) for seed, observation_seed, _ in first],
+            [
+                (seed, config.observation_seed_offset + seed)
+                for seed in config.seeds
+            ],
+        )
+        first_channels = []
+        second_channels = []
+        onsets = {agent.name: [] for agent in agents}
+        durations = {agent.name: [] for agent in agents}
+        for (_, _, disturbance), (_, _, repeated) in zip(first, second, strict=True):
+            degraded = []
+            repeated_degraded = []
+            for agent in agents:
+                events = disturbance.agent_control_effectiveness_schedule[agent.name]
+                repeated_events = repeated.agent_control_effectiveness_schedule[agent.name]
+                self.assertEqual(len(events), 2)
+                onset, loss = events[0]
+                recovery, restored = events[1]
+                onsets[agent.name].append(onset)
+                durations[agent.name].append(recovery - onset)
+                self.assertGreaterEqual(onset, config.onset_step_min)
+                self.assertLessEqual(onset, config.onset_step_max)
+                self.assertGreaterEqual(recovery - onset, config.duration_step_min)
+                self.assertLessEqual(recovery - onset, config.duration_step_max)
+                np.testing.assert_allclose(restored, 1.0)
+                np.testing.assert_allclose(events[0][1], repeated_events[0][1])
+                degraded.extend(loss)
+                repeated_degraded.extend(repeated_events[0][1])
+            first_channels.append(degraded)
+            second_channels.append(repeated_degraded)
+        first_matrix = np.asarray(first_channels)
+        np.testing.assert_allclose(first_matrix, second_channels)
+        self.assertTrue(np.all(first_matrix >= config.effectiveness_min))
+        self.assertTrue(np.all(first_matrix <= config.effectiveness_max))
+        strata = np.floor(
+            (first_matrix - config.effectiveness_min)
+            / (config.effectiveness_max - config.effectiveness_min)
+            * len(config.seeds)
+        ).astype(int)
+        for channel in range(first_matrix.shape[1]):
+            np.testing.assert_array_equal(
+                np.sort(strata[:, channel]), np.arange(len(config.seeds))
+            )
+        for agent in agents:
+            self.assertGreaterEqual(len(set(onsets[agent.name])), 3)
+            self.assertGreaterEqual(len(set(durations[agent.name])), 3)
 
     def test_fault_generalization_summary_is_paired_by_seed(self) -> None:
         records = []

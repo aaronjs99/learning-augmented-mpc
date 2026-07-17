@@ -220,7 +220,7 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       contribution as reduced false collision infeasibility rather than better
       fault identification.
 
-20. **CUSUM adaptation and change-triggered probing for temporary faults**
+20. **Event-adaptive RLS and estimator-controller coupling under temporary faults**
     - YAML schedules change each platform's hidden per-channel plant
       effectiveness during execution. The local controller receives only noisy
       state transitions and prior commands; scheduled times and magnitudes are
@@ -238,11 +238,33 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
     - Triggered probing reaches `0.1533` recovery RMSE versus `0.1736` fixed
       (`11.70%` reduction) and lowers final RMSE by `9.61%`, at mean completion
       cost `150.3`. It executes 16 physical-channel probes per run.
-    - All 12 rollouts complete, remain collision-safe, use numerical-zero
+    - All 12 initial rollouts complete, remain collision-safe, use numerical-zero
       collision slack, and require no solver fallback. Event recall remains
       only `50-58%` with `2.0-2.7` unmatched inflations per run, so this is an
       adaptive-tracking and re-identification result, not certified fault
       detection, isolation, or hardware validation.
+    - A later stratified development ensemble varies all 14 actuator channels,
+      per-agent onset/duration, and observation noise. Detector warmup,
+      refractory timing, and loss-only probe arming were developed there, so it
+      is not presented as untouched evidence.
+    - On a separate five-case holdout, innovation-threshold RLS wins all five
+      degraded intervals, reduces mean RMSE `0.18152 -> 0.11047` (`38.50%`),
+      reduces completion cost by `13.2` steps, and remains solver-clean. The
+      paired absolute-reduction bootstrap interval is `[0.05805, 0.09210]`.
+    - CUSUM improves holdout tracking slightly further (`40.42%`) but causes 22
+      recoverable solver fallbacks in one case and raises task cost. Triggered
+      probing reaches `43.77%` tracking reduction but shares those fallbacks and
+      adds cost. This counterexample shows that estimator accuracy alone does
+      not establish closed-loop optimizer robustness.
+    - The failure is reproducibly confined to the Clearpath Heron USV on steps
+      `35-56`, with IPOPT status `Infeasible_Problem_Detected`, spanning the
+      hidden restoration at step `40`. Both CUSUM variants share the interval;
+      threshold RLS remains solver-clean. The artifact stores per-agent steps
+      and status counts for direct audit.
+    - Threshold RLS is therefore a provisional candidate, not a confirmed final
+      method: it was selected after holdout inspection and needs a fresh
+      confirmation ensemble or hardware trial. Recovery and final-RMSE gains
+      are not claimed.
 
 ## Current Evidence
 

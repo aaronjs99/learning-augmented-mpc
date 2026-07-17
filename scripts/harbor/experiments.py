@@ -10,6 +10,7 @@ from .communication import LinkConfig
 from .config import (
     HarborFaultEnsembleConfig,
     HarborFaultStudyConfig,
+    HarborTemporaryFaultEnsembleConfig,
     HarborTimeVaryingFaultConfig,
 )
 from .learning import run_distributed_harbor_lmpc
@@ -462,6 +463,65 @@ def generate_fault_ensemble(
     return cases
 
 
+def generate_temporary_fault_ensemble(
+    agents: list[HarborAgent],
+    base_disturbance: HarborDisturbanceConfig,
+    config: HarborTemporaryFaultEnsembleConfig,
+) -> list[tuple[int, int, HarborDisturbanceConfig]]:
+    """Generate matched temporary losses with stratified timing and severity."""
+    case_count = len(config.seeds)
+    channel_count = sum(agent.model.control_dim for agent in agents)
+    timing_count = 2 * len(agents)
+    rng = np.random.default_rng(np.random.SeedSequence(config.seeds))
+    unit_samples = np.empty((case_count, channel_count + timing_count), dtype=float)
+    for dimension in range(unit_samples.shape[1]):
+        strata = rng.permutation(case_count)
+        unit_samples[:, dimension] = (strata + rng.random(case_count)) / case_count
+
+    effectiveness = config.effectiveness_min + unit_samples[:, :channel_count] * (
+        config.effectiveness_max - config.effectiveness_min
+    )
+    cases = []
+    for case_index, seed_value in enumerate(config.seeds):
+        schedule = {}
+        channel_offset = 0
+        for agent_index, agent in enumerate(agents):
+            dimension = agent.model.control_dim
+            degraded = tuple(
+                effectiveness[
+                    case_index, channel_offset : channel_offset + dimension
+                ]
+            )
+            onset_unit = unit_samples[case_index, channel_count + 2 * agent_index]
+            duration_unit = unit_samples[
+                case_index, channel_count + 2 * agent_index + 1
+            ]
+            onset = config.onset_step_min + int(
+                onset_unit * (config.onset_step_max - config.onset_step_min + 1)
+            )
+            duration = config.duration_step_min + int(
+                duration_unit
+                * (config.duration_step_max - config.duration_step_min + 1)
+            )
+            schedule[agent.name] = (
+                (onset, degraded),
+                (onset + duration, tuple(np.ones(dimension))),
+            )
+            channel_offset += dimension
+        cases.append(
+            (
+                seed_value,
+                config.observation_seed_offset + seed_value,
+                replace(
+                    base_disturbance,
+                    agent_control_effectiveness={},
+                    agent_control_effectiveness_schedule=schedule,
+                ),
+            )
+        )
+    return cases
+
+
 def run_actuator_fault_generalization(
     agents: list[HarborAgent],
     simulation: HarborSimulationConfig,
@@ -694,82 +754,17 @@ def run_time_varying_fault_study(
     cases = []
     for observation_seed in experiment_config.observation_seeds:
         noise = replace(observation_noise, enabled=True, seed=observation_seed)
-        trials = []
         print(f"Scheduled-fault observation seed {observation_seed}", flush=True)
-        for label, adaptive, detector in (
-            ("Fixed-covariance RLS", False, "threshold"),
-            ("Innovation-threshold RLS", True, "threshold"),
-            ("Chi-square CUSUM RLS", True, "cusum"),
-        ):
-            trials.extend(
-                _run_fault_trials(
-                    agents,
-                    simulation,
-                    evaluation,
-                    communication,
-                    replace(
-                        study_mpc,
-                        effectiveness_rls_adaptive_covariance=adaptive,
-                        effectiveness_rls_change_detector=detector,
-                        effectiveness_rls_change_threshold=(
-                            experiment_config.change_threshold
-                        ),
-                        effectiveness_rls_covariance_inflation=(
-                            experiment_config.covariance_inflation
-                        ),
-                    ),
-                    disturbance,
-                    seed.result,
-                    (
-                        (
-                            label,
-                            True,
-                            "recursive_diagonal",
-                            False,
-                            False,
-                            None,
-                            "energy",
-                            1,
-                        ),
-                    ),
-                    observation_noise=noise,
-                )
-            )
-        trials.extend(
-            _run_fault_trials(
-                agents,
-                simulation,
-                evaluation,
-                communication,
-                replace(
-                    study_mpc,
-                    effectiveness_rls_adaptive_covariance=True,
-                    effectiveness_rls_change_detector="cusum",
-                    effectiveness_rls_change_threshold=(
-                        experiment_config.change_threshold
-                    ),
-                    effectiveness_rls_covariance_inflation=(
-                        experiment_config.covariance_inflation
-                    ),
-                    identification_reset_on_change=True,
-                    identification_arm_on_change=True,
-                ),
-                disturbance,
-                seed.result,
-                (
-                    (
-                        "CUSUM-triggered probing RLS",
-                        True,
-                        "recursive_diagonal",
-                        False,
-                        True,
-                        None,
-                        "information",
-                        1,
-                    ),
-                ),
-                observation_noise=noise,
-            )
+        trials = _run_temporary_fault_trials(
+            agents,
+            simulation,
+            evaluation,
+            communication,
+            study_mpc,
+            disturbance,
+            seed.result,
+            experiment_config,
+            noise,
         )
         cases.append(
             HarborFaultEnsembleCase(
@@ -780,6 +775,163 @@ def run_time_varying_fault_study(
             )
         )
     return cases
+
+
+def run_temporary_fault_generalization(
+    agents: list[HarborAgent],
+    simulation: HarborSimulationConfig,
+    communication: LinkConfig,
+    mpc_config: HarborMPCConfig,
+    base_disturbance: HarborDisturbanceConfig,
+    study_config: HarborFaultStudyConfig,
+    experiment_config: HarborTimeVaryingFaultConfig,
+    ensemble_config: HarborTemporaryFaultEnsembleConfig,
+    observation_noise: HarborObservationNoiseConfig,
+) -> list[HarborFaultEnsembleCase]:
+    """Evaluate temporary-fault adaptation across hidden severities and timings."""
+    study_mpc = replace(
+        mpc_config,
+        prediction_horizon=study_config.prediction_horizon,
+        terminal_goal_weight=study_config.terminal_goal_weight,
+        terminal_slack_bound=study_config.terminal_slack_bound,
+        terminal_slack_weight=study_config.terminal_slack_weight,
+    )
+    seed_iterations = run_distributed_harbor_lmpc(
+        agents,
+        simulation,
+        communication,
+        replace(
+            study_mpc,
+            learning_iterations=1,
+            residual_adaptation=False,
+            control_effectiveness_adaptation=False,
+        ),
+    )
+    seed = min(
+        (record for record in seed_iterations if record.admitted),
+        key=lambda record: record.completion_step_sum,
+    )
+    cases = []
+    generated = generate_temporary_fault_ensemble(
+        agents, base_disturbance, ensemble_config
+    )
+    for case_seed, observation_seed, disturbance in generated:
+        noise = replace(observation_noise, enabled=True, seed=observation_seed)
+        evaluation = replace(
+            simulation,
+            guidance_update_interval_steps=study_mpc.replan_interval_steps,
+            goal_hold_steps=disturbance.evaluation_hold_steps,
+        )
+        print(
+            f"Temporary-fault case {case_seed}; observation seed {observation_seed}",
+            flush=True,
+        )
+        trials = _run_temporary_fault_trials(
+            agents,
+            simulation,
+            evaluation,
+            communication,
+            study_mpc,
+            disturbance,
+            seed.result,
+            experiment_config,
+            noise,
+        )
+        cases.append(
+            HarborFaultEnsembleCase(
+                seed=case_seed,
+                disturbance=disturbance,
+                observation_seed=observation_seed,
+                trials=tuple(trials),
+            )
+        )
+    return cases
+
+
+def _run_temporary_fault_trials(
+    agents,
+    simulation,
+    evaluation,
+    communication,
+    study_mpc,
+    disturbance,
+    seed_result,
+    experiment_config,
+    observation_noise,
+) -> list[HarborRobustnessTrial]:
+    """Run the matched passive and event-triggered temporary-fault policies."""
+    study_mpc = replace(
+        study_mpc,
+        effectiveness_rls_change_warmup_steps=(
+            experiment_config.change_warmup_steps
+        ),
+        effectiveness_rls_change_cooldown_steps=(
+            experiment_config.change_cooldown_steps
+        ),
+    )
+    trials = []
+    for label, adaptive, detector in (
+        ("Fixed-covariance RLS", False, "threshold"),
+        ("Innovation-threshold RLS", True, "threshold"),
+        ("Chi-square CUSUM RLS", True, "cusum"),
+    ):
+        trials.extend(
+            _run_fault_trials(
+                agents,
+                simulation,
+                evaluation,
+                communication,
+                replace(
+                    study_mpc,
+                    effectiveness_rls_adaptive_covariance=adaptive,
+                    effectiveness_rls_change_detector=detector,
+                    effectiveness_rls_change_threshold=experiment_config.change_threshold,
+                    effectiveness_rls_covariance_inflation=(
+                        experiment_config.covariance_inflation
+                    ),
+                ),
+                disturbance,
+                seed_result,
+                ((label, True, "recursive_diagonal", False, False, None, "energy", 1),),
+                observation_noise=observation_noise,
+            )
+        )
+    trials.extend(
+        _run_fault_trials(
+            agents,
+            simulation,
+            evaluation,
+            communication,
+            replace(
+                study_mpc,
+                effectiveness_rls_adaptive_covariance=True,
+                effectiveness_rls_change_detector="cusum",
+                effectiveness_rls_change_threshold=experiment_config.change_threshold,
+                effectiveness_rls_covariance_inflation=(
+                    experiment_config.covariance_inflation
+                ),
+                identification_reset_on_change=True,
+                identification_arm_on_change=True,
+                identification_arm_on_loss_only=True,
+            ),
+            disturbance,
+            seed_result,
+            (
+                (
+                    "CUSUM-triggered probing RLS",
+                    True,
+                    "recursive_diagonal",
+                    False,
+                    True,
+                    None,
+                    "information",
+                    1,
+                ),
+            ),
+            observation_noise=observation_noise,
+        )
+    )
+    return trials
 
 
 def _run_fault_trials(

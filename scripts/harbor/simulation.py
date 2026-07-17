@@ -200,15 +200,20 @@ class HarborDisturbanceConfig:
                 raise ValueError("scheduled effectiveness names must not be empty")
             events = []
             for configured in configured_events:
-                if not isinstance(configured, dict) or set(configured) != {
+                if isinstance(configured, dict) and set(configured) == {
                     "step",
                     "effectiveness",
                 }:
+                    configured_step = configured["step"]
+                    configured_effectiveness = configured["effectiveness"]
+                elif isinstance(configured, (tuple, list)) and len(configured) == 2:
+                    configured_step, configured_effectiveness = configured
+                else:
                     raise ValueError(
                         "scheduled effectiveness events require step and effectiveness"
                     )
-                step = int(configured["step"])
-                if step < 0 or step != configured["step"]:
+                step = int(configured_step)
+                if step < 0 or step != configured_step:
                     raise ValueError(
                         "scheduled effectiveness steps must be nonnegative integers"
                     )
@@ -216,7 +221,7 @@ class HarborDisturbanceConfig:
                     (
                         step,
                         _normalize_effectiveness(
-                            configured["effectiveness"], f"scheduled agent {name}"
+                            configured_effectiveness, f"scheduled agent {name}"
                         ),
                     )
                 )

@@ -1280,6 +1280,100 @@ def save_time_varying_fault_plot(records, summary, path: str | Path) -> Path:
     return output
 
 
+def save_temporary_fault_generalization_plot(records, summary, path: str | Path) -> Path:
+    """Plot paired adaptation benefits across hidden temporary-fault cases."""
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    labels = (
+        "Innovation-threshold RLS",
+        "Chi-square CUSUM RLS",
+        "CUSUM-triggered probing RLS",
+    )
+    short_labels = ("Threshold", "CUSUM", "CUSUM + probes")
+    colors = ("#2f9c95", "#3974a8", "#7048a8")
+    seeds = sorted({record["seed"] for record in records})
+    by_key = {(record["seed"], record["controller"]): record for record in records}
+    fixed_label = "Fixed-covariance RLS"
+    fig, axes = plt.subplots(2, 2, figsize=(15.0, 9.0))
+    fault_axis, recovery_axis, cost_axis, event_axis = axes.flat
+    case_x = np.arange(len(seeds))
+
+    for label, short, color in zip(labels, short_labels, colors, strict=True):
+        fault_delta = [
+            by_key[(seed, fixed_label)]["fault_interval_rmse"]
+            - by_key[(seed, label)]["fault_interval_rmse"]
+            for seed in seeds
+        ]
+        recovery_delta = [
+            by_key[(seed, fixed_label)]["recovery_rmse"]
+            - by_key[(seed, label)]["recovery_rmse"]
+            for seed in seeds
+        ]
+        cost_delta = [
+            by_key[(seed, label)]["sustained_completion_cost"]
+            - by_key[(seed, fixed_label)]["sustained_completion_cost"]
+            for seed in seeds
+        ]
+        fault_axis.plot(case_x, fault_delta, "o-", color=color, label=short)
+        recovery_axis.plot(case_x, recovery_delta, "o-", color=color, label=short)
+        cost_axis.plot(case_x, cost_delta, "o-", color=color, label=short)
+
+    for axis in (fault_axis, recovery_axis, cost_axis):
+        axis.axhline(0.0, color="#555555", linewidth=1, linestyle="--")
+        axis.set_xticks(case_x, [str(seed) for seed in seeds])
+        axis.set_xlabel("hidden fault case")
+        axis.grid(True, alpha=0.25)
+        axis.legend(fontsize=8)
+    fault_axis.set_title("Degraded-Interval Tracking Benefit")
+    fault_axis.set_ylabel("fixed RMSE - adaptive RMSE")
+    recovery_axis.set_title("Post-Recovery Tracking Benefit")
+    recovery_axis.set_ylabel("fixed RMSE - adaptive RMSE")
+    cost_axis.set_title("Task-Cost Tradeoff")
+    cost_axis.set_ylabel("adaptive cost - fixed cost")
+
+    all_labels = (fixed_label, *labels)
+    all_short = ("Fixed", *short_labels)
+    all_colors = ("#b66a50", *colors)
+    label_x = np.arange(len(all_labels))
+    recall = [
+        100.0 * summary["controllers"][label]["mean_event_recall"]
+        for label in all_labels
+    ]
+    bars = event_axis.bar(label_x, recall, color=all_colors)
+    for bar, label in zip(bars, all_labels, strict=True):
+        false_count = summary["controllers"][label]["mean_false_inflations"]
+        event_axis.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 2.0,
+            f"false {false_count:.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+    event_axis.set_title("Change-Event Coverage")
+    event_axis.set_ylabel("events matched within causal window (%)")
+    event_axis.set_ylim(0.0, 112.0)
+    event_axis.set_xticks(label_x, all_short, rotation=12)
+    event_axis.grid(True, axis="y", alpha=0.25)
+
+    threshold = summary["paired_vs_fixed"]["Innovation-threshold RLS"]
+    threshold_clean = summary["controllers"]["Innovation-threshold RLS"][
+        "fallback_free_rate"
+    ]
+    fig.suptitle(
+        "Generalization Across Hidden Temporary Actuator Faults\n"
+        f"threshold-RLS wins {threshold['adaptive_wins']}/{threshold['trials']}; "
+        f"mean RMSE reduction "
+        f"{100.0 * threshold['mean_relative_rmse_reduction']:.1f}%; "
+        f"fallback-free {100.0 * threshold_clean:.0f}%",
+        fontsize=15,
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.92))
+    fig.savefig(output, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+    return output
+
+
 def _effectiveness_rmse_history(trial, agents, disturbance) -> np.ndarray:
     lengths = [len(trial.effectiveness_history[agent.name]) for agent in agents]
     count = min(lengths, default=0)

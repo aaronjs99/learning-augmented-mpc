@@ -230,10 +230,11 @@ if d_k > tau_change and the prior command is sufficiently excited:
     P_k^- <- rho P_k^-,  rho >= 1
 ```
 
-The innovation statistics and gain are recomputed after inflation. A cooldown
-prevents immediate repeated inflation, while the ordinary process-noise and
-forgetting updates continue between events. This restores adaptation after an
-abrupt loss without reading the configured change time or effectiveness. An
+The innovation statistics and gain are recomputed after inflation. A startup
+warmup rejects initial model transients and a cooldown prevents immediate
+repeated inflation, while ordinary process-noise and forgetting updates
+continue between events. This restores adaptation after an abrupt loss without
+reading the configured change time or effectiveness. An
 inflation event is evidence of local model surprise, not an isolated or
 classified physical fault; offline plant truth is used only to calculate RMSE.
 
@@ -268,6 +269,12 @@ RLS is an established monitoring architecture, so the claim here is its causal
 integration with safe physical-channel re-probing inside heterogeneous
 distributed MPC, not invention of CUSUM itself
 ([Tran and Fowler, 2020](https://doi.org/10.3390/batteries6010001)).
+
+The optional loss-only arm compares the mean local RLS update before requesting
+new excitation. A negative update can reopen the probe budget; a positive
+restoration update still receives covariance adaptation but does not reset
+information or request probes. This classifier is intentionally modest: mixed-
+sign simultaneous channel changes remain outside the current benchmark.
 
 For distributed collision prediction, a received peer message contains
 position `p`, velocity `v`, and goal `g`. Legacy prediction uses `p(t)=p+tv`

@@ -82,6 +82,8 @@ class HarborTimeVaryingFaultConfig:
     change_threshold: float = 2.5
     covariance_inflation: float = 12.0
     event_detection_window_steps: int = 16
+    change_warmup_steps: int = 8
+    change_cooldown_steps: int = 10
 
     def __post_init__(self) -> None:
         seeds = tuple(int(seed) for seed in self.observation_seeds)
@@ -93,9 +95,71 @@ class HarborTimeVaryingFaultConfig:
             raise ValueError(
                 "change threshold must be positive and covariance inflation at least 1"
             )
+        integer_steps = (
+            self.event_detection_window_steps,
+            self.change_warmup_steps,
+            self.change_cooldown_steps,
+        )
+        if any(int(value) != value for value in integer_steps):
+            raise ValueError("time-varying-fault step settings must be integers")
         if self.event_detection_window_steps <= 0:
             raise ValueError("event detection window must be positive")
+        if self.change_warmup_steps < 0 or self.change_cooldown_steps <= 0:
+            raise ValueError(
+                "change warmup must be nonnegative and cooldown must be positive"
+            )
         object.__setattr__(self, "observation_seeds", seeds)
+
+
+@dataclass(frozen=True)
+class HarborTemporaryFaultEnsembleConfig:
+    """Stratified temporary-fault cases for out-of-schedule evaluation."""
+
+    seeds: tuple[int, ...] = (149, 211, 307, 401, 503)
+    observation_seed_offset: int = 1000
+    effectiveness_min: float = 0.55
+    effectiveness_max: float = 0.92
+    onset_step_min: int = 8
+    onset_step_max: int = 18
+    duration_step_min: int = 18
+    duration_step_max: int = 28
+    bootstrap_samples: int = 5000
+
+    def __post_init__(self) -> None:
+        seeds = tuple(int(seed) for seed in self.seeds)
+        if (
+            not seeds
+            or len(set(seeds)) != len(seeds)
+            or any(seed < 0 for seed in seeds)
+        ):
+            raise ValueError(
+                "temporary-fault seeds must be nonnegative, nonempty, and unique"
+            )
+        integer_values = (
+            self.observation_seed_offset,
+            self.onset_step_min,
+            self.onset_step_max,
+            self.duration_step_min,
+            self.duration_step_max,
+            self.bootstrap_samples,
+        )
+        if any(int(value) != value for value in integer_values):
+            raise ValueError("temporary-fault step, seed, and count fields must be integers")
+        if self.observation_seed_offset < 0:
+            raise ValueError("observation_seed_offset must be nonnegative")
+        if not 0.0 < self.effectiveness_min < self.effectiveness_max <= 1.0:
+            raise ValueError(
+                "temporary-fault effectiveness bounds must increase within (0, 1]"
+            )
+        if not 0 <= self.onset_step_min <= self.onset_step_max:
+            raise ValueError("temporary-fault onset bounds must be ordered")
+        if not 1 <= self.duration_step_min <= self.duration_step_max:
+            raise ValueError(
+                "temporary-fault duration bounds must be positive and ordered"
+            )
+        if self.bootstrap_samples <= 0:
+            raise ValueError("temporary-fault bootstrap_samples must be positive")
+        object.__setattr__(self, "seeds", seeds)
 
 
 def load_harbor_config(
@@ -277,6 +341,23 @@ def load_harbor_time_varying_fault_config(
         "time_varying_fault_experiment",
     )
     return disturbance, experiment
+
+
+def load_harbor_temporary_fault_ensemble_config(
+    path: str | Path = DEFAULT_HARBOR_CONFIG,
+    section: str = "temporary_fault_ensemble",
+) -> HarborTemporaryFaultEnsembleConfig:
+    """Load strict stratified temporary-fault ensemble settings."""
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / config_path
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw = yaml.safe_load(stream) or {}
+    return _dataclass_from_mapping(
+        HarborTemporaryFaultEnsembleConfig,
+        raw.get(section, {}),
+        section,
+    )
 
 
 def _disturbance_from_section(raw: dict[str, Any], section: str):

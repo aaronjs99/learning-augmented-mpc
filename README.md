@@ -111,6 +111,12 @@ CUSUM-triggered probing under temporary, initially hidden actuator losses:
 
 `python3 run.py harbor-time-varying-fault-study`
 
+Stratified temporary-fault development and separately seeded holdout studies:
+
+`python3 run.py harbor-temporary-fault-generalization`
+
+`python3 run.py harbor-temporary-fault-generalization --holdout`
+
 These commands overwrite curated artifacts in `results/latest/harbor/`. The
 robustness command writes one metrics JSON, one combined diagnostic, and one
 GIF. Plant parameters are hidden from the controllers. Joint adaptation first
@@ -132,6 +138,9 @@ safe memory, plant faults, and observation seeds.
 The time-varying-fault study applies abrupt per-channel loss and recovery during
 execution, records plant truth only for offline scoring, and compares matched
 local estimators without giving any controller the change times or magnitudes.
+The temporary-fault ensemble commands additionally vary every actuator loss,
+per-agent onset, duration, and observation seed. The holdout seeds are separate
+from development and must not be used for controller tuning.
 
 Useful overrides:
 

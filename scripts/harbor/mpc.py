@@ -54,6 +54,7 @@ class HarborMPCConfig:
     effectiveness_rls_covariance_inflation: float = 8.0
     effectiveness_rls_change_persistence: int = 1
     effectiveness_rls_change_cooldown_steps: int = 20
+    effectiveness_rls_change_warmup_steps: int = 0
     effectiveness_rls_cusum_drift: float = 1.5
     effectiveness_rls_cusum_threshold: float = 4.0
     effectiveness_min: float = 0.5
@@ -69,6 +70,7 @@ class HarborMPCConfig:
     identification_fault_focus_weight: float = 2.0
     identification_reset_on_change: bool = False
     identification_arm_on_change: bool = False
+    identification_arm_on_loss_only: bool = False
     identification_probe_interval_steps: int = 1
     identification_min_probes_per_channel: int = 2
     identification_max_rejections: int = 2
@@ -93,6 +95,12 @@ class HarborMPCConfig:
         }
         if any(value <= 0 for value in integer_values.values()):
             raise ValueError("harbor_mpc integer settings must be positive")
+        if int(self.effectiveness_rls_change_warmup_steps) != (
+            self.effectiveness_rls_change_warmup_steps
+        ):
+            raise ValueError("effectiveness RLS change warmup must be an integer")
+        if self.effectiveness_rls_change_warmup_steps < 0:
+            raise ValueError("effectiveness RLS change warmup must be nonnegative")
         nonnegative = (
             self.position_weight,
             self.orientation_weight,
@@ -866,8 +874,12 @@ class DistributedHarborMPC:
         self.information_matrices[agent.name] += jacobian.T @ jacobian
         if self.config.control_effectiveness_adaptation:
             if self.config.effectiveness_estimator_mode == "recursive_diagonal":
+                previous_effectiveness = self.control_effectiveness_estimates[
+                    agent.name
+                ].copy()
                 allow_change = (
-                    current_step
+                    current_step >= self.config.effectiveness_rls_change_warmup_steps
+                    and current_step
                     - self.effectiveness_last_change_step_by_agent[agent.name]
                     >= self.config.effectiveness_rls_change_cooldown_steps
                 )
@@ -897,12 +909,25 @@ class DistributedHarborMPC:
                     self.effectiveness_last_change_step_by_agent[agent.name] = (
                         current_step
                     )
-                    if self.config.identification_reset_on_change:
+                    loss_detected = _effectiveness_change_is_loss(
+                        previous_effectiveness, estimate
+                    )
+                    permit_identification = (
+                        not self.config.identification_arm_on_loss_only
+                        or loss_detected
+                    )
+                    if (
+                        self.config.identification_reset_on_change
+                        and permit_identification
+                    ):
                         self.excitation_energy[agent.name].fill(0.0)
                         self.information_matrices[agent.name].fill(0.0)
                         self.identification_probe_quota_counts[agent.name].fill(0)
                         self.identification_probe_rejection_counts[agent.name].fill(0)
-                    if self.config.identification_arm_on_change:
+                    if (
+                        self.config.identification_arm_on_change
+                        and permit_identification
+                    ):
                         self.identification_change_armed_by_agent[agent.name] = True
             else:
                 self.control_effectiveness_estimates[agent.name] = (
@@ -1099,6 +1124,15 @@ def _estimate_control_effectiveness(
     )
     gain = config.effectiveness_estimator_gain
     return float((1.0 - gain) * prior + gain * instantaneous)
+
+
+def _effectiveness_change_is_loss(
+    previous: np.ndarray, updated: np.ndarray, tolerance: float = 1.0e-6
+) -> bool:
+    """Classify a detected aggregate actuator change without plant truth."""
+    previous = np.asarray(previous, dtype=float)
+    updated = np.asarray(updated, dtype=float)
+    return bool(np.mean(updated - previous) < -tolerance)
 
 
 def _dynamic_state_scale(model: PlatformModel) -> np.ndarray:

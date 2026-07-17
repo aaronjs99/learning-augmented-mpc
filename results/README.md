@@ -16,7 +16,9 @@ Typical tracked snapshot files:
 - `pairwise_distances.png`
 - optional `final_iteration.gif`
 
-The physical harbor study keeps exactly five files under `latest/harbor/`:
+The physical harbor study keeps compact JSON/figure pairs under
+`latest/harbor/`; individual rollout folders and redundant animations remain
+ignored. Core artifacts include:
 
 - `metrics.json`: guidance, MPC, admitted LMPC, and rejected-attempt telemetry.
 - `research_progress.png`: trajectories, safe reference, cost, clearance, and
@@ -24,3 +26,5 @@ The physical harbor study keeps exactly five files under `latest/harbor/`:
 - `harbor_lmpc.gif`: best admitted rollout with yaw and ROV pitch/depth views.
 - `horizon_study.json`: matched `N=8/12/15` MPC/LMPC evidence.
 - `horizon_efficiency.png`: liveness, completion cost, and mean NLP latency.
+- `temporary_fault_generalization.{json,png}`: stratified development cases.
+- `temporary_fault_holdout.{json,png}`: separately seeded one-way evaluation.

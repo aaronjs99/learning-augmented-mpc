@@ -35,7 +35,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def summarize_time_varying_faults(records: list[dict]) -> dict:
+def summarize_time_varying_faults(
+    records: list[dict], bootstrap_samples: int = 5000
+) -> dict:
     """Aggregate tracking and task metrics for matched observation seeds."""
     controllers = {}
     for label in CONTROLLER_LABELS:
@@ -112,6 +114,7 @@ def summarize_time_varying_faults(records: list[dict]) -> dict:
         [by_key[(seed, CONTROLLER_LABELS[0])]["recovery_rmse"] for seed in seeds]
     )
     paired = {}
+    rng = np.random.default_rng(20260716)
     for label in CONTROLLER_LABELS[1:]:
         adaptive = np.asarray(
             [by_key[(seed, label)]["fault_interval_rmse"] for seed in seeds]
@@ -125,17 +128,38 @@ def summarize_time_varying_faults(records: list[dict]) -> dict:
         reduction = fixed - adaptive
         final_reduction = fixed_final - adaptive_final
         recovery_reduction = fixed_recovery - adaptive_recovery
+        rmse_bootstrap = np.mean(
+            rng.choice(reduction, size=(bootstrap_samples, len(reduction)), replace=True),
+            axis=1,
+        )
+        recovery_bootstrap = np.mean(
+            rng.choice(
+                recovery_reduction,
+                size=(bootstrap_samples, len(recovery_reduction)),
+                replace=True,
+            ),
+            axis=1,
+        )
         paired[label] = {
             "trials": len(seeds),
             "adaptive_wins": int(np.count_nonzero(reduction > 0.0)),
+            "recovery_wins": int(np.count_nonzero(recovery_reduction > 0.0)),
+            "final_wins": int(np.count_nonzero(final_reduction > 0.0)),
             "mean_rmse_reduction": float(np.mean(reduction)),
             "mean_relative_rmse_reduction": float(
                 np.mean(reduction / np.maximum(fixed, 1e-12))
             ),
+            "paired_mean_rmse_reduction_bootstrap_95_ci": [
+                float(value) for value in np.quantile(rmse_bootstrap, [0.025, 0.975])
+            ],
             "mean_recovery_rmse_reduction": float(np.mean(recovery_reduction)),
             "mean_relative_recovery_rmse_reduction": float(
                 np.mean(recovery_reduction / np.maximum(fixed_recovery, 1e-12))
             ),
+            "paired_mean_recovery_reduction_bootstrap_95_ci": [
+                float(value)
+                for value in np.quantile(recovery_bootstrap, [0.025, 0.975])
+            ],
             "mean_final_rmse_reduction": float(np.mean(final_reduction)),
             "mean_relative_final_rmse_reduction": float(
                 np.mean(final_reduction / np.maximum(fixed_final, 1e-12))
@@ -152,9 +176,53 @@ def summarize_time_varying_faults(records: list[dict]) -> dict:
                 )
             ),
         }
+    passive_label = "Chi-square CUSUM RLS"
+    active_label = "CUSUM-triggered probing RLS"
+    passive_fault = np.asarray(
+        [by_key[(seed, passive_label)]["fault_interval_rmse"] for seed in seeds]
+    )
+    active_fault = np.asarray(
+        [by_key[(seed, active_label)]["fault_interval_rmse"] for seed in seeds]
+    )
+    passive_recovery = np.asarray(
+        [by_key[(seed, passive_label)]["recovery_rmse"] for seed in seeds]
+    )
+    active_recovery = np.asarray(
+        [by_key[(seed, active_label)]["recovery_rmse"] for seed in seeds]
+    )
     return {
         "controllers": controllers,
         "paired_vs_fixed": paired,
+        "triggered_probing_vs_passive_cusum": {
+            "trials": len(seeds),
+            "degraded_interval_wins": int(
+                np.count_nonzero(active_fault < passive_fault)
+            ),
+            "mean_fault_rmse_reduction": float(
+                np.mean(passive_fault - active_fault)
+            ),
+            "recovery_wins": int(
+                np.count_nonzero(active_recovery < passive_recovery)
+            ),
+            "mean_recovery_rmse_reduction": float(
+                np.mean(passive_recovery - active_recovery)
+            ),
+            "mean_completion_cost_delta": float(
+                np.mean(
+                    [
+                        by_key[(seed, active_label)]["sustained_completion_cost"]
+                        - by_key[(seed, passive_label)]["sustained_completion_cost"]
+                        for seed in seeds
+                    ]
+                )
+            ),
+            "additional_solver_fallbacks": int(
+                sum(by_key[(seed, active_label)]["solver_fallbacks"] for seed in seeds)
+                - sum(
+                    by_key[(seed, passive_label)]["solver_fallbacks"] for seed in seeds
+                )
+            ),
+        },
     }
 
 
@@ -191,37 +259,34 @@ def _score_inflation_events(
     return recall, false_count, float(np.mean(delays)) if delays else None
 
 
-def main() -> None:
-    """Run the matched scheduled-fault study and replace its artifacts."""
-    args = parse_args()
-    agents, simulation, communication = load_harbor_config(args.config)
-    disturbance, experiment = load_harbor_time_varying_fault_config(args.config)
-    mpc_config = load_harbor_mpc_config(args.config)
-    cases = run_time_varying_fault_study(
-        agents,
-        simulation,
-        communication,
-        mpc_config,
-        disturbance,
-        load_harbor_fault_study_config(args.config),
-        experiment,
-        load_harbor_observation_noise_config(args.config),
-    )
-    fault_event_steps = {
-        name: [event[0] for event in events]
-        for name, events in disturbance.agent_control_effectiveness_schedule.items()
-        if events
-    }
-    if any(len(events) < 2 for events in fault_event_steps.values()):
-        raise ValueError(
-            "time-varying fault study requires an onset and recovery per agent"
-        )
+def build_time_varying_fault_records(
+    cases, agents, simulation, event_detection_window_steps: int
+) -> list[dict]:
+    """Convert matched temporary-fault trials into schedule-aware metrics."""
     records = []
     for case in cases:
-        for trial in case.trials:
-            count = min(
-                len(trial.effectiveness_history[agent.name]) for agent in agents
+        fault_event_steps = {
+            name: [event[0] for event in events]
+            for name, events in case.disturbance.agent_control_effectiveness_schedule.items()
+            if events
+        }
+        if set(fault_event_steps) != {agent.name for agent in agents} or any(
+            len(events) != 2 for events in fault_event_steps.values()
+        ):
+            raise ValueError(
+                "temporary fault evaluation requires one onset and recovery per agent"
             )
+        hidden_schedule = {
+            name: [
+                {"step": int(step), "effectiveness": list(value)}
+                for step, value in events
+            ]
+            for name, events in (
+                case.disturbance.agent_control_effectiveness_schedule.items()
+            )
+        }
+        for trial in case.trials:
+            count = min(len(trial.effectiveness_history[agent.name]) for agent in agents)
             global_history = []
             platform_histories = {agent.name: [] for agent in agents}
             for step in range(count):
@@ -229,9 +294,7 @@ def main() -> None:
                 for agent in agents:
                     estimate = trial.effectiveness_history[agent.name][step]
                     truth = trial.result.applied_effectiveness[agent.name][step]
-                    platform_error = float(
-                        np.sqrt(np.mean((estimate - truth) ** 2))
-                    )
+                    platform_error = float(np.sqrt(np.mean((estimate - truth) ** 2)))
                     platform_histories[agent.name].append(platform_error)
                     errors.extend((estimate - truth).tolist())
                 global_history.append(float(np.sqrt(np.mean(np.square(errors)))))
@@ -239,9 +302,7 @@ def main() -> None:
                 agent.name: float(
                     np.mean(
                         platform_histories[agent.name][
-                            fault_event_steps[agent.name][0] : fault_event_steps[
-                                agent.name
-                            ][1]
+                            fault_event_steps[agent.name][0] : fault_event_steps[agent.name][1]
                         ]
                     )
                 )
@@ -250,21 +311,15 @@ def main() -> None:
             platform_recovery_rmse = {
                 agent.name: float(
                     np.mean(
-                        platform_histories[agent.name][
-                            fault_event_steps[agent.name][1] :
-                        ]
+                        platform_histories[agent.name][fault_event_steps[agent.name][1] :]
                     )
                 )
                 for agent in agents
             }
-            fault_interval_rmse = float(np.mean(list(platform_fault_rmse.values())))
-            recovery_rmse = float(np.mean(list(platform_recovery_rmse.values())))
-            event_recall, false_inflations, mean_detection_delay = (
-                _score_inflation_events(
-                    fault_event_steps,
-                    trial.effectiveness_change_steps_by_agent,
-                    experiment.event_detection_window_steps,
-                )
+            event_recall, false_inflations, mean_detection_delay = _score_inflation_events(
+                fault_event_steps,
+                trial.effectiveness_change_steps_by_agent,
+                event_detection_window_steps,
             )
             sustained_cost = sum(
                 (
@@ -281,21 +336,39 @@ def main() -> None:
             records.append(
                 {
                     "seed": case.seed,
+                    "observation_seed": case.observation_seed,
                     "controller": trial.label,
                     "fault_event_steps": fault_event_steps,
+                    "hidden_fault_schedule": hidden_schedule,
                     "tracking_rmse_history": global_history,
                     "platform_fault_rmse": platform_fault_rmse,
                     "platform_recovery_rmse": platform_recovery_rmse,
-                    "fault_interval_rmse": fault_interval_rmse,
-                    "recovery_rmse": recovery_rmse,
-                    "final_effectiveness_rmse": global_history[-1],
-                    "change_steps_by_agent": (
-                        trial.effectiveness_change_steps_by_agent
+                    "fault_interval_rmse": float(
+                        np.mean(list(platform_fault_rmse.values()))
                     ),
+                    "recovery_rmse": float(
+                        np.mean(list(platform_recovery_rmse.values()))
+                    ),
+                    "final_effectiveness_rmse": global_history[-1],
+                    "change_steps_by_agent": trial.effectiveness_change_steps_by_agent,
+                    "valid": trial.valid,
                     "all_goals_reached": trial.result.all_goals_reached,
+                    "first_goal_steps": trial.result.first_goal_steps,
+                    "final_goal_errors": trial.result.final_goal_errors,
+                    "final_orientation_errors": (
+                        trial.result.final_orientation_errors
+                    ),
+                    "min_pairwise_distance": trial.result.min_pairwise_distance,
                     "pairwise_violation_count": trial.result.pairwise_violation_count,
                     "max_collision_slack": trial.max_collision_slack,
                     "solver_fallbacks": trial.solver_fallbacks,
+                    "solver_fallbacks_by_agent": trial.solver_fallbacks_by_agent,
+                    "solver_failure_steps_by_agent": (
+                        trial.solver_failure_steps_by_agent
+                    ),
+                    "solver_failure_status_counts": (
+                        trial.solver_failure_status_counts
+                    ),
                     "sustained_completion_cost": sustained_cost,
                     "event_recall": event_recall,
                     "false_inflations": false_inflations,
@@ -304,6 +377,29 @@ def main() -> None:
                     "probe_count_by_agent": trial.probe_count_by_agent,
                 }
             )
+    return records
+
+
+def main() -> None:
+    """Run the matched scheduled-fault study and replace its artifacts."""
+    args = parse_args()
+    agents, simulation, communication = load_harbor_config(args.config)
+    disturbance, experiment = load_harbor_time_varying_fault_config(args.config)
+    mpc_config = load_harbor_mpc_config(args.config)
+    cases = run_time_varying_fault_study(
+        agents,
+        simulation,
+        communication,
+        mpc_config,
+        disturbance,
+        load_harbor_fault_study_config(args.config),
+        experiment,
+        load_harbor_observation_noise_config(args.config),
+    )
+    records = build_time_varying_fault_records(
+        cases, agents, simulation, experiment.event_detection_window_steps
+    )
+    fault_event_steps = records[0]["fault_event_steps"]
     summary = summarize_time_varying_faults(records)
     output = Path(args.artifact_dir)
     output.mkdir(parents=True, exist_ok=True)

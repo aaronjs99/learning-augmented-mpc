@@ -83,6 +83,13 @@ def main() -> None:
         from scripts.run_harbor_time_varying_fault_study import main as run_fault_tracking
 
         run_fault_tracking()
+    elif command == "harbor-temporary-fault-generalization":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_temporary_fault_generalization import (
+            main as run_temporary_fault_generalization,
+        )
+
+        run_temporary_fault_generalization()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

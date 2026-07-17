@@ -87,6 +87,30 @@ time_varying_fault_experiment:
   change_threshold: 5.0
   covariance_inflation: 25.0
   event_detection_window_steps: 16
+  change_warmup_steps: 8
+  change_cooldown_steps: 10
+
+temporary_fault_ensemble:
+  seeds: [149, 211, 307, 401, 503]
+  observation_seed_offset: 1000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 5000
+
+temporary_fault_holdout:
+  seeds: [607, 719, 823, 929, 1031]
+  observation_seed_offset: 2000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 5000
 
 harbor_mpc:
   prediction_horizon: 12
@@ -122,6 +146,7 @@ harbor_mpc:
   effectiveness_rls_covariance_inflation: 8.0
   effectiveness_rls_change_persistence: 1
   effectiveness_rls_change_cooldown_steps: 20
+  effectiveness_rls_change_warmup_steps: 0
   effectiveness_rls_cusum_drift: 2.5
   effectiveness_rls_cusum_threshold: 12.0
   effectiveness_min: 0.5
@@ -137,6 +162,7 @@ harbor_mpc:
   identification_fault_focus_weight: 2.0
   identification_reset_on_change: false
   identification_arm_on_change: false
+  identification_arm_on_loss_only: false
   identification_probe_interval_steps: 1
   identification_min_probes_per_channel: 2
   identification_max_rejections: 2

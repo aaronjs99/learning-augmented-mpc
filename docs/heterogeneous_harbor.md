@@ -224,9 +224,47 @@ remain collision-safe, solver-clean, and at numerical-zero collision slack.
 Covariance-inflation events are reported for auditability but are not treated
 as certified classifications. Mean causal recall is only `50-58%`, with
 `2.0-2.7` unmatched inflations per run. Normalized innovations can respond to
-noise and model mismatch as well as actuator loss. The supported claim is
-improved online tracking and recovery under the configured temporary-fault
-benchmark.
+noise and model mismatch as well as actuator loss. That original schedule
+supports online tracking and recovery only for that configured benchmark; the
+broader holdout below does not support a general recovery claim.
+
+### Stratified development and holdout
+
+```text
+python run.py harbor-temporary-fault-generalization
+python run.py harbor-temporary-fault-generalization --holdout
+```
+
+The five-case development ensemble varies all 14 physical actuator channels,
+each platform's onset and duration, and observation noise. It motivated an
+8-step detector warmup, 10-step cooldown, and loss-only probe arming, so its
+results are development evidence rather than an untouched generalization test.
+
+The separately seeded five-case holdout was then run once without further
+tuning. All 20 matched rollouts completed and remained collision-safe.
+Innovation-threshold RLS reduced mean degraded-interval RMSE from `0.18152` to
+`0.11047` (`38.50%` paired relative reduction), won all five pairs, reduced
+mean completion cost by `13.2` steps, and required no solver fallback. Its
+absolute paired RMSE-reduction bootstrap interval was `[0.05805, 0.09210]`.
+
+CUSUM reduced degraded-interval RMSE slightly further to `0.10803` (`40.42%`)
+but incurred 22 recoverable solver fallbacks in holdout case `719` and increased
+mean completion cost by `5.6` steps. Triggered probing reached `0.10074` but
+shared the 22 fallbacks and increased cost by `7.8` steps. Recovery intervals
+favor threshold RLS on average, but the paired interval crosses zero, and final
+RMSE is unchanged. Therefore threshold RLS is the provisional robust candidate;
+CUSUM and triggered probing remain informative ablations, not selected methods.
+A fresh confirmation ensemble or hardware experiment is required because this
+candidate was selected after inspecting the holdout.
+
+The case-`719` failure is localized rather than inferred from an aggregate:
+only the Clearpath Heron USV reports `Infeasible_Problem_Detected`, on steps
+`35-56`, in both CUSUM variants. Its hidden effectiveness changes at steps `18`
+and `40`, while CUSUM events occur at `20` and `42`. Threshold RLS remains
+solver-clean and reaches the USV goal at step `46`; passive CUSUM reaches it at
+step `111` through the deterministic guidance fallback. This establishes an
+estimator/controller feasibility coupling around the restoration interval, but
+does not by itself identify which estimated channel or constraint causes it.
 
 ## Initial Evidence
 
