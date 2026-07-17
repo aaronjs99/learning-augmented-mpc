@@ -217,6 +217,24 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       contribution as reduced false collision infeasibility rather than better
       fault identification.
 
+20. **Innovation-adaptive tracking of abrupt heterogeneous actuator losses**
+    - YAML schedules change each platform's hidden per-channel plant
+      effectiveness during execution. The local controller receives only noisy
+      state transitions and prior commands; scheduled times and magnitudes are
+      retained solely for offline scoring.
+    - A normalized innovation test inflates recursive-estimator covariance and
+      recomputes the gain when the current model is unexpectedly inconsistent
+      with an excited transition. Cooldown bounds repeated adaptation.
+    - Across three matched observation seeds, adaptive covariance wins all
+      three pairs, reducing mean post-onset RMSE from `0.1711` to `0.1371`
+      (`19.92%` paired relative reduction) and final RMSE from `0.1442` to
+      `0.1074`. Mean sustained-completion cost improves from `161.7` to `154.7`.
+    - All six rollouts complete, remain collision-safe, use numerical-zero
+      collision slack, and require no solver fallback. Inflation telemetry is
+      reported as model-surprise events rather than fault-classification truth.
+      The result supports faster online tracking in this configured benchmark,
+      not universal fault isolation or hardware-level validation.
+
 ## Current Evidence
 
 The nominal horizon study exposes where learning helps and where it does not:

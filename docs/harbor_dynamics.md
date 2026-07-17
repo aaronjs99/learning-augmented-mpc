@@ -221,6 +221,22 @@ radially clipped before the update. This prevents one noisy transition from
 being interpreted as a large actuator loss while retaining a local causal
 estimator with no access to hidden fault values.
 
+The scheduled-fault study tests a second estimator with innovation-adaptive
+covariance. Before innovation clipping, it computes
+
+```text
+d_k = sqrt(e_k^T S_k^-1 e_k)
+if d_k > tau_change and the prior command is sufficiently excited:
+    P_k^- <- rho P_k^-,  rho >= 1
+```
+
+The innovation statistics and gain are recomputed after inflation. A cooldown
+prevents immediate repeated inflation, while the ordinary process-noise and
+forgetting updates continue between events. This restores adaptation after an
+abrupt loss without reading the configured change time or effectiveness. An
+inflation event is evidence of local model surprise, not an isolated or
+classified physical fault; offline plant truth is used only to calculate RMSE.
+
 For distributed collision prediction, a received peer message contains
 position `p`, velocity `v`, and goal `g`. Legacy prediction uses `p(t)=p+tv`
 for the full horizon. The goal-bounded model first computes

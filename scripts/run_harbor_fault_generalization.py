@@ -237,6 +237,9 @@ def main() -> None:
                         name: values.tolist()
                         for name, values in trial.final_effectiveness_estimates.items()
                     },
+                    "effectiveness_change_steps_by_agent": (
+                        trial.effectiveness_change_steps_by_agent
+                    ),
                     "probe_sequence_by_agent": trial.probe_sequence_by_agent,
                 }
             )

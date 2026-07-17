@@ -106,6 +106,11 @@ same noisy hidden-fault ensemble:
 
 `python3 run.py harbor-prediction-study`
 
+Matched fixed-covariance versus innovation-adaptive recursive identification
+under scheduled, initially hidden actuator losses:
+
+`python3 run.py harbor-time-varying-fault-study`
+
 These commands overwrite curated artifacts in `results/latest/harbor/`. The
 robustness command writes one metrics JSON, one combined diagnostic, and one
 GIF. Plant parameters are hidden from the controllers. Joint adaptation first
@@ -124,6 +129,9 @@ The noisy study adds an instantaneous-versus-recursive estimator ablation and
 records solver recovery by platform and IPOPT status.
 The prediction study isolates the communicated obstacle model from estimation,
 safe memory, plant faults, and observation seeds.
+The time-varying-fault study applies abrupt per-channel losses during execution,
+records the plant truth only for offline scoring, and compares matched local
+estimators without giving either controller the fault times or magnitudes.
 
 Useful overrides:
 

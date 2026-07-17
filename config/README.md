@@ -58,6 +58,15 @@ scale, process-noise floor, and Mahalanobis innovation gate are configured by
 the four `effectiveness_rls_*` values. The legacy `diagonal` mode remains the
 instantaneous finite-difference comparator.
 
+`time_varying_fault_study` defines execution-only per-agent effectiveness
+timelines. Each event switches the hidden plant vector at its configured step;
+controllers receive neither the schedule nor its values. The matched study uses
+`effectiveness_rls_adaptive_covariance`, `effectiveness_rls_change_threshold`,
+and `effectiveness_rls_covariance_inflation` to reopen a locally overconfident
+recursive estimate after an unusually large normalized innovation. Persistence
+and cooldown limit repeated inflation. These events indicate model surprise,
+not a certified fault classification.
+
 `obstacle_prediction_mode` selects legacy unbounded `constant_velocity` or
 `goal_bounded_velocity` peer extrapolation. The latter retains constant
 velocity when peer motion is not aligned with communicated intent, but caps

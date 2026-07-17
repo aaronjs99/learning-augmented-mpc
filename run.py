@@ -78,6 +78,11 @@ def main() -> None:
         from scripts.run_harbor_prediction_study import main as run_prediction_study
 
         run_prediction_study()
+    elif command == "harbor-time-varying-fault-study":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_time_varying_fault_study import main as run_fault_tracking
+
+        run_fault_tracking()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

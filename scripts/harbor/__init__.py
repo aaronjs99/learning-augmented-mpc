@@ -5,12 +5,14 @@ from .config import (
     DEFAULT_HARBOR_CONFIG,
     HarborFaultEnsembleConfig,
     HarborFaultStudyConfig,
+    HarborTimeVaryingFaultConfig,
     load_harbor_config,
     load_harbor_disturbance_config,
     load_harbor_fault_config,
     load_harbor_fault_ensemble_config,
     load_harbor_fault_study_config,
     load_harbor_observation_noise_config,
+    load_harbor_time_varying_fault_config,
 )
 from .models import (
     PlatformModel,
@@ -38,6 +40,7 @@ __all__ = [
     "HarborAgent",
     "HarborFaultEnsembleConfig",
     "HarborFaultStudyConfig",
+    "HarborTimeVaryingFaultConfig",
     "HarborDisturbanceConfig",
     "HarborResult",
     "HarborSimulationConfig",
@@ -57,6 +60,7 @@ __all__ = [
     "load_harbor_fault_study_config",
     "load_harbor_mpc_config",
     "load_harbor_observation_noise_config",
+    "load_harbor_time_varying_fault_config",
     "make_platform_model",
     "run_harbor_simulation",
 ]

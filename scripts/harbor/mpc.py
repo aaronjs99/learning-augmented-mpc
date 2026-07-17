@@ -48,6 +48,11 @@ class HarborMPCConfig:
     effectiveness_rls_measurement_noise: float = 0.02
     effectiveness_rls_process_noise: float = 1.0e-5
     effectiveness_rls_innovation_gate: float = 3.0
+    effectiveness_rls_adaptive_covariance: bool = False
+    effectiveness_rls_change_threshold: float = 3.0
+    effectiveness_rls_covariance_inflation: float = 8.0
+    effectiveness_rls_change_persistence: int = 1
+    effectiveness_rls_change_cooldown_steps: int = 20
     effectiveness_min: float = 0.5
     effectiveness_max: float = 1.2
     effectiveness_excitation_threshold: float = 0.05
@@ -77,6 +82,8 @@ class HarborMPCConfig:
             "identification_probe_interval_steps": self.identification_probe_interval_steps,
             "identification_min_probes_per_channel": self.identification_min_probes_per_channel,
             "identification_max_rejections": self.identification_max_rejections,
+            "effectiveness_rls_change_persistence": self.effectiveness_rls_change_persistence,
+            "effectiveness_rls_change_cooldown_steps": self.effectiveness_rls_change_cooldown_steps,
             "ipopt_max_iter": self.ipopt_max_iter,
         }
         if any(value <= 0 for value in integer_values.values()):
@@ -100,6 +107,8 @@ class HarborMPCConfig:
             self.effectiveness_rls_measurement_noise,
             self.effectiveness_rls_process_noise,
             self.effectiveness_rls_innovation_gate,
+            self.effectiveness_rls_change_threshold,
+            self.effectiveness_rls_covariance_inflation,
             self.effectiveness_min,
             self.effectiveness_max,
             self.effectiveness_excitation_threshold,
@@ -123,8 +132,12 @@ class HarborMPCConfig:
         if min(
             self.effectiveness_rls_measurement_noise,
             self.effectiveness_rls_innovation_gate,
+            self.effectiveness_rls_change_threshold,
+            self.effectiveness_rls_covariance_inflation,
         ) <= 0.0:
-            raise ValueError("RLS measurement noise and innovation gate must be positive")
+            raise ValueError("RLS noise, gates, and covariance inflation must be positive")
+        if self.effectiveness_rls_covariance_inflation < 1.0:
+            raise ValueError("effectiveness_rls_covariance_inflation must be at least 1")
         if not self.effectiveness_min <= 1.0 <= self.effectiveness_max:
             raise ValueError("effectiveness bounds must contain the nominal value 1")
         if self.effectiveness_estimator_mode not in {
@@ -639,6 +652,16 @@ class DistributedHarborMPC:
             * config.identification_prior_std**2
             for agent in agents
         }
+        self.effectiveness_change_steps_by_agent = {
+            agent.name: [] for agent in agents
+        }
+        self.effectiveness_change_evidence_by_agent = {
+            agent.name: 0 for agent in agents
+        }
+        self.effectiveness_last_change_step_by_agent = {
+            agent.name: -config.effectiveness_rls_change_cooldown_steps
+            for agent in agents
+        }
         self.excitation_energy = {
             agent.name: np.zeros(agent.model.control_dim, dtype=float)
             for agent in agents
@@ -688,7 +711,7 @@ class DistributedHarborMPC:
         step: int,
         dt: float,
     ) -> np.ndarray:
-        self._update_model_estimates(agent, state)
+        self._update_model_estimates(agent, state, step)
         safe_states = self.safe_states[agent.name]
         safe_controls = self.safe_controls[agent.name]
         nearest = _nearest_reference_index(agent.model, safe_states, state)
@@ -800,7 +823,7 @@ class DistributedHarborMPC:
         return self.previous_controls[agent.name]
 
     def _update_model_estimates(
-        self, agent: HarborAgent, current_state: np.ndarray
+        self, agent: HarborAgent, current_state: np.ndarray, current_step: int
     ) -> None:
         """Update local actuator and position-residual estimates in sequence."""
         if agent.name not in self.previous_states:
@@ -824,18 +847,37 @@ class DistributedHarborMPC:
         self.information_matrices[agent.name] += jacobian.T @ jacobian
         if self.config.control_effectiveness_adaptation:
             if self.config.effectiveness_estimator_mode == "recursive_diagonal":
-                estimate, covariance = _recursive_diagonal_effectiveness_update(
-                    agent.model,
-                    previous_state,
-                    previous_control,
-                    np.asarray(current_state, dtype=float),
-                    self.dt,
-                    self.control_effectiveness_estimates[agent.name],
-                    self.effectiveness_covariances[agent.name],
-                    self.config,
+                allow_change = (
+                    current_step
+                    - self.effectiveness_last_change_step_by_agent[agent.name]
+                    >= self.config.effectiveness_rls_change_cooldown_steps
                 )
+                estimate, covariance, change_detected, evidence = (
+                    _recursive_diagonal_effectiveness_update(
+                        agent.model,
+                        previous_state,
+                        previous_control,
+                        np.asarray(current_state, dtype=float),
+                        self.dt,
+                        self.control_effectiveness_estimates[agent.name],
+                        self.effectiveness_covariances[agent.name],
+                        self.config,
+                        change_evidence=(
+                            self.effectiveness_change_evidence_by_agent[agent.name]
+                        ),
+                        allow_change=allow_change,
+                    )
+                )
+                self.effectiveness_change_evidence_by_agent[agent.name] = evidence
                 self.control_effectiveness_estimates[agent.name] = estimate
                 self.effectiveness_covariances[agent.name] = covariance
+                if change_detected:
+                    self.effectiveness_change_steps_by_agent[agent.name].append(
+                        current_step
+                    )
+                    self.effectiveness_last_change_step_by_agent[agent.name] = (
+                        current_step
+                    )
             else:
                 self.control_effectiveness_estimates[agent.name] = (
                     _estimate_effectiveness_vector(
@@ -1097,7 +1139,10 @@ def _recursive_diagonal_effectiveness_update(
     prior: np.ndarray,
     covariance: np.ndarray,
     config: HarborMPCConfig,
-) -> tuple[np.ndarray, np.ndarray]:
+    *,
+    change_evidence: int = 0,
+    allow_change: bool = True,
+) -> tuple[np.ndarray, np.ndarray, bool, int]:
     """Update per-actuator gains with robust covariance-form recursive LS."""
     prior = np.asarray(prior, dtype=float).reshape(model.control_dim)
     covariance = np.asarray(covariance, dtype=float).reshape(
@@ -1128,14 +1173,35 @@ def _recursive_diagonal_effectiveness_update(
         config.effectiveness_rls_measurement_noise**2
         * np.eye(model.state_dim - model.pose_dim)
     )
-    innovation_covariance = (
-        sensitivity @ predicted_covariance @ sensitivity.T
-        + measurement_covariance
+
+    def innovation_statistics(candidate_covariance: np.ndarray):
+        innovation_covariance = (
+            sensitivity @ candidate_covariance @ sensitivity.T
+            + measurement_covariance
+        )
+        inverse = np.linalg.pinv(innovation_covariance, hermitian=True)
+        distance = float(
+            np.sqrt(max(float(innovation.T @ inverse @ innovation), 0.0))
+        )
+        return inverse, distance
+
+    inverse_innovation, mahalanobis = innovation_statistics(predicted_covariance)
+    change_candidate = bool(
+        config.effectiveness_rls_adaptive_covariance
+        and mahalanobis > config.effectiveness_rls_change_threshold
+        and np.linalg.norm(previous_control / model.control_scale())
+        >= config.effectiveness_excitation_threshold
     )
-    inverse_innovation = np.linalg.pinv(innovation_covariance, hermitian=True)
-    mahalanobis = float(
-        np.sqrt(max(float(innovation.T @ inverse_innovation @ innovation), 0.0))
+    change_evidence = change_evidence + 1 if change_candidate else 0
+    change_detected = bool(
+        change_candidate
+        and change_evidence >= config.effectiveness_rls_change_persistence
+        and allow_change
     )
+    if change_detected:
+        change_evidence = 0
+        predicted_covariance *= config.effectiveness_rls_covariance_inflation
+        inverse_innovation, mahalanobis = innovation_statistics(predicted_covariance)
     if mahalanobis > config.effectiveness_rls_innovation_gate:
         innovation *= config.effectiveness_rls_innovation_gate / mahalanobis
 
@@ -1151,7 +1217,7 @@ def _recursive_diagonal_effectiveness_update(
         + gain @ measurement_covariance @ gain.T
     )
     updated_covariance = 0.5 * (updated_covariance + updated_covariance.T)
-    return estimate, updated_covariance
+    return estimate, updated_covariance, change_detected, change_evidence
 
 
 def _posterior_effectiveness_std(

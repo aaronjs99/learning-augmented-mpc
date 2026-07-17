@@ -60,6 +60,9 @@ All notable repository-level changes are tracked here.
 - Goal-bounded communicated peer prediction with a matched legacy constant-
   velocity ablation, eliminating seven false-conflict solver fallbacks without
   weakening hard pairwise constraints.
+- YAML-scheduled time-varying per-channel actuator losses and matched
+  innovation-adaptive recursive identification, with true-state offline RMSE,
+  covariance-inflation telemetry, and safety/completion evidence.
 - MIT project license.
 - Baseline decentralized MPC controller using CVXPY/OSQP.
 - Closed-loop baseline MPC runner with metrics, CSV trajectory/control logs, solver statuses, plots, and optional GIF animations.

@@ -7,7 +7,11 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 from .communication import LinkConfig
-from .config import HarborFaultEnsembleConfig, HarborFaultStudyConfig
+from .config import (
+    HarborFaultEnsembleConfig,
+    HarborFaultStudyConfig,
+    HarborTimeVaryingFaultConfig,
+)
 from .learning import run_distributed_harbor_lmpc
 from .mpc import DistributedHarborMPC, HarborMPCConfig
 from .simulation import (
@@ -39,6 +43,7 @@ class HarborRobustnessTrial:
     final_residual_estimates: dict[str, np.ndarray]
     effectiveness_history: dict[str, np.ndarray]
     final_effectiveness_estimates: dict[str, np.ndarray]
+    effectiveness_change_steps_by_agent: dict[str, list[int]]
     excitation_history: dict[str, np.ndarray]
     information_std_history: dict[str, np.ndarray]
     probe_count_by_agent: dict[str, int]
@@ -277,6 +282,10 @@ def run_model_mismatch_study(
                 final_effectiveness_estimates={
                     name: value.copy()
                     for name, value in controller.control_effectiveness_estimates.items()
+                },
+                effectiveness_change_steps_by_agent={
+                    name: steps.copy()
+                    for name, steps in controller.effectiveness_change_steps_by_agent.items()
                 },
                 excitation_history={
                     name: np.asarray(values, dtype=float)
@@ -644,6 +653,97 @@ def run_obstacle_prediction_generalization(
     return cases
 
 
+def run_time_varying_fault_study(
+    agents: list[HarborAgent],
+    simulation: HarborSimulationConfig,
+    communication: LinkConfig,
+    mpc_config: HarborMPCConfig,
+    disturbance: HarborDisturbanceConfig,
+    study_config: HarborFaultStudyConfig,
+    experiment_config: HarborTimeVaryingFaultConfig,
+    observation_noise: HarborObservationNoiseConfig,
+) -> list[HarborFaultEnsembleCase]:
+    """Compare fixed and innovation-adaptive RLS on scheduled faults."""
+    study_mpc = replace(
+        mpc_config,
+        prediction_horizon=study_config.prediction_horizon,
+        terminal_goal_weight=study_config.terminal_goal_weight,
+        terminal_slack_bound=study_config.terminal_slack_bound,
+        terminal_slack_weight=study_config.terminal_slack_weight,
+    )
+    seed_iterations = run_distributed_harbor_lmpc(
+        agents,
+        simulation,
+        communication,
+        replace(
+            study_mpc,
+            learning_iterations=1,
+            residual_adaptation=False,
+            control_effectiveness_adaptation=False,
+        ),
+    )
+    seed = min(
+        (record for record in seed_iterations if record.admitted),
+        key=lambda record: record.completion_step_sum,
+    )
+    evaluation = replace(
+        simulation,
+        guidance_update_interval_steps=study_mpc.replan_interval_steps,
+        goal_hold_steps=disturbance.evaluation_hold_steps,
+    )
+    cases = []
+    for observation_seed in experiment_config.observation_seeds:
+        noise = replace(observation_noise, enabled=True, seed=observation_seed)
+        trials = []
+        print(f"Scheduled-fault observation seed {observation_seed}", flush=True)
+        for label, adaptive in (
+            ("Fixed-covariance RLS", False),
+            ("Innovation-adaptive RLS", True),
+        ):
+            trials.extend(
+                _run_fault_trials(
+                    agents,
+                    simulation,
+                    evaluation,
+                    communication,
+                    replace(
+                        study_mpc,
+                        effectiveness_rls_adaptive_covariance=adaptive,
+                        effectiveness_rls_change_threshold=(
+                            experiment_config.change_threshold
+                        ),
+                        effectiveness_rls_covariance_inflation=(
+                            experiment_config.covariance_inflation
+                        ),
+                    ),
+                    disturbance,
+                    seed.result,
+                    (
+                        (
+                            label,
+                            True,
+                            "recursive_diagonal",
+                            False,
+                            False,
+                            None,
+                            "energy",
+                            1,
+                        ),
+                    ),
+                    observation_noise=noise,
+                )
+            )
+        cases.append(
+            HarborFaultEnsembleCase(
+                seed=observation_seed,
+                disturbance=disturbance,
+                observation_seed=observation_seed,
+                trials=tuple(trials),
+            )
+        )
+    return cases
+
+
 def _run_fault_trials(
     agents,
     simulation,
@@ -743,6 +843,10 @@ def _run_fault_trials(
                 final_effectiveness_estimates={
                     name: value.copy()
                     for name, value in controller.control_effectiveness_estimates.items()
+                },
+                effectiveness_change_steps_by_agent={
+                    name: steps.copy()
+                    for name, steps in controller.effectiveness_change_steps_by_agent.items()
                 },
                 excitation_history={
                     name: np.asarray(values, dtype=float)

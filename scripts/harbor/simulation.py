@@ -169,6 +169,9 @@ class HarborDisturbanceConfig:
     agent_control_effectiveness: dict[
         str, float | tuple[float, ...]
     ] = field(default_factory=dict)
+    agent_control_effectiveness_schedule: dict[
+        str, tuple[dict[str, object], ...]
+    ] = field(default_factory=dict)
     evaluation_hold_steps: int = 12
 
     def __post_init__(self) -> None:
@@ -190,11 +193,50 @@ class HarborDisturbanceConfig:
         if any(not name.strip() for name in normalized_agents):
             raise ValueError("agent effectiveness names must not be empty")
         object.__setattr__(self, "agent_control_effectiveness", normalized_agents)
+        normalized_schedule = {}
+        for agent_name, configured_events in self.agent_control_effectiveness_schedule.items():
+            name = str(agent_name).strip()
+            if not name:
+                raise ValueError("scheduled effectiveness names must not be empty")
+            events = []
+            for configured in configured_events:
+                if not isinstance(configured, dict) or set(configured) != {
+                    "step",
+                    "effectiveness",
+                }:
+                    raise ValueError(
+                        "scheduled effectiveness events require step and effectiveness"
+                    )
+                step = int(configured["step"])
+                if step < 0 or step != configured["step"]:
+                    raise ValueError(
+                        "scheduled effectiveness steps must be nonnegative integers"
+                    )
+                events.append(
+                    (
+                        step,
+                        _normalize_effectiveness(
+                            configured["effectiveness"], f"scheduled agent {name}"
+                        ),
+                    )
+                )
+            events.sort(key=lambda event: event[0])
+            if len({step for step, _ in events}) != len(events):
+                raise ValueError(
+                    "scheduled effectiveness steps must be unique per agent"
+                )
+            normalized_schedule[name] = tuple(events)
+        object.__setattr__(
+            self, "agent_control_effectiveness_schedule", normalized_schedule
+        )
         if self.evaluation_hold_steps <= 0:
             raise ValueError("evaluation_hold_steps must be positive")
 
     def effectiveness(
-        self, model: PlatformModel, agent_name: str | None = None
+        self,
+        model: PlatformModel,
+        agent_name: str | None = None,
+        step: int | None = None,
     ) -> np.ndarray:
         """Return one hidden effectiveness value per platform control channel."""
         configured = (
@@ -202,6 +244,13 @@ class HarborDisturbanceConfig:
             if agent_name in self.agent_control_effectiveness
             else getattr(self, f"{model.kind}_control_effectiveness")
         )
+        if step is not None and agent_name in self.agent_control_effectiveness_schedule:
+            for event_step, event_value in self.agent_control_effectiveness_schedule[
+                agent_name
+            ]:
+                if event_step > step:
+                    break
+                configured = event_value
         values = np.asarray(configured, dtype=float).reshape(-1)
         if len(values) == 1:
             return np.full(model.control_dim, values[0], dtype=float)
@@ -319,6 +368,7 @@ class HarborResult:
     positions: dict[str, np.ndarray]
     controls: dict[str, np.ndarray]
     applied_controls: dict[str, np.ndarray]
+    applied_effectiveness: dict[str, np.ndarray]
     first_goal_steps: dict[str, int | None]
     final_goal_errors: dict[str, float]
     final_orientation_errors: dict[str, float]
@@ -379,6 +429,7 @@ def run_harbor_simulation(
     }
     controls = {name: [] for name in names}
     applied_controls = {name: [] for name in names}
+    applied_effectiveness = {name: [] for name in names}
     plant = disturbance or HarborDisturbanceConfig()
     last_controls: dict[str, np.ndarray] = {}
     guidance_update_count = 0
@@ -511,13 +562,15 @@ def run_harbor_simulation(
                     stopped_at_goal.add(name)
             else:
                 control = last_controls[name]
-            applied_control = plant.effectiveness(agent.model, agent.name) * control
+            effectiveness = plant.effectiveness(agent.model, agent.name, step)
+            applied_control = effectiveness * control
             next_state = agent.model.step(current[name], applied_control, config.dt)
             current_velocity = plant.current(agent.model)
             next_state = _advect_position(agent.model, next_state, current_velocity, config.dt)
             next_states[name] = agent.domain.project(agent.model, next_state)
             controls[name].append(control)
             applied_controls[name].append(applied_control)
+            applied_effectiveness[name].append(effectiveness)
 
         current = next_states
         for name in names:
@@ -570,6 +623,9 @@ def run_harbor_simulation(
         controls={name: np.asarray(values) for name, values in controls.items()},
         applied_controls={
             name: np.asarray(values) for name, values in applied_controls.items()
+        },
+        applied_effectiveness={
+            name: np.asarray(values) for name, values in applied_effectiveness.items()
         },
         first_goal_steps=first_goal_steps,
         final_goal_errors=final_goal_errors,

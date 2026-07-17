@@ -97,3 +97,9 @@ the JSON attributes every recovery fallback to an agent and IPOPT status.
 goal-bounded peer prediction using one common safe-memory seed and matched
 fault/noise cases. It writes one JSON and one three-panel figure covering
 fallbacks, task cost, and actuator-estimation error.
+
+`python run.py harbor-time-varying-fault-study` compares fixed-covariance and
+innovation-adaptive recursive identification under scheduled per-channel plant
+losses. The schedule is execution truth used only for offline RMSE scoring. The
+controller sees local noisy transitions, and the artifact reports tracking,
+task cost, safety, solver recovery, and covariance-inflation events.

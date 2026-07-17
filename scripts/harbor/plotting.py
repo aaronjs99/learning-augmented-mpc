@@ -1153,6 +1153,128 @@ def save_prediction_ablation_plot(records, summary, path: str | Path) -> Path:
     return output
 
 
+def save_time_varying_fault_plot(records, summary, path: str | Path) -> Path:
+    """Plot scheduled-fault tracking, task cost, and covariance adaptation."""
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    labels = ("Fixed-covariance RLS", "Innovation-adaptive RLS")
+    short_labels = ("Fixed covariance", "Innovation adaptive")
+    colors = ("#b66a50", "#2f9c95")
+    seeds = sorted({record["seed"] for record in records})
+    fig, axes = plt.subplots(2, 2, figsize=(15.0, 9.0))
+    tracking_axis, platform_axis, cost_axis, trigger_axis = axes.flat
+
+    for label, short, color in zip(labels, short_labels, colors, strict=True):
+        histories = [
+            np.asarray(record["tracking_rmse_history"], dtype=float)
+            for record in records
+            if record["controller"] == label
+        ]
+        count = min(map(len, histories))
+        matrix = np.asarray([history[:count] for history in histories])
+        mean = np.mean(matrix, axis=0)
+        std = np.std(matrix, axis=0)
+        steps = np.arange(count)
+        tracking_axis.plot(steps, mean, color=color, linewidth=2, label=short)
+        tracking_axis.fill_between(steps, mean - std, mean + std, color=color, alpha=0.16)
+    event_steps = sorted(
+        {
+            step
+            for record in records
+            for step in record["fault_onset_steps"].values()
+        }
+    )
+    for index, step in enumerate(event_steps):
+        tracking_axis.axvline(
+            step,
+            color="#666666",
+            linestyle=":",
+            alpha=0.45,
+            label="fault onset" if index == 0 else None,
+        )
+    tracking_axis.set_title("Global Actuator-Effectiveness Tracking")
+    tracking_axis.set_xlabel("simulation step")
+    tracking_axis.set_ylabel("channel RMSE")
+    tracking_axis.grid(True, alpha=0.25)
+    tracking_axis.legend(fontsize=8)
+
+    platform_names = tuple(records[0]["platform_post_fault_rmse"])
+    platform_labels = {
+        "ground_rover_1": "RobEn",
+        "ground_rover_2": "Inspector-Gadget",
+        "surface_vessel": "Heron",
+        "underwater_rov": "BlueROV2",
+    }
+    x = np.arange(len(platform_names))
+    width = 0.36
+    for offset, (label, short, color) in enumerate(
+        zip(labels, short_labels, colors, strict=True)
+    ):
+        selected = [record for record in records if record["controller"] == label]
+        values = [
+            np.mean([record["platform_post_fault_rmse"][name] for record in selected])
+            for name in platform_names
+        ]
+        platform_axis.bar(
+            x + (offset - 0.5) * width,
+            values,
+            width,
+            color=color,
+            label=short,
+        )
+    platform_axis.set_title("Post-Onset Tracking by Platform")
+    platform_axis.set_ylabel("mean channel RMSE")
+    platform_axis.set_xticks(
+        x, [platform_labels.get(name, name) for name in platform_names], rotation=15
+    )
+    platform_axis.grid(True, axis="y", alpha=0.25)
+    platform_axis.legend(fontsize=8)
+
+    by_key = {
+        (record["seed"], record["controller"]): record for record in records
+    }
+    seed_x = np.arange(len(seeds))
+    for label, short, color in zip(labels, short_labels, colors, strict=True):
+        values = [by_key[(seed, label)]["sustained_completion_cost"] for seed in seeds]
+        cost_axis.plot(seed_x, values, "o-", color=color, linewidth=2, label=short)
+    cost_axis.set_title("Sustained-Completion Cost")
+    cost_axis.set_xlabel("observation seed")
+    cost_axis.set_ylabel("first-hit sum with horizon penalty")
+    cost_axis.set_xticks(seed_x, [str(seed) for seed in seeds])
+    cost_axis.grid(True, alpha=0.25)
+    cost_axis.legend(fontsize=8)
+
+    adaptive = [
+        record for record in records if record["controller"] == labels[1]
+    ]
+    trigger_values = [
+        np.mean(
+            [len(record["change_steps_by_agent"][name]) for record in adaptive]
+        )
+        for name in platform_names
+    ]
+    trigger_axis.bar(x, trigger_values, color="#7048a8")
+    trigger_axis.set_title("Innovation-Triggered Covariance Inflation")
+    trigger_axis.set_ylabel("mean inflation events")
+    trigger_axis.set_xticks(
+        x, [platform_labels.get(name, name) for name in platform_names], rotation=15
+    )
+    trigger_axis.grid(True, axis="y", alpha=0.25)
+
+    comparison = summary["paired_adaptive_vs_fixed"]
+    fig.suptitle(
+        "Online Tracking of Scheduled Heterogeneous Actuator Faults\n"
+        f"adaptive wins {comparison['adaptive_wins']}/{comparison['trials']}; "
+        f"mean post-onset RMSE reduction "
+        f"{100.0 * comparison['mean_relative_rmse_reduction']:.1f}%",
+        fontsize=15,
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.92))
+    fig.savefig(output, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+    return output
+
+
 def _effectiveness_rmse_history(trial, agents, disturbance) -> np.ndarray:
     lengths = [len(trial.effectiveness_history[agent.name]) for agent in agents]
     count = min(lengths, default=0)

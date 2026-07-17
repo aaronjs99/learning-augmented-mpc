@@ -20,6 +20,7 @@ from scripts.harbor import (
     load_harbor_fault_ensemble_config,
     load_harbor_fault_config,
     load_harbor_observation_noise_config,
+    load_harbor_time_varying_fault_config,
     run_harbor_simulation,
 )
 from scripts.harbor.experiments import (
@@ -46,9 +47,90 @@ from scripts.harbor.plotting import (
 )
 from scripts.run_harbor_fault_generalization import summarize_fault_generalization
 from scripts.run_harbor_prediction_study import summarize_prediction_ablation
+from scripts.run_harbor_time_varying_fault_study import (
+    summarize_time_varying_faults,
+)
 
 
 class HarborTests(unittest.TestCase):
+    def test_time_varying_fault_summary_preserves_matched_pairs(self) -> None:
+        records = []
+        for seed, fixed, adaptive, fixed_final, adaptive_final in (
+            (11, 0.20, 0.10, 0.16, 0.08),
+            (13, 0.30, 0.15, 0.20, 0.10),
+        ):
+            for label, post, final, cost, events in (
+                ("Fixed-covariance RLS", fixed, fixed_final, 50, 0),
+                ("Innovation-adaptive RLS", adaptive, adaptive_final, 45, 2),
+            ):
+                records.append(
+                    {
+                        "seed": seed,
+                        "controller": label,
+                        "post_onset_rmse": post,
+                        "final_effectiveness_rmse": final,
+                        "sustained_completion_cost": cost,
+                        "solver_fallbacks": 0,
+                        "all_goals_reached": True,
+                        "pairwise_violation_count": 0,
+                        "max_collision_slack": 0.0,
+                        "change_steps_by_agent": {"agent": list(range(events))},
+                    }
+                )
+        comparison = summarize_time_varying_faults(records)[
+            "paired_adaptive_vs_fixed"
+        ]
+        self.assertEqual(comparison["trials"], 2)
+        self.assertEqual(comparison["adaptive_wins"], 2)
+        self.assertAlmostEqual(comparison["mean_relative_rmse_reduction"], 0.5)
+        self.assertAlmostEqual(
+            comparison["mean_relative_final_rmse_reduction"], 0.5
+        )
+        self.assertAlmostEqual(comparison["mean_completion_cost_delta"], -5.0)
+
+    def test_scheduled_faults_switch_execution_truth_at_configured_steps(self) -> None:
+        agents, simulation, communication = load_harbor_config()
+        disturbance, experiment = load_harbor_time_varying_fault_config()
+        self.assertEqual(experiment.observation_seeds, (131, 197, 263))
+        agent = agents[0]
+        np.testing.assert_allclose(
+            disturbance.effectiveness(agent.model, agent.name, 11),
+            np.ones(agent.model.control_dim),
+        )
+        np.testing.assert_allclose(
+            disturbance.effectiveness(agent.model, agent.name, 12),
+            [0.62, 0.88],
+        )
+
+        class ZeroController:
+            def control(self, *, agent, **_):
+                return np.zeros(agent.model.control_dim)
+
+        result = run_harbor_simulation(
+            agents[:2],
+            replace(simulation, horizon=14, goal_hold_steps=20),
+            replace(communication, enabled=False),
+            control_provider=ZeroController(),
+            disturbance=disturbance,
+        )
+        np.testing.assert_allclose(
+            result.applied_effectiveness[agent.name][11], [1.0, 1.0]
+        )
+        np.testing.assert_allclose(
+            result.applied_effectiveness[agent.name][12], [0.62, 0.88]
+        )
+
+    def test_scheduled_faults_reject_duplicate_event_steps(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unique"):
+            HarborDisturbanceConfig(
+                agent_control_effectiveness_schedule={
+                    "ground_rover_1": (
+                        {"step": 3, "effectiveness": [0.8, 0.9]},
+                        {"step": 3, "effectiveness": [0.7, 0.9]},
+                    )
+                }
+            )
+
     def test_goal_bounded_prediction_stops_aligned_motion_at_intent(self) -> None:
         message = AgentMessage(
             sender="peer",
@@ -425,7 +507,7 @@ class HarborTests(unittest.TestCase):
             measured[model.pose_dim :] += rng.normal(
                 0.0, 0.012, model.state_dim - model.pose_dim
             )
-            estimate, covariance = _recursive_diagonal_effectiveness_update(
+            estimate, covariance, _, _ = _recursive_diagonal_effectiveness_update(
                 model,
                 state,
                 command,
@@ -439,6 +521,77 @@ class HarborTests(unittest.TestCase):
 
         np.testing.assert_allclose(estimate, truth, atol=0.01)
         self.assertTrue(np.all(np.linalg.eigvalsh(covariance) >= -1e-12))
+
+    def test_adaptive_covariance_tracks_abrupt_fault_better_than_fixed_rls(self) -> None:
+        agents, simulation, _ = load_harbor_config()
+        agent = agents[0]
+        model = agent.model
+        fixed = replace(
+            load_harbor_mpc_config(),
+            effectiveness_rls_measurement_noise=0.03,
+            effectiveness_rls_adaptive_covariance=False,
+        )
+        adaptive = replace(
+            fixed,
+            effectiveness_rls_adaptive_covariance=True,
+            effectiveness_rls_change_threshold=2.5,
+            effectiveness_rls_covariance_inflation=12.0,
+        )
+
+        def run(config):
+            rng = np.random.default_rng(9)
+            state = agent.start.copy()
+            estimate = np.ones(model.control_dim)
+            covariance = (
+                np.eye(model.control_dim) * config.identification_prior_std**2
+            )
+            errors = []
+            changes = []
+            evidence = 0
+            last_change = -config.effectiveness_rls_change_cooldown_steps
+            for step in range(150):
+                truth = (
+                    np.array([0.92, 0.88])
+                    if step < 90
+                    else np.array([0.58, 0.72])
+                )
+                channel = step % model.control_dim
+                command = np.zeros(model.control_dim)
+                direction = 1.0 if (step // model.control_dim) % 2 == 0 else -1.0
+                command[channel] = 0.35 * direction * model.control_scale()[channel]
+                next_state = model.step(state, truth * command, simulation.dt)
+                measured = next_state.copy()
+                measured[model.pose_dim :] += rng.normal(
+                    0.0, 0.012, model.state_dim - model.pose_dim
+                )
+                estimate, covariance, changed, evidence = (
+                    _recursive_diagonal_effectiveness_update(
+                        model,
+                        state,
+                        command,
+                        measured,
+                        simulation.dt,
+                        estimate,
+                        covariance,
+                        config,
+                        change_evidence=evidence,
+                        allow_change=(
+                            step - last_change
+                            >= config.effectiveness_rls_change_cooldown_steps
+                        ),
+                    )
+                )
+                errors.append(float(np.sqrt(np.mean((estimate - truth) ** 2))))
+                if changed:
+                    changes.append(step)
+                    last_change = step
+                state = next_state
+            return np.asarray(errors), changes
+
+        fixed_error, _ = run(fixed)
+        adaptive_error, changes = run(adaptive)
+        self.assertEqual(changes, [90])
+        self.assertLess(np.mean(adaptive_error[90:140]), 0.4 * np.mean(fixed_error[90:140]))
 
     def test_bluerov2_heavy_allocation_is_full_rank_and_bounded(self) -> None:
         agents, _, _ = load_harbor_config()

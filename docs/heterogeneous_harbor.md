@@ -159,7 +159,8 @@ adaptation completes safely but incurs fallbacks in two cases.
 Five stratified cases are a controlled generalization check, not a population-
 level guarantee. The bootstrap interval describes this configured ensemble;
 hardware trials, more fault draws, and time-varying failures are still required
-for a broad statistical claim.
+for a broad statistical claim. The scheduled-fault study below supplies an
+initial time-varying benchmark, but not broader population or hardware evidence.
 
 ## Noisy Local-Observation Study
 
@@ -194,6 +195,27 @@ and changes mean completion cost by `-0.6` steps. All five pairs complete and
 remain collision-safe. Mean actuator RMSE changes only `0.03846 -> 0.03934`,
 supporting peer-prediction feasibility rather than improved identification as
 the mechanism.
+
+## Time-Varying Actuator-Fault Tracking
+
+```text
+python run.py harbor-time-varying-fault-study
+```
+
+This matched ablation switches hidden per-channel effectiveness vectors during
+execution while retaining the same safe-memory seed, communication model,
+fault schedule, and noisy observations for each estimator pair. The controller
+does not receive fault timing or magnitude. Innovation-adaptive covariance wins
+all three observation seeds: mean post-onset RMSE changes `0.1711 -> 0.1371`, a
+`19.92%` paired relative reduction, final RMSE changes `0.1442 -> 0.1074`, and
+mean sustained-completion cost changes `161.7 -> 154.7`. Every rollout
+completes, is collision-safe, and is solver-clean.
+
+Covariance-inflation events are reported for auditability but are not scored as
+fault classifications. The normalized innovation can respond to observation
+noise and residual model mismatch as well as actuator loss. The supported claim
+is improved online effectiveness tracking and task performance under the
+configured abrupt-fault benchmark.
 
 ## Initial Evidence
 
@@ -285,3 +307,6 @@ closed-loop design variable rather than a pure compute optimization.
    preserving the shared observation contract.
 4. Tag admitted LMPC safe trajectories with the network and model parameters
    under which they were demonstrated, then test transfer across conditions.
+5. Compare innovation-adaptive covariance against interacting-multiple-model,
+   CUSUM, and observer-based fault estimators over larger onset and recovery
+   ensembles, including false-alarm and detection-delay metrics.

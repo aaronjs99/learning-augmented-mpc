@@ -74,6 +74,27 @@ class HarborFaultEnsembleConfig:
         object.__setattr__(self, "seeds", seeds)
 
 
+@dataclass(frozen=True)
+class HarborTimeVaryingFaultConfig:
+    """Seeds and adaptive-estimator settings for scheduled fault studies."""
+
+    observation_seeds: tuple[int, ...] = (131, 197, 263)
+    change_threshold: float = 2.5
+    covariance_inflation: float = 12.0
+
+    def __post_init__(self) -> None:
+        seeds = tuple(int(seed) for seed in self.observation_seeds)
+        if not seeds or len(set(seeds)) != len(seeds) or any(seed < 0 for seed in seeds):
+            raise ValueError(
+                "time-varying-fault seeds must be nonnegative, nonempty, and unique"
+            )
+        if self.change_threshold <= 0.0 or self.covariance_inflation < 1.0:
+            raise ValueError(
+                "change threshold must be positive and covariance inflation at least 1"
+            )
+        object.__setattr__(self, "observation_seeds", seeds)
+
+
 def load_harbor_config(
     path: str | Path = DEFAULT_HARBOR_CONFIG,
 ) -> tuple[list[HarborAgent], HarborSimulationConfig, LinkConfig]:
@@ -235,6 +256,24 @@ def load_harbor_observation_noise_config(
         raw.get("observation_noise", {}),
         "observation_noise",
     )
+
+
+def load_harbor_time_varying_fault_config(
+    path: str | Path = DEFAULT_HARBOR_CONFIG,
+) -> tuple[HarborDisturbanceConfig, HarborTimeVaryingFaultConfig]:
+    """Load a scheduled plant fault and its matched experiment settings."""
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / config_path
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw = yaml.safe_load(stream) or {}
+    disturbance = _disturbance_from_section(raw, "time_varying_fault_study")
+    experiment = _dataclass_from_mapping(
+        HarborTimeVaryingFaultConfig,
+        raw.get("time_varying_fault_experiment", {}),
+        "time_varying_fault_experiment",
+    )
+    return disturbance, experiment
 
 
 def _disturbance_from_section(raw: dict[str, Any], section: str):

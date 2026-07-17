@@ -65,6 +65,24 @@ observation_noise:
     # ROV: [x, y, z, roll, pitch, yaw, u, v, w, p, q, r]
     rov: [0.02, 0.02, 0.015, 0.008, 0.008, 0.01, 0.02, 0.02, 0.015, 0.008, 0.008, 0.008]
 
+time_varying_fault_study:
+  water_current: [0.0, 0.0, 0.0]
+  evaluation_hold_steps: 12
+  agent_control_effectiveness_schedule:
+    ground_rover_1:
+      - {step: 12, effectiveness: [0.62, 0.88]}
+    ground_rover_2:
+      - {step: 16, effectiveness: [0.86, 0.58]}
+    surface_vessel:
+      - {step: 14, effectiveness: [0.60, 0.90]}
+    underwater_rov:
+      - {step: 8, effectiveness: [0.82, 0.94, 0.60, 0.95, 0.70, 0.88, 0.84, 0.66]}
+
+time_varying_fault_experiment:
+  observation_seeds: [131, 197, 263]
+  change_threshold: 5.0
+  covariance_inflation: 12.0
+
 harbor_mpc:
   prediction_horizon: 12
   replan_interval_steps: 1
@@ -93,6 +111,11 @@ harbor_mpc:
   effectiveness_rls_measurement_noise: 0.02
   effectiveness_rls_process_noise: 0.00001
   effectiveness_rls_innovation_gate: 3.0
+  effectiveness_rls_adaptive_covariance: false
+  effectiveness_rls_change_threshold: 3.0
+  effectiveness_rls_covariance_inflation: 8.0
+  effectiveness_rls_change_persistence: 1
+  effectiveness_rls_change_cooldown_steps: 20
   effectiveness_min: 0.5
   effectiveness_max: 1.2
   effectiveness_excitation_threshold: 0.05
