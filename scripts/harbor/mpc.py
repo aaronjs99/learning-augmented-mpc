@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -40,7 +40,14 @@ class HarborMPCConfig:
     collision_slack_bound: float = 0.0
     domain_boundary_margin: float = 0.0
     domain_boundary_slack_weight: float = 100000.0
+    dynamic_state_slack_bound: float = 0.10
+    dynamic_state_slack_weight: float = 100000.0
+    dynamic_state_slack_retry_bound: float = 0.0
+    dynamic_state_slack_retry_orientation_error: float = 0.0
+    dynamic_state_slack_retry_goal_radius: float = 0.0
     residual_adaptation: bool = False
+    residual_adaptation_kinds: tuple[str, ...] = ("ugv", "usv", "rov")
+    residual_control_projection: str = "full"
     residual_estimator_gain: float = 0.35
     residual_max_speed: float = 0.35
     control_effectiveness_adaptation: bool = False
@@ -91,6 +98,23 @@ class HarborMPCConfig:
     ipopt_print_level: int = 0
 
     def __post_init__(self) -> None:
+        residual_kinds = tuple(str(kind) for kind in self.residual_adaptation_kinds)
+        if len(set(residual_kinds)) != len(residual_kinds) or not set(
+            residual_kinds
+        ) <= {"ugv", "usv", "rov"}:
+            raise ValueError(
+                "residual_adaptation_kinds must be unique platform kinds"
+            )
+        object.__setattr__(self, "residual_adaptation_kinds", residual_kinds)
+        if self.residual_control_projection not in {
+            "full",
+            "actuation_subspace",
+            "station_keeping_subspace",
+        }:
+            raise ValueError(
+                "residual_control_projection must be full, actuation_subspace, "
+                "or station_keeping_subspace"
+            )
         integer_values = {
             "prediction_horizon": self.prediction_horizon,
             "replan_interval_steps": self.replan_interval_steps,
@@ -126,6 +150,11 @@ class HarborMPCConfig:
             self.collision_slack_bound,
             self.domain_boundary_margin,
             self.domain_boundary_slack_weight,
+            self.dynamic_state_slack_bound,
+            self.dynamic_state_slack_weight,
+            self.dynamic_state_slack_retry_bound,
+            self.dynamic_state_slack_retry_orientation_error,
+            self.dynamic_state_slack_retry_goal_radius,
             self.residual_estimator_gain,
             self.residual_max_speed,
             self.effectiveness_estimator_gain,
@@ -241,6 +270,7 @@ class HarborMPCStep:
     predicted_states: np.ndarray
     max_collision_slack: float
     max_domain_buffer_slack: float
+    max_dynamic_state_slack: float
     max_terminal_slack: float
 
 
@@ -259,6 +289,37 @@ def load_harbor_mpc_config(
     if unknown:
         raise ValueError(f"unknown harbor_mpc field(s): {', '.join(unknown)}")
     return HarborMPCConfig(**data)
+
+
+def _dynamic_state_bounds(model: PlatformModel) -> list[tuple[int, float, float]]:
+    """Return nominal velocity and rate envelopes for one platform model."""
+    if model.kind == "ugv":
+        minimum_speed = -model.max_reverse_speed if model.variant in {
+            "kinematic_bicycle",
+            "dynamic_skid_steer",
+        } else 0.0
+        bounds = [(3, minimum_speed, model.max_speed)]
+        if model.variant == "dynamic_skid_steer":
+            bounds.append((4, -model.max_yaw_rate, model.max_yaw_rate))
+        return bounds
+    if model.kind == "usv":
+        bounds = [(3, 0.0, model.max_speed)]
+        if model.variant == "marine_3dof":
+            bounds.extend(
+                [
+                    (4, -model.max_sway_speed, model.max_sway_speed),
+                    (5, -model.max_yaw_rate, model.max_yaw_rate),
+                ]
+            )
+        return bounds
+    return [
+        (6, -model.max_horizontal_speed, model.max_horizontal_speed),
+        (7, -model.max_horizontal_speed, model.max_horizontal_speed),
+        (8, -model.max_vertical_speed, model.max_vertical_speed),
+        (9, -model.max_angular_rate, model.max_angular_rate),
+        (10, -model.max_angular_rate, model.max_angular_rate),
+        (11, -model.max_angular_rate, model.max_angular_rate),
+    ]
 
 
 class HarborAgentOptimizer:
@@ -329,6 +390,7 @@ class HarborAgentOptimizer:
         opti.set_initial(self.controls, warm_controls.T)
         opti.set_initial(self.collision_slack, 0.0)
         opti.set_initial(self.domain_buffer_slack, 0.0)
+        opti.set_initial(self.dynamic_state_slack, 0.0)
         try:
             solution = opti.solve()
         except RuntimeError:
@@ -344,6 +406,9 @@ class HarborAgentOptimizer:
         domain_buffer = np.asarray(
             solution.value(self.domain_buffer_slack), dtype=float
         ).reshape(-1)
+        dynamic_state = np.asarray(
+            solution.value(self.dynamic_state_slack), dtype=float
+        ).reshape(-1)
         terminal = (
             np.asarray(solution.value(self.terminal_slack), dtype=float).reshape(-1)
             if self.learning
@@ -357,6 +422,9 @@ class HarborAgentOptimizer:
             max_collision_slack=float(np.max(collision, initial=0.0)),
             max_domain_buffer_slack=float(
                 np.max(domain_buffer, initial=0.0)
+            ),
+            max_dynamic_state_slack=float(
+                np.max(dynamic_state, initial=0.0)
             ),
             max_terminal_slack=float(np.max(np.abs(terminal), initial=0.0)),
         )
@@ -409,6 +477,8 @@ class HarborAgentOptimizer:
         collision_slack = opti.variable(obstacle_count, horizon)
         domain_axes = 3 if model.kind == "rov" else 2
         domain_buffer_slack = opti.variable(2 * domain_axes, horizon)
+        dynamic_bounds = _dynamic_state_bounds(model)
+        dynamic_state_slack = opti.variable(2 * len(dynamic_bounds), horizon)
         p_initial = opti.parameter(nx, 1)
         p_goal = opti.parameter(pose_dim, 1)
         p_previous_control = opti.parameter(nu, 1)
@@ -429,7 +499,14 @@ class HarborAgentOptimizer:
         opti.subject_to(
             opti.bounded(0.0, domain_buffer_slack, cfg.domain_boundary_margin)
         )
-        self._apply_bounds(opti, states, controls, domain_buffer_slack)
+        opti.subject_to(
+            opti.bounded(
+                0.0, dynamic_state_slack, cfg.dynamic_state_slack_bound
+            )
+        )
+        self._apply_bounds(
+            opti, states, controls, domain_buffer_slack, dynamic_state_slack
+        )
         if cfg.active_identification:
             opti.subject_to(
                 ca.times(
@@ -482,6 +559,7 @@ class HarborAgentOptimizer:
 
         cost += cfg.collision_slack_weight * ca.sum1(ca.vec(collision_slack))
         cost += cfg.domain_boundary_slack_weight * ca.sumsqr(domain_buffer_slack)
+        cost += cfg.dynamic_state_slack_weight * ca.sumsqr(dynamic_state_slack)
         terminal_pose = states[:pose_dim, horizon]
         if self.learning:
             sample_count = cfg.terminal_samples
@@ -535,6 +613,7 @@ class HarborAgentOptimizer:
         self.controls = controls
         self.collision_slack = collision_slack
         self.domain_buffer_slack = domain_buffer_slack
+        self.dynamic_state_slack = dynamic_state_slack
         self.p_initial = p_initial
         self.p_goal = p_goal
         self.p_previous_control = p_previous_control
@@ -566,7 +645,14 @@ class HarborAgentOptimizer:
             value += 2.0 * (1.0 - ca.cos(pose[index] - goal[index]))
         return value
 
-    def _apply_bounds(self, opti, states, controls, domain_buffer_slack) -> None:
+    def _apply_bounds(
+        self,
+        opti,
+        states,
+        controls,
+        domain_buffer_slack,
+        dynamic_state_slack,
+    ) -> None:
         model = self.agent.model
         domain = self.agent.domain
         margin = self.config.domain_boundary_margin
@@ -581,22 +667,18 @@ class HarborAgentOptimizer:
             opti.subject_to(opti.bounded(bounds[0], values, bounds[1]))
             opti.subject_to(values >= bounds[0] + margin - lower_slack)
             opti.subject_to(values <= bounds[1] - margin + upper_slack)
-        if model.kind == "ugv":
-            minimum_speed = -model.max_reverse_speed if model.variant in {
-                "kinematic_bicycle",
-                "dynamic_skid_steer",
-            } else 0.0
+        for bound_index, (state_index, lower, upper) in enumerate(
+            _dynamic_state_bounds(model)
+        ):
+            values = predicted_states[state_index, :]
             opti.subject_to(
-                opti.bounded(minimum_speed, predicted_states[3, :], model.max_speed)
+                values >= lower - dynamic_state_slack[2 * bound_index, :]
             )
+            opti.subject_to(
+                values <= upper + dynamic_state_slack[2 * bound_index + 1, :]
+            )
+        if model.kind == "ugv":
             if model.variant == "dynamic_skid_steer":
-                opti.subject_to(
-                    opti.bounded(
-                        -model.max_yaw_rate,
-                        predicted_states[4, :],
-                        model.max_yaw_rate,
-                    )
-                )
                 opti.subject_to(
                     opti.bounded(
                         -model.max_side_force,
@@ -628,24 +710,6 @@ class HarborAgentOptimizer:
                     opti.bounded(-steering_bound, controls[1, :], steering_bound)
                 )
         elif model.kind == "usv":
-            opti.subject_to(
-                opti.bounded(0.0, predicted_states[3, :], model.max_speed)
-            )
-            if model.variant == "marine_3dof":
-                opti.subject_to(
-                    opti.bounded(
-                        -model.max_sway_speed,
-                        predicted_states[4, :],
-                        model.max_sway_speed,
-                    )
-                )
-                opti.subject_to(
-                    opti.bounded(
-                        -model.max_yaw_rate,
-                        predicted_states[5, :],
-                        model.max_yaw_rate,
-                    )
-                )
             thrust_bound = (
                 model.max_jet_thrust
                 if model.variant == "marine_3dof"
@@ -663,27 +727,6 @@ class HarborAgentOptimizer:
                 opti.bounded(-second_control_bound, controls[1, :], second_control_bound)
             )
         else:
-            opti.subject_to(
-                opti.bounded(
-                    -model.max_horizontal_speed,
-                    predicted_states[6:8, :],
-                    model.max_horizontal_speed,
-                )
-            )
-            opti.subject_to(
-                opti.bounded(
-                    -model.max_vertical_speed,
-                    predicted_states[8, :],
-                    model.max_vertical_speed,
-                )
-            )
-            opti.subject_to(
-                opti.bounded(
-                    -model.max_angular_rate,
-                    predicted_states[9:12, :],
-                    model.max_angular_rate,
-                )
-            )
             for index, limit in enumerate(model.control_scale()):
                 opti.subject_to(
                     opti.bounded(-limit, controls[index, :], limit)
@@ -726,6 +769,27 @@ class DistributedHarborMPC:
             )
             for agent in agents
         }
+        self.dynamic_state_retry_optimizers = (
+            {
+                agent.name: HarborAgentOptimizer(
+                    agent=agent,
+                    other_agents=[
+                        other for other in agents if other.name != agent.name
+                    ],
+                    config=replace(
+                        config,
+                        dynamic_state_slack_bound=(
+                            config.dynamic_state_slack_retry_bound
+                        ),
+                    ),
+                    dt=dt,
+                    learning=learning,
+                )
+                for agent in agents
+            }
+            if config.dynamic_state_slack_retry_bound > 0.0
+            else {}
+        )
         self.previous_controls = {
             agent.name: np.zeros(agent.model.control_dim) for agent in agents
         }
@@ -734,6 +798,13 @@ class DistributedHarborMPC:
             agent.name: np.zeros(3) for agent in agents
         }
         self.residual_history = {agent.name: [] for agent in agents}
+        self.control_residual_history = {agent.name: [] for agent in agents}
+        self.residual_projection_retry_count_by_agent = {
+            agent.name: 0 for agent in agents
+        }
+        self.dynamic_state_retry_count_by_agent = {
+            agent.name: 0 for agent in agents
+        }
         self.control_effectiveness_estimates = {
             agent.name: np.ones(agent.model.control_dim, dtype=float)
             for agent in agents
@@ -846,6 +917,7 @@ class DistributedHarborMPC:
         self.solve_time_seconds = 0.0
         self.max_collision_slack = 0.0
         self.max_domain_buffer_slack = 0.0
+        self.max_dynamic_state_slack = 0.0
         self.max_terminal_slack = 0.0
         self.solve_count_by_agent = {agent.name: 0 for agent in agents}
         self.fallback_count_by_agent = {agent.name: 0 for agent in agents}
@@ -893,6 +965,13 @@ class DistributedHarborMPC:
             step,
         )
         started = perf_counter()
+        control_position_drift = _control_position_drift(
+            agent.model,
+            state,
+            self.position_drift_estimates[agent.name],
+            self.config.residual_control_projection,
+            desired_velocity,
+        )
         solve_arguments = dict(
             state=np.asarray(state, dtype=float),
             goal=_approach_pose_goal(
@@ -906,11 +985,12 @@ class DistributedHarborMPC:
             warm_states=warm_states,
             warm_controls=warm_controls,
             previous_control=self.previous_controls[agent.name],
-            position_drift=self.position_drift_estimates[agent.name],
+            position_drift=control_position_drift,
             control_effectiveness=self.control_effectiveness_estimates[agent.name],
             identification_probe=probe,
             identification_probe_mask=probe_mask,
         )
+        used_dynamic_retry = False
         try:
             solution = self.optimizers[agent.name].solve(**solve_arguments)
         except RuntimeError:
@@ -927,6 +1007,49 @@ class DistributedHarborMPC:
                     solution = self.optimizers[agent.name].solve(**solve_arguments)
                 except RuntimeError:
                     pass
+            if solution is None:
+                retry_optimizer = self.dynamic_state_retry_optimizers.get(
+                    agent.name
+                )
+                if retry_optimizer is not None:
+                    try:
+                        solution = retry_optimizer.solve(**solve_arguments)
+                    except RuntimeError:
+                        pass
+                    else:
+                        self.dynamic_state_retry_count_by_agent[agent.name] += 1
+                        used_dynamic_retry = True
+            if solution is None:
+                retry_projection = _control_position_drift(
+                    agent.model,
+                    state,
+                    self.position_drift_estimates[agent.name],
+                    "actuation_subspace",
+                    desired_velocity,
+                )
+                can_retry_projection = (
+                    self.config.residual_control_projection
+                    == "station_keeping_subspace"
+                    and agent.model.kind == "usv"
+                    and not np.allclose(
+                        retry_projection,
+                        solve_arguments["position_drift"],
+                        atol=1.0e-12,
+                    )
+                )
+                if can_retry_projection:
+                    solve_arguments["position_drift"] = retry_projection
+                    try:
+                        solution = self.optimizers[agent.name].solve(
+                            **solve_arguments
+                        )
+                    except RuntimeError:
+                        pass
+                    else:
+                        control_position_drift = retry_projection
+                        self.residual_projection_retry_count_by_agent[
+                            agent.name
+                        ] += 1
             if solution is None:
                 self.fallback_count += 1
                 self.fallback_count_by_agent[agent.name] += 1
@@ -961,6 +1084,34 @@ class DistributedHarborMPC:
                 probe_channel = None
         else:
             control = solution.control
+        retry_optimizer = self.dynamic_state_retry_optimizers.get(agent.name)
+        yaw_index = agent.model.pose_dim - 1
+        measured_yaw_error = abs(
+            np.arctan2(
+                np.sin(state[yaw_index] - navigation_goal[yaw_index]),
+                np.cos(state[yaw_index] - navigation_goal[yaw_index]),
+            )
+        )
+        should_compare_retry = (
+            solution is not None
+            and not used_dynamic_retry
+            and retry_optimizer is not None
+            and agent.model.kind == "usv"
+            and self.config.dynamic_state_slack_retry_orientation_error > 0.0
+            and np.linalg.norm(state[:2] - navigation_goal[:2])
+            <= self.config.dynamic_state_slack_retry_goal_radius
+            and measured_yaw_error
+            > self.config.dynamic_state_slack_retry_orientation_error
+        )
+        if should_compare_retry:
+            try:
+                retry_solution = retry_optimizer.solve(**solve_arguments)
+            except RuntimeError:
+                pass
+            else:
+                solution = retry_solution
+                control = solution.control
+                self.dynamic_state_retry_count_by_agent[agent.name] += 1
         if solution is not None:
             self.solve_count += 1
             self.solve_count_by_agent[agent.name] += 1
@@ -970,6 +1121,10 @@ class DistributedHarborMPC:
             self.max_domain_buffer_slack = max(
                 self.max_domain_buffer_slack,
                 solution.max_domain_buffer_slack,
+            )
+            self.max_dynamic_state_slack = max(
+                self.max_dynamic_state_slack,
+                solution.max_dynamic_state_slack,
             )
             self.max_terminal_slack = max(
                 self.max_terminal_slack, solution.max_terminal_slack
@@ -988,6 +1143,9 @@ class DistributedHarborMPC:
         self.previous_states[agent.name] = np.asarray(state, dtype=float).copy()
         self.residual_history[agent.name].append(
             self.position_drift_estimates[agent.name].copy()
+        )
+        self.control_residual_history[agent.name].append(
+            control_position_drift.copy()
         )
         self.effectiveness_history[agent.name].append(
             self.control_effectiveness_estimates[agent.name].copy()
@@ -1205,9 +1363,16 @@ class DistributedHarborMPC:
                 self.raw_effectiveness_estimates[agent.name] = (
                     self.control_effectiveness_estimates[agent.name].copy()
                 )
-        if not self.config.residual_adaptation:
+        if (
+            not self.config.residual_adaptation
+            or agent.model.kind not in self.config.residual_adaptation_kinds
+        ):
             return
-        effectiveness = self.control_effectiveness_estimates[agent.name]
+        effectiveness = (
+            self.raw_effectiveness_estimates[agent.name]
+            if self.config.effectiveness_recovery_prior_mode == "transient"
+            else self.control_effectiveness_estimates[agent.name]
+        )
         predicted = agent.model.step(
             previous_state,
             effectiveness * previous_control,
@@ -1847,6 +2012,30 @@ def _approach_pose_goal(
     if model.kind in {"ugv", "usv"} and np.linalg.norm(desired[:2]) > 1e-6:
         goal[2] = np.arctan2(desired[1], desired[0])
     return goal
+
+
+def _control_position_drift(
+    model: PlatformModel,
+    state: np.ndarray,
+    estimate: np.ndarray,
+    projection: str,
+    desired_velocity: np.ndarray | None = None,
+) -> np.ndarray:
+    """Project USV drift onto its surge-controllable local subspace."""
+    drift = np.asarray(estimate, dtype=float).copy()
+    moving = (
+        desired_velocity is not None
+        and np.linalg.norm(np.asarray(desired_velocity, dtype=float)[:2]) > 1.0e-6
+    )
+    if (
+        projection == "full"
+        or model.kind != "usv"
+        or (projection == "station_keeping_subspace" and moving)
+    ):
+        return drift
+    yaw = float(np.asarray(state, dtype=float)[2])
+    surge = np.array([np.cos(yaw), np.sin(yaw), 0.0])
+    return float(np.dot(drift, surge)) * surge
 
 
 def _nearest_reference_index(

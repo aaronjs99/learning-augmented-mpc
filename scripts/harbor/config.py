@@ -127,6 +127,8 @@ class HarborTemporaryFaultEnsembleConfig:
     duration_step_min: int = 18
     duration_step_max: int = 28
     bootstrap_samples: int = 5000
+    water_current_min: tuple[float, float, float] | None = None
+    water_current_max: tuple[float, float, float] | None = None
 
     def __post_init__(self) -> None:
         seeds = tuple(int(seed) for seed in self.seeds)
@@ -162,6 +164,26 @@ class HarborTemporaryFaultEnsembleConfig:
             )
         if self.bootstrap_samples <= 0:
             raise ValueError("temporary-fault bootstrap_samples must be positive")
+        current_bounds = (self.water_current_min, self.water_current_max)
+        if (current_bounds[0] is None) != (current_bounds[1] is None):
+            raise ValueError(
+                "temporary-fault water-current bounds must both be set or omitted"
+            )
+        if current_bounds[0] is not None:
+            lower = tuple(float(value) for value in current_bounds[0])
+            upper = tuple(float(value) for value in current_bounds[1])
+            if len(lower) != 3 or len(upper) != 3:
+                raise ValueError(
+                    "temporary-fault water-current bounds must contain x, y, z"
+                )
+            if not np.all(np.isfinite(lower)) or not np.all(np.isfinite(upper)):
+                raise ValueError("temporary-fault water-current bounds must be finite")
+            if any(low > high for low, high in zip(lower, upper)):
+                raise ValueError(
+                    "temporary-fault water-current bounds must be ordered"
+                )
+            object.__setattr__(self, "water_current_min", lower)
+            object.__setattr__(self, "water_current_max", upper)
         object.__setattr__(self, "seeds", seeds)
 
 
@@ -221,6 +243,8 @@ class HarborRecoveryConfirmationCriteriaConfig:
     maximum_mean_fault_interval_rmse_delta: float = 0.0
     maximum_mean_final_rmse_delta: float = 0.0
     maximum_mean_completion_cost_delta: float = 0.0
+    maximum_mean_current_rmse_delta: float = 0.0
+    maximum_mean_final_current_rmse_delta: float = 0.0
 
     def __post_init__(self) -> None:
         labels = tuple(str(label) for label in self.controller_labels)
@@ -247,9 +271,152 @@ class HarborRecoveryConfirmationCriteriaConfig:
             self.maximum_mean_fault_interval_rmse_delta,
             self.maximum_mean_final_rmse_delta,
             self.maximum_mean_completion_cost_delta,
+            self.maximum_mean_current_rmse_delta,
+            self.maximum_mean_final_current_rmse_delta,
         )
         if any(not np.isfinite(value) for value in bounds):
             raise ValueError("recovery confirmation bounds must be finite")
+        object.__setattr__(self, "controller_labels", labels)
+
+
+@dataclass(frozen=True)
+class HarborJointUncertaintyCriteriaConfig:
+    """Predeclared control-performance gates under joint hidden uncertainty."""
+
+    controller_labels: tuple[str, ...] = (
+        "Innovation-threshold RLS",
+        "Transient-offset threshold RLS",
+    )
+    minimum_candidate_completion_rate: float = 1.0
+    minimum_completion_rescue_rate: float = 0.1
+    maximum_completion_regression_rate: float = 0.0
+    minimum_safety_rate: float = 1.0
+    minimum_fallback_free_rate: float = 1.0
+    minimum_recovery_win_rate: float = 0.6
+    maximum_mean_completion_cost_delta: float = 0.0
+    maximum_mean_final_effectiveness_rmse_delta: float = 0.0
+    maximum_mean_current_rmse_delta: float = 0.001
+    maximum_mean_final_current_rmse_delta: float = 0.001
+
+    def __post_init__(self) -> None:
+        labels = tuple(str(label) for label in self.controller_labels)
+        if labels != (
+            "Innovation-threshold RLS",
+            "Transient-offset threshold RLS",
+        ):
+            raise ValueError("joint-uncertainty controllers are fixed")
+        rates = (
+            self.minimum_candidate_completion_rate,
+            self.minimum_completion_rescue_rate,
+            self.maximum_completion_regression_rate,
+            self.minimum_safety_rate,
+            self.minimum_fallback_free_rate,
+            self.minimum_recovery_win_rate,
+        )
+        if any(not 0.0 <= value <= 1.0 for value in rates):
+            raise ValueError("joint-uncertainty rates must lie in [0, 1]")
+        bounds = (
+            self.maximum_mean_completion_cost_delta,
+            self.maximum_mean_final_effectiveness_rmse_delta,
+            self.maximum_mean_current_rmse_delta,
+            self.maximum_mean_final_current_rmse_delta,
+        )
+        if any(not np.isfinite(value) for value in bounds):
+            raise ValueError("joint-uncertainty bounds must be finite")
+        object.__setattr__(self, "controller_labels", labels)
+
+
+@dataclass(frozen=True)
+class HarborProjectedResidualCriteriaConfig:
+    """Frozen gates for actuation-subspace disturbance injection."""
+
+    controller_labels: tuple[str, ...] = (
+        "Transient-offset threshold RLS",
+        "Projected transient-offset RLS",
+    )
+    minimum_candidate_completion_rate: float = 1.0
+    minimum_completion_rescue_rate: float = 0.1
+    maximum_completion_regression_rate: float = 0.0
+    minimum_safety_rate: float = 1.0
+    minimum_fallback_free_rate: float = 1.0
+    maximum_mean_completion_cost_delta: float = 0.0
+    maximum_mean_recovery_rmse_delta: float = 0.001
+    maximum_mean_current_rmse_delta: float = 0.001
+    maximum_mean_control_current_rmse_delta: float = 0.0
+    maximum_mean_final_control_current_rmse_delta: float = 0.0
+
+    def __post_init__(self) -> None:
+        labels = tuple(str(label) for label in self.controller_labels)
+        if labels != (
+            "Transient-offset threshold RLS",
+            "Projected transient-offset RLS",
+        ):
+            raise ValueError("projected-residual controllers are fixed")
+        rates = (
+            self.minimum_candidate_completion_rate,
+            self.minimum_completion_rescue_rate,
+            self.maximum_completion_regression_rate,
+            self.minimum_safety_rate,
+            self.minimum_fallback_free_rate,
+        )
+        if any(not 0.0 <= value <= 1.0 for value in rates):
+            raise ValueError("projected-residual rates must lie in [0, 1]")
+        bounds = (
+            self.maximum_mean_completion_cost_delta,
+            self.maximum_mean_recovery_rmse_delta,
+            self.maximum_mean_current_rmse_delta,
+            self.maximum_mean_control_current_rmse_delta,
+            self.maximum_mean_final_control_current_rmse_delta,
+        )
+        if any(not np.isfinite(value) for value in bounds):
+            raise ValueError("projected-residual bounds must be finite")
+        object.__setattr__(self, "controller_labels", labels)
+
+
+@dataclass(frozen=True)
+class HarborDynamicEnvelopeCriteriaConfig:
+    """Frozen gates for elastic versus hard dynamic-state envelopes."""
+
+    controller_labels: tuple[str, ...] = (
+        "Hard-envelope transient-offset RLS",
+        "Retry-elastic transient-offset RLS",
+    )
+    minimum_candidate_completion_rate: float = 1.0
+    minimum_completion_rescue_rate: float = 0.1
+    maximum_completion_regression_rate: float = 0.0
+    minimum_safety_rate: float = 1.0
+    minimum_fallback_free_rate: float = 1.0
+    maximum_mean_completion_cost_delta: float = 5.0
+    maximum_mean_recovery_rmse_delta: float = 0.001
+    maximum_mean_current_rmse_delta: float = 0.001
+    maximum_dynamic_state_slack: float = 0.02
+
+    def __post_init__(self) -> None:
+        labels = tuple(str(label) for label in self.controller_labels)
+        if labels != (
+            "Hard-envelope transient-offset RLS",
+            "Retry-elastic transient-offset RLS",
+        ):
+            raise ValueError("dynamic-envelope controllers are fixed")
+        rates = (
+            self.minimum_candidate_completion_rate,
+            self.minimum_completion_rescue_rate,
+            self.maximum_completion_regression_rate,
+            self.minimum_safety_rate,
+            self.minimum_fallback_free_rate,
+        )
+        if any(not 0.0 <= value <= 1.0 for value in rates):
+            raise ValueError("dynamic-envelope rates must lie in [0, 1]")
+        bounds = (
+            self.maximum_mean_completion_cost_delta,
+            self.maximum_mean_recovery_rmse_delta,
+            self.maximum_mean_current_rmse_delta,
+            self.maximum_dynamic_state_slack,
+        )
+        if any(not np.isfinite(value) for value in bounds):
+            raise ValueError("dynamic-envelope bounds must be finite")
+        if self.maximum_dynamic_state_slack < 0.0:
+            raise ValueError("maximum dynamic-state slack must be nonnegative")
         object.__setattr__(self, "controller_labels", labels)
 
 
@@ -479,6 +646,57 @@ def load_harbor_recovery_confirmation_criteria_config(
         raw = yaml.safe_load(stream) or {}
     return _dataclass_from_mapping(
         HarborRecoveryConfirmationCriteriaConfig,
+        raw.get(section, {}),
+        section,
+    )
+
+
+def load_harbor_joint_uncertainty_criteria_config(
+    path: str | Path = DEFAULT_HARBOR_CONFIG,
+) -> HarborJointUncertaintyCriteriaConfig:
+    """Load frozen joint-current and temporary-fault confirmation gates."""
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / config_path
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw = yaml.safe_load(stream) or {}
+    section = "joint_uncertainty_confirmation_criteria"
+    return _dataclass_from_mapping(
+        HarborJointUncertaintyCriteriaConfig,
+        raw.get(section, {}),
+        section,
+    )
+
+
+def load_harbor_projected_residual_criteria_config(
+    path: str | Path = DEFAULT_HARBOR_CONFIG,
+) -> HarborProjectedResidualCriteriaConfig:
+    """Load frozen actuation-subspace projection confirmation gates."""
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / config_path
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw = yaml.safe_load(stream) or {}
+    section = "projected_residual_confirmation_criteria"
+    return _dataclass_from_mapping(
+        HarborProjectedResidualCriteriaConfig,
+        raw.get(section, {}),
+        section,
+    )
+
+
+def load_harbor_dynamic_envelope_criteria_config(
+    path: str | Path = DEFAULT_HARBOR_CONFIG,
+) -> HarborDynamicEnvelopeCriteriaConfig:
+    """Load frozen elastic dynamic-envelope confirmation gates."""
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / config_path
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw = yaml.safe_load(stream) or {}
+    section = "dynamic_envelope_confirmation_criteria"
+    return _dataclass_from_mapping(
+        HarborDynamicEnvelopeCriteriaConfig,
         raw.get(section, {}),
         section,
     )

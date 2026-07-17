@@ -1,0 +1,2577 @@
+{
+  "ensemble": {
+    "seeds": [
+      13751,
+      13873,
+      13997,
+      14107,
+      14221
+    ],
+    "observation_seed_offset": 17000,
+    "effectiveness_min": 0.55,
+    "effectiveness_max": 0.92,
+    "onset_step_min": 8,
+    "onset_step_max": 18,
+    "duration_step_min": 18,
+    "duration_step_max": 28,
+    "bootstrap_samples": 5000,
+    "water_current_min": [
+      -0.1,
+      0.0,
+      0.01
+    ],
+    "water_current_max": [
+      -0.04,
+      0.0,
+      0.03
+    ]
+  },
+  "experiment": {
+    "evaluation_role": "dynamic_envelope_retry_development",
+    "baseline_dynamic_state_slack_bound": 0.0,
+    "candidate_primary_dynamic_state_slack_bound": 0.0,
+    "candidate_retry_dynamic_state_slack_bound": 0.1,
+    "dynamic_state_slack_weight": 100000.0,
+    "hard_domain_and_collision_constraints_retained": true,
+    "controller_blind_to_hidden_fault_and_current": true
+  },
+  "dynamic_envelope_summary": {
+    "trials": 5,
+    "completion_rescues": 0,
+    "completion_regressions": 0,
+    "baseline_completion_rate": 1.0,
+    "candidate_completion_rate": 1.0,
+    "candidate_safety_rate": 1.0,
+    "candidate_fallback_free_rate": 1.0,
+    "mean_completion_cost_delta": 0.0,
+    "mean_recovery_rmse_delta": 0.0013986203343330644,
+    "mean_current_rmse_delta": -5.776714150573098e-05,
+    "maximum_dynamic_state_slack": 0.0039853093947771236,
+    "mean_dynamic_state_slack": 0.001574012745860329,
+    "mean_usv_final_yaw_error_delta": 0.024311765685517094
+  },
+  "trials": [
+    {
+      "seed": 13751,
+      "observation_seed": 30751,
+      "controller": "Hard-envelope transient-offset RLS",
+      "fault_event_steps": {
+        "ground_rover_1": [
+          10,
+          37
+        ],
+        "ground_rover_2": [
+          13,
+          34
+        ],
+        "surface_vessel": [
+          14,
+          42
+        ],
+        "underwater_rov": [
+          13,
+          32
+        ]
+      },
+      "hidden_fault_schedule": {
+        "ground_rover_1": [
+          {
+            "step": 10,
+            "effectiveness": [
+              0.6530737978481302,
+              0.697648948720726
+            ]
+          },
+          {
+            "step": 37,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "ground_rover_2": [
+          {
+            "step": 13,
+            "effectiveness": [
+              0.7571986651332059,
+              0.5893940087897921
+            ]
+          },
+          {
+            "step": 34,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "surface_vessel": [
+          {
+            "step": 14,
+            "effectiveness": [
+              0.7886106160297521,
+              0.9019386386411548
+            ]
+          },
+          {
+            "step": 42,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "underwater_rov": [
+          {
+            "step": 13,
+            "effectiveness": [
+              0.5826739611814897,
+              0.6693866661720654,
+              0.9008460629098172,
+              0.6494446360983812,
+              0.74331437942934,
+              0.7936334762536678,
+              0.8441557861754653,
+              0.8477542132379208
+            ]
+          },
+          {
+            "step": 32,
+            "effectiveness": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      "hidden_water_current": {
+        "surface_vessel": [
+          -0.07587238220535178,
+          0.0,
+          0.0
+        ],
+        "underwater_rov": [
+          -0.07587238220535178,
+          0.0,
+          0.025382955588586137
+        ]
+      },
+      "residual_projection_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "platform_fault_rmse": {
+        "ground_rover_1": 0.02520445953235409,
+        "ground_rover_2": 0.04790666985883669,
+        "surface_vessel": 0.12866683327485035,
+        "underwater_rov": 0.23152149928465504
+      },
+      "platform_recovery_rmse": {
+        "ground_rover_1": 0.29665406676661044,
+        "ground_rover_2": 0.045367152841317045,
+        "surface_vessel": 0.04052226197091859,
+        "underwater_rov": 0.12585080658940945
+      },
+      "fault_interval_rmse": 0.10832486548767403,
+      "recovery_rmse": 0.12709857204206387,
+      "final_effectiveness_rmse": 0.14579949380041063,
+      "current_rmse": 0.0432678697589884,
+      "final_current_rmse": 0.020871925983410675,
+      "control_current_rmse": 0.0432678697589884,
+      "final_control_current_rmse": 0.020871925983410675,
+      "change_steps_by_agent": {
+        "ground_rover_1": [
+          11
+        ],
+        "ground_rover_2": [
+          14,
+          35
+        ],
+        "surface_vessel": [
+          37,
+          88,
+          110,
+          129,
+          139
+        ],
+        "underwater_rov": [
+          8,
+          18,
+          28,
+          38,
+          88
+        ]
+      },
+      "recovery_offset_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [
+          35
+        ],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "recovery_offset_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 1
+      },
+      "recovery_offset_unarmed_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 3,
+        "underwater_rov": 1
+      },
+      "recovery_offset_episode_limit_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "recovery_offset_dwell_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 1,
+        "underwater_rov": 1
+      },
+      "valid": true,
+      "all_goals_reached": true,
+      "first_goal_steps": {
+        "ground_rover_1": 28,
+        "ground_rover_2": 45,
+        "surface_vessel": 63,
+        "underwater_rov": 33
+      },
+      "final_goal_errors": {
+        "ground_rover_1": 0.0034060073260443915,
+        "ground_rover_2": 0.008832585436784557,
+        "surface_vessel": 0.11500106695265272,
+        "underwater_rov": 0.0173993117807946
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.0017593023776858452,
+        "ground_rover_2": 0.006774757470894066,
+        "surface_vessel": 0.07531191702601658,
+        "underwater_rov": 0.005435229945052492
+      },
+      "min_pairwise_distance": 1.2729974636805657,
+      "pairwise_violation_count": 0,
+      "max_collision_slack": 0.0,
+      "max_domain_buffer_slack": 7.065041179519632e-06,
+      "max_dynamic_state_slack": 1.0339757656668343e-27,
+      "dynamic_state_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "sustained_completion_cost": 169,
+      "event_recall": 0.625,
+      "false_inflations": 8,
+      "mean_detection_delay": 2.8,
+      "probe_count": 0,
+      "probe_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      }
+    },
+    {
+      "seed": 13751,
+      "observation_seed": 30751,
+      "controller": "Retry-elastic transient-offset RLS",
+      "fault_event_steps": {
+        "ground_rover_1": [
+          10,
+          37
+        ],
+        "ground_rover_2": [
+          13,
+          34
+        ],
+        "surface_vessel": [
+          14,
+          42
+        ],
+        "underwater_rov": [
+          13,
+          32
+        ]
+      },
+      "hidden_fault_schedule": {
+        "ground_rover_1": [
+          {
+            "step": 10,
+            "effectiveness": [
+              0.6530737978481302,
+              0.697648948720726
+            ]
+          },
+          {
+            "step": 37,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "ground_rover_2": [
+          {
+            "step": 13,
+            "effectiveness": [
+              0.7571986651332059,
+              0.5893940087897921
+            ]
+          },
+          {
+            "step": 34,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "surface_vessel": [
+          {
+            "step": 14,
+            "effectiveness": [
+              0.7886106160297521,
+              0.9019386386411548
+            ]
+          },
+          {
+            "step": 42,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "underwater_rov": [
+          {
+            "step": 13,
+            "effectiveness": [
+              0.5826739611814897,
+              0.6693866661720654,
+              0.9008460629098172,
+              0.6494446360983812,
+              0.74331437942934,
+              0.7936334762536678,
+              0.8441557861754653,
+              0.8477542132379208
+            ]
+          },
+          {
+            "step": 32,
+            "effectiveness": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      "hidden_water_current": {
+        "surface_vessel": [
+          -0.07587238220535178,
+          0.0,
+          0.0
+        ],
+        "underwater_rov": [
+          -0.07587238220535178,
+          0.0,
+          0.025382955588586137
+        ]
+      },
+      "residual_projection_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "platform_fault_rmse": {
+        "ground_rover_1": 0.02520445953235416,
+        "ground_rover_2": 0.04790666985883657,
+        "surface_vessel": 0.1285488700361104,
+        "underwater_rov": 0.23152149928465504
+      },
+      "platform_recovery_rmse": {
+        "ground_rover_1": 0.2861776993259152,
+        "ground_rover_2": 0.04325676135771107,
+        "surface_vessel": 0.04454138520628204,
+        "underwater_rov": 0.12711014540580665
+      },
+      "fault_interval_rmse": 0.10829537467798904,
+      "recovery_rmse": 0.12527149782392874,
+      "final_effectiveness_rmse": 0.12695470082672036,
+      "current_rmse": 0.04242203429904225,
+      "final_current_rmse": 0.03362462855466972,
+      "control_current_rmse": 0.04242203429904225,
+      "final_control_current_rmse": 0.03362462855466972,
+      "change_steps_by_agent": {
+        "ground_rover_1": [
+          11
+        ],
+        "ground_rover_2": [
+          14,
+          35
+        ],
+        "surface_vessel": [
+          37,
+          88,
+          110,
+          129,
+          139
+        ],
+        "underwater_rov": [
+          8,
+          18,
+          28,
+          38,
+          88
+        ]
+      },
+      "recovery_offset_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [
+          35
+        ],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "recovery_offset_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 1
+      },
+      "recovery_offset_unarmed_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 3,
+        "underwater_rov": 1
+      },
+      "recovery_offset_episode_limit_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "recovery_offset_dwell_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 1,
+        "underwater_rov": 1
+      },
+      "valid": true,
+      "all_goals_reached": true,
+      "first_goal_steps": {
+        "ground_rover_1": 28,
+        "ground_rover_2": 45,
+        "surface_vessel": 63,
+        "underwater_rov": 33
+      },
+      "final_goal_errors": {
+        "ground_rover_1": 0.005446331856125356,
+        "ground_rover_2": 0.008757851917901079,
+        "surface_vessel": 0.1768565241049086,
+        "underwater_rov": 0.02587170523818129
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.004165939645249139,
+        "ground_rover_2": 0.004484117196883464,
+        "surface_vessel": 0.11004403566383036,
+        "underwater_rov": 0.006170201299746749
+      },
+      "min_pairwise_distance": 1.2729974636805657,
+      "pairwise_violation_count": 0,
+      "max_collision_slack": 0.0,
+      "max_domain_buffer_slack": 7.062780420934101e-06,
+      "max_dynamic_state_slack": 0.0010714848873601185,
+      "dynamic_state_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 108,
+        "underwater_rov": 0
+      },
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "sustained_completion_cost": 169,
+      "event_recall": 0.625,
+      "false_inflations": 8,
+      "mean_detection_delay": 2.8,
+      "probe_count": 0,
+      "probe_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      }
+    },
+    {
+      "seed": 13873,
+      "observation_seed": 30873,
+      "controller": "Hard-envelope transient-offset RLS",
+      "fault_event_steps": {
+        "ground_rover_1": [
+          8,
+          29
+        ],
+        "ground_rover_2": [
+          9,
+          33
+        ],
+        "surface_vessel": [
+          8,
+          29
+        ],
+        "underwater_rov": [
+          15,
+          42
+        ]
+      },
+      "hidden_fault_schedule": {
+        "ground_rover_1": [
+          {
+            "step": 8,
+            "effectiveness": [
+              0.8215080311662339,
+              0.8988372671226845
+            ]
+          },
+          {
+            "step": 29,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "ground_rover_2": [
+          {
+            "step": 9,
+            "effectiveness": [
+              0.6098503900476415,
+              0.679196454586599
+            ]
+          },
+          {
+            "step": 33,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "surface_vessel": [
+          {
+            "step": 8,
+            "effectiveness": [
+              0.6861936802734829,
+              0.7859917540111128
+            ]
+          },
+          {
+            "step": 29,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "underwater_rov": [
+          {
+            "step": 15,
+            "effectiveness": [
+              0.8579621608213588,
+              0.9194502923443039,
+              0.8213559478257979,
+              0.9012277698931687,
+              0.6441225209589507,
+              0.6012433406462058,
+              0.7363106400620755,
+              0.6963776641487691
+            ]
+          },
+          {
+            "step": 42,
+            "effectiveness": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      "hidden_water_current": {
+        "surface_vessel": [
+          -0.07812402873276349,
+          0.0,
+          0.0
+        ],
+        "underwater_rov": [
+          -0.07812402873276349,
+          0.0,
+          0.017478677451392546
+        ]
+      },
+      "residual_projection_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "platform_fault_rmse": {
+        "ground_rover_1": 0.03377791036314822,
+        "ground_rover_2": 0.03242511589521619,
+        "surface_vessel": 0.056714506915183274,
+        "underwater_rov": 0.1889814860045876
+      },
+      "platform_recovery_rmse": {
+        "ground_rover_1": 0.12260952811032368,
+        "ground_rover_2": 0.04084601026053642,
+        "surface_vessel": 0.05306443719249278,
+        "underwater_rov": 0.09827755784900874
+      },
+      "fault_interval_rmse": 0.07797475479453382,
+      "recovery_rmse": 0.0786993833530904,
+      "final_effectiveness_rmse": 0.07863364411090588,
+      "current_rmse": 0.04161862180339616,
+      "final_current_rmse": 0.03594919163502966,
+      "control_current_rmse": 0.04161862180339616,
+      "final_control_current_rmse": 0.03594919163502966,
+      "change_steps_by_agent": {
+        "ground_rover_1": [
+          9
+        ],
+        "ground_rover_2": [
+          10,
+          34
+        ],
+        "surface_vessel": [
+          9,
+          28,
+          40,
+          83
+        ],
+        "underwater_rov": [
+          8,
+          18,
+          28,
+          44
+        ]
+      },
+      "recovery_offset_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [
+          34
+        ],
+        "surface_vessel": [
+          40
+        ],
+        "underwater_rov": []
+      },
+      "recovery_offset_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 1
+      },
+      "recovery_offset_unarmed_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 1
+      },
+      "recovery_offset_episode_limit_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 1,
+        "underwater_rov": 0
+      },
+      "recovery_offset_dwell_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "valid": true,
+      "all_goals_reached": true,
+      "first_goal_steps": {
+        "ground_rover_1": 25,
+        "ground_rover_2": 46,
+        "surface_vessel": 63,
+        "underwater_rov": 30
+      },
+      "final_goal_errors": {
+        "ground_rover_1": 0.006705093584593993,
+        "ground_rover_2": 0.0055282307576791315,
+        "surface_vessel": 0.11449067384083045,
+        "underwater_rov": 0.020741235820875892
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.00670103773970121,
+        "ground_rover_2": 0.006923555916446222,
+        "surface_vessel": 0.0005803750914470385,
+        "underwater_rov": 0.005723298778219721
+      },
+      "min_pairwise_distance": 1.3572139165218784,
+      "pairwise_violation_count": 0,
+      "max_collision_slack": 0.0,
+      "max_domain_buffer_slack": 7.06094214460598e-06,
+      "max_dynamic_state_slack": 6.460395039514256e-29,
+      "dynamic_state_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "sustained_completion_cost": 164,
+      "event_recall": 0.875,
+      "false_inflations": 4,
+      "mean_detection_delay": 2.857142857142857,
+      "probe_count": 0,
+      "probe_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      }
+    },
+    {
+      "seed": 13873,
+      "observation_seed": 30873,
+      "controller": "Retry-elastic transient-offset RLS",
+      "fault_event_steps": {
+        "ground_rover_1": [
+          8,
+          29
+        ],
+        "ground_rover_2": [
+          9,
+          33
+        ],
+        "surface_vessel": [
+          8,
+          29
+        ],
+        "underwater_rov": [
+          15,
+          42
+        ]
+      },
+      "hidden_fault_schedule": {
+        "ground_rover_1": [
+          {
+            "step": 8,
+            "effectiveness": [
+              0.8215080311662339,
+              0.8988372671226845
+            ]
+          },
+          {
+            "step": 29,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "ground_rover_2": [
+          {
+            "step": 9,
+            "effectiveness": [
+              0.6098503900476415,
+              0.679196454586599
+            ]
+          },
+          {
+            "step": 33,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "surface_vessel": [
+          {
+            "step": 8,
+            "effectiveness": [
+              0.6861936802734829,
+              0.7859917540111128
+            ]
+          },
+          {
+            "step": 29,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "underwater_rov": [
+          {
+            "step": 15,
+            "effectiveness": [
+              0.8579621608213588,
+              0.9194502923443039,
+              0.8213559478257979,
+              0.9012277698931687,
+              0.6441225209589507,
+              0.6012433406462058,
+              0.7363106400620755,
+              0.6963776641487691
+            ]
+          },
+          {
+            "step": 42,
+            "effectiveness": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      "hidden_water_current": {
+        "surface_vessel": [
+          -0.07812402873276349,
+          0.0,
+          0.0
+        ],
+        "underwater_rov": [
+          -0.07812402873276349,
+          0.0,
+          0.017478677451392546
+        ]
+      },
+      "residual_projection_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "platform_fault_rmse": {
+        "ground_rover_1": 0.03377791036314822,
+        "ground_rover_2": 0.03242511589521619,
+        "surface_vessel": 0.056714506915183274,
+        "underwater_rov": 0.18898148600459005
+      },
+      "platform_recovery_rmse": {
+        "ground_rover_1": 0.12260952811129139,
+        "ground_rover_2": 0.04084634385776221,
+        "surface_vessel": 0.05298102000764831,
+        "underwater_rov": 0.09827755784818588
+      },
+      "fault_interval_rmse": 0.07797475479453443,
+      "recovery_rmse": 0.07867861245622194,
+      "final_effectiveness_rmse": 0.07863384246696198,
+      "current_rmse": 0.041617733187760006,
+      "final_current_rmse": 0.03594910110881021,
+      "control_current_rmse": 0.041617733187760006,
+      "final_control_current_rmse": 0.03594910110881021,
+      "change_steps_by_agent": {
+        "ground_rover_1": [
+          9
+        ],
+        "ground_rover_2": [
+          10,
+          34
+        ],
+        "surface_vessel": [
+          9,
+          28,
+          40,
+          83
+        ],
+        "underwater_rov": [
+          8,
+          18,
+          28,
+          44
+        ]
+      },
+      "recovery_offset_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [
+          34
+        ],
+        "surface_vessel": [
+          40
+        ],
+        "underwater_rov": []
+      },
+      "recovery_offset_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 1
+      },
+      "recovery_offset_unarmed_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 1
+      },
+      "recovery_offset_episode_limit_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 1,
+        "underwater_rov": 0
+      },
+      "recovery_offset_dwell_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "valid": true,
+      "all_goals_reached": true,
+      "first_goal_steps": {
+        "ground_rover_1": 25,
+        "ground_rover_2": 46,
+        "surface_vessel": 63,
+        "underwater_rov": 30
+      },
+      "final_goal_errors": {
+        "ground_rover_1": 0.006705093580162525,
+        "ground_rover_2": 0.005528224761199146,
+        "surface_vessel": 0.11451372618829254,
+        "underwater_rov": 0.020741235820567236
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.006701037745381999,
+        "ground_rover_2": 0.006923548558930737,
+        "surface_vessel": 0.0005470757635221979,
+        "underwater_rov": 0.0057232987781949225
+      },
+      "min_pairwise_distance": 1.3572139165218784,
+      "pairwise_violation_count": 0,
+      "max_collision_slack": 0.0,
+      "max_domain_buffer_slack": 7.06094214460598e-06,
+      "max_dynamic_state_slack": 0.0011072085669224562,
+      "dynamic_state_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 53,
+        "underwater_rov": 0
+      },
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "sustained_completion_cost": 164,
+      "event_recall": 0.875,
+      "false_inflations": 4,
+      "mean_detection_delay": 2.857142857142857,
+      "probe_count": 0,
+      "probe_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      }
+    },
+    {
+      "seed": 13997,
+      "observation_seed": 30997,
+      "controller": "Hard-envelope transient-offset RLS",
+      "fault_event_steps": {
+        "ground_rover_1": [
+          15,
+          33
+        ],
+        "ground_rover_2": [
+          16,
+          41
+        ],
+        "surface_vessel": [
+          18,
+          41
+        ],
+        "underwater_rov": [
+          10,
+          32
+        ]
+      },
+      "hidden_fault_schedule": {
+        "ground_rover_1": [
+          {
+            "step": 15,
+            "effectiveness": [
+              0.7602917572618658,
+              0.8151725130626988
+            ]
+          },
+          {
+            "step": 33,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "ground_rover_2": [
+          {
+            "step": 16,
+            "effectiveness": [
+              0.8795133756469138,
+              0.8357488448225109
+            ]
+          },
+          {
+            "step": 41,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "surface_vessel": [
+          {
+            "step": 18,
+            "effectiveness": [
+              0.7155888075741468,
+              0.7690629781194718
+            ]
+          },
+          {
+            "step": 41,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "underwater_rov": [
+          {
+            "step": 10,
+            "effectiveness": [
+              0.7480818153899618,
+              0.6991385097700874,
+              0.7628936109534301,
+              0.8101973105279734,
+              0.6234193706367421,
+              0.6925361463318785,
+              0.9139798025371675,
+              0.7836780382310335
+            ]
+          },
+          {
+            "step": 32,
+            "effectiveness": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      "hidden_water_current": {
+        "surface_vessel": [
+          -0.07054589187597213,
+          0.0,
+          0.0
+        ],
+        "underwater_rov": [
+          -0.07054589187597213,
+          0.0,
+          0.01701742766444793
+        ]
+      },
+      "residual_projection_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "platform_fault_rmse": {
+        "ground_rover_1": 0.0866807695638185,
+        "ground_rover_2": 0.04592926436736033,
+        "surface_vessel": 0.08713003038847708,
+        "underwater_rov": 0.2730253658158216
+      },
+      "platform_recovery_rmse": {
+        "ground_rover_1": 0.15179795938120866,
+        "ground_rover_2": 0.1207388886964424,
+        "surface_vessel": 0.0545885133043329,
+        "underwater_rov": 0.08888055250160525
+      },
+      "fault_interval_rmse": 0.12319135753386937,
+      "recovery_rmse": 0.1040014784708973,
+      "final_effectiveness_rmse": 0.09868856107418933,
+      "current_rmse": 0.04294021698630776,
+      "final_current_rmse": 0.04379702659250852,
+      "control_current_rmse": 0.04294021698630776,
+      "final_control_current_rmse": 0.04379702659250852,
+      "change_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [
+          30,
+          47,
+          82
+        ],
+        "underwater_rov": [
+          8,
+          18,
+          28,
+          40
+        ]
+      },
+      "recovery_offset_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "recovery_offset_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "recovery_offset_unarmed_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 3,
+        "underwater_rov": 1
+      },
+      "recovery_offset_episode_limit_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "recovery_offset_dwell_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "valid": true,
+      "all_goals_reached": true,
+      "first_goal_steps": {
+        "ground_rover_1": 22,
+        "ground_rover_2": 42,
+        "surface_vessel": 69,
+        "underwater_rov": 33
+      },
+      "final_goal_errors": {
+        "ground_rover_1": 0.010080200145830893,
+        "ground_rover_2": 0.0037187699151203122,
+        "surface_vessel": 0.14227673004976205,
+        "underwater_rov": 0.024703149804441955
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.0014888442928997492,
+        "ground_rover_2": 0.01807687271489211,
+        "surface_vessel": 0.07758467762340082,
+        "underwater_rov": 0.003973056747607665
+      },
+      "min_pairwise_distance": 1.3570867235325792,
+      "pairwise_violation_count": 0,
+      "max_collision_slack": 0.0,
+      "max_domain_buffer_slack": 0.01938725498825742,
+      "max_dynamic_state_slack": 3.358567551976762e-29,
+      "dynamic_state_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "sustained_completion_cost": 166,
+      "event_recall": 0.5,
+      "false_inflations": 3,
+      "mean_detection_delay": 8.5,
+      "probe_count": 0,
+      "probe_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      }
+    },
+    {
+      "seed": 13997,
+      "observation_seed": 30997,
+      "controller": "Retry-elastic transient-offset RLS",
+      "fault_event_steps": {
+        "ground_rover_1": [
+          15,
+          33
+        ],
+        "ground_rover_2": [
+          16,
+          41
+        ],
+        "surface_vessel": [
+          18,
+          41
+        ],
+        "underwater_rov": [
+          10,
+          32
+        ]
+      },
+      "hidden_fault_schedule": {
+        "ground_rover_1": [
+          {
+            "step": 15,
+            "effectiveness": [
+              0.7602917572618658,
+              0.8151725130626988
+            ]
+          },
+          {
+            "step": 33,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "ground_rover_2": [
+          {
+            "step": 16,
+            "effectiveness": [
+              0.8795133756469138,
+              0.8357488448225109
+            ]
+          },
+          {
+            "step": 41,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "surface_vessel": [
+          {
+            "step": 18,
+            "effectiveness": [
+              0.7155888075741468,
+              0.7690629781194718
+            ]
+          },
+          {
+            "step": 41,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "underwater_rov": [
+          {
+            "step": 10,
+            "effectiveness": [
+              0.7480818153899618,
+              0.6991385097700874,
+              0.7628936109534301,
+              0.8101973105279734,
+              0.6234193706367421,
+              0.6925361463318785,
+              0.9139798025371675,
+              0.7836780382310335
+            ]
+          },
+          {
+            "step": 32,
+            "effectiveness": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      "hidden_water_current": {
+        "surface_vessel": [
+          -0.07054589187597213,
+          0.0,
+          0.0
+        ],
+        "underwater_rov": [
+          -0.07054589187597213,
+          0.0,
+          0.01701742766444793
+        ]
+      },
+      "residual_projection_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "platform_fault_rmse": {
+        "ground_rover_1": 0.08668076956381848,
+        "ground_rover_2": 0.04592926436736873,
+        "surface_vessel": 0.08729690811575842,
+        "underwater_rov": 0.2730253658158217
+      },
+      "platform_recovery_rmse": {
+        "ground_rover_1": 0.15179795938055524,
+        "ground_rover_2": 0.12073889093390192,
+        "surface_vessel": 0.054804310610656055,
+        "underwater_rov": 0.08888055250138883
+      },
+      "fault_interval_rmse": 0.12323307696569183,
+      "recovery_rmse": 0.10405542835662551,
+      "final_effectiveness_rmse": 0.0987237354752662,
+      "current_rmse": 0.04293698768531741,
+      "final_current_rmse": 0.04379683721483246,
+      "control_current_rmse": 0.04293698768531741,
+      "final_control_current_rmse": 0.04379683721483246,
+      "change_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [
+          30,
+          47,
+          82
+        ],
+        "underwater_rov": [
+          8,
+          18,
+          28,
+          40
+        ]
+      },
+      "recovery_offset_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "recovery_offset_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "recovery_offset_unarmed_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 3,
+        "underwater_rov": 1
+      },
+      "recovery_offset_episode_limit_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "recovery_offset_dwell_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "valid": true,
+      "all_goals_reached": true,
+      "first_goal_steps": {
+        "ground_rover_1": 22,
+        "ground_rover_2": 42,
+        "surface_vessel": 69,
+        "underwater_rov": 33
+      },
+      "final_goal_errors": {
+        "ground_rover_1": 0.010080200146544956,
+        "ground_rover_2": 0.003718769700394065,
+        "surface_vessel": 0.14236951104444773,
+        "underwater_rov": 0.024703149804972305
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.0014888442899136933,
+        "ground_rover_2": 0.018076871722808807,
+        "surface_vessel": 0.07742582199984405,
+        "underwater_rov": 0.003973056747570599
+      },
+      "min_pairwise_distance": 1.3570867235325792,
+      "pairwise_violation_count": 0,
+      "max_collision_slack": 0.0,
+      "max_domain_buffer_slack": 0.016315987190576284,
+      "max_dynamic_state_slack": 0.0039853093947771236,
+      "dynamic_state_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 53,
+        "underwater_rov": 0
+      },
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "sustained_completion_cost": 166,
+      "event_recall": 0.5,
+      "false_inflations": 3,
+      "mean_detection_delay": 8.5,
+      "probe_count": 0,
+      "probe_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      }
+    },
+    {
+      "seed": 14107,
+      "observation_seed": 31107,
+      "controller": "Hard-envelope transient-offset RLS",
+      "fault_event_steps": {
+        "ground_rover_1": [
+          18,
+          41
+        ],
+        "ground_rover_2": [
+          11,
+          38
+        ],
+        "surface_vessel": [
+          16,
+          41
+        ],
+        "underwater_rov": [
+          9,
+          29
+        ]
+      },
+      "hidden_fault_schedule": {
+        "ground_rover_1": [
+          {
+            "step": 18,
+            "effectiveness": [
+              0.587856141007076,
+              0.7363751404753922
+            ]
+          },
+          {
+            "step": 41,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "ground_rover_2": [
+          {
+            "step": 11,
+            "effectiveness": [
+              0.6312910079168216,
+              0.8648055250138786
+            ]
+          },
+          {
+            "step": 38,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "surface_vessel": [
+          {
+            "step": 16,
+            "effectiveness": [
+              0.9142996630242193,
+              0.6742602236610182
+            ]
+          },
+          {
+            "step": 41,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "underwater_rov": [
+          {
+            "step": 9,
+            "effectiveness": [
+              0.6457848804339885,
+              0.6152411297639385,
+              0.5789110612016721,
+              0.7462605956510209,
+              0.8034120473492736,
+              0.9012662058782184,
+              0.6615006893616757,
+              0.7238625530356227
+            ]
+          },
+          {
+            "step": 29,
+            "effectiveness": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      "hidden_water_current": {
+        "surface_vessel": [
+          -0.07073457639560252,
+          0.0,
+          0.0
+        ],
+        "underwater_rov": [
+          -0.07073457639560252,
+          0.0,
+          0.023487989253602622
+        ]
+      },
+      "residual_projection_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "platform_fault_rmse": {
+        "ground_rover_1": 0.08775868707996837,
+        "ground_rover_2": 0.0214578796607837,
+        "surface_vessel": 0.06314852330140502,
+        "underwater_rov": 0.26413971651607754
+      },
+      "platform_recovery_rmse": {
+        "ground_rover_1": 0.2340292969545507,
+        "ground_rover_2": 0.05254601607346938,
+        "surface_vessel": 0.058337201969983266,
+        "underwater_rov": 0.09056791698511509
+      },
+      "fault_interval_rmse": 0.10912620163955866,
+      "recovery_rmse": 0.1088701079957796,
+      "final_effectiveness_rmse": 0.10071425201311124,
+      "current_rmse": 0.04199002329590923,
+      "final_current_rmse": 0.057607547818034906,
+      "control_current_rmse": 0.04199002329590923,
+      "final_control_current_rmse": 0.057607547818034906,
+      "change_steps_by_agent": {
+        "ground_rover_1": [
+          19
+        ],
+        "ground_rover_2": [
+          12,
+          39
+        ],
+        "surface_vessel": [
+          19,
+          39,
+          57,
+          70,
+          85,
+          101
+        ],
+        "underwater_rov": [
+          8,
+          18,
+          28,
+          41
+        ]
+      },
+      "recovery_offset_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [
+          39
+        ],
+        "surface_vessel": [
+          39
+        ],
+        "underwater_rov": []
+      },
+      "recovery_offset_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "recovery_offset_unarmed_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 3,
+        "underwater_rov": 0
+      },
+      "recovery_offset_episode_limit_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 1,
+        "underwater_rov": 0
+      },
+      "recovery_offset_dwell_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "valid": true,
+      "all_goals_reached": true,
+      "first_goal_steps": {
+        "ground_rover_1": 22,
+        "ground_rover_2": 46,
+        "surface_vessel": 63,
+        "underwater_rov": 34
+      },
+      "final_goal_errors": {
+        "ground_rover_1": 0.006121573755981371,
+        "ground_rover_2": 0.012402780295922667,
+        "surface_vessel": 0.1621232086964598,
+        "underwater_rov": 0.02658803127357482
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.004075570616824287,
+        "ground_rover_2": 0.004574738274313095,
+        "surface_vessel": 0.0005117061906063647,
+        "underwater_rov": 0.005342575892860659
+      },
+      "min_pairwise_distance": 1.3312470913633083,
+      "pairwise_violation_count": 0,
+      "max_collision_slack": 0.0,
+      "max_domain_buffer_slack": 7.058704635732458e-06,
+      "max_dynamic_state_slack": 8.271806125522754e-27,
+      "dynamic_state_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "sustained_completion_cost": 165,
+      "event_recall": 0.875,
+      "false_inflations": 6,
+      "mean_detection_delay": 6.142857142857143,
+      "probe_count": 0,
+      "probe_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      }
+    },
+    {
+      "seed": 14107,
+      "observation_seed": 31107,
+      "controller": "Retry-elastic transient-offset RLS",
+      "fault_event_steps": {
+        "ground_rover_1": [
+          18,
+          41
+        ],
+        "ground_rover_2": [
+          11,
+          38
+        ],
+        "surface_vessel": [
+          16,
+          41
+        ],
+        "underwater_rov": [
+          9,
+          29
+        ]
+      },
+      "hidden_fault_schedule": {
+        "ground_rover_1": [
+          {
+            "step": 18,
+            "effectiveness": [
+              0.587856141007076,
+              0.7363751404753922
+            ]
+          },
+          {
+            "step": 41,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "ground_rover_2": [
+          {
+            "step": 11,
+            "effectiveness": [
+              0.6312910079168216,
+              0.8648055250138786
+            ]
+          },
+          {
+            "step": 38,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "surface_vessel": [
+          {
+            "step": 16,
+            "effectiveness": [
+              0.9142996630242193,
+              0.6742602236610182
+            ]
+          },
+          {
+            "step": 41,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "underwater_rov": [
+          {
+            "step": 9,
+            "effectiveness": [
+              0.6457848804339885,
+              0.6152411297639385,
+              0.5789110612016721,
+              0.7462605956510209,
+              0.8034120473492736,
+              0.9012662058782184,
+              0.6615006893616757,
+              0.7238625530356227
+            ]
+          },
+          {
+            "step": 29,
+            "effectiveness": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      "hidden_water_current": {
+        "surface_vessel": [
+          -0.07073457639560252,
+          0.0,
+          0.0
+        ],
+        "underwater_rov": [
+          -0.07073457639560252,
+          0.0,
+          0.023487989253602622
+        ]
+      },
+      "residual_projection_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "platform_fault_rmse": {
+        "ground_rover_1": 0.08775868707997134,
+        "ground_rover_2": 0.0214578796607835,
+        "surface_vessel": 0.06312890104318031,
+        "underwater_rov": 0.26413971651607754
+      },
+      "platform_recovery_rmse": {
+        "ground_rover_1": 0.24573895285818176,
+        "ground_rover_2": 0.056087932434677155,
+        "surface_vessel": 0.07840156317804177,
+        "underwater_rov": 0.09051473731559087
+      },
+      "fault_interval_rmse": 0.10912129607500318,
+      "recovery_rmse": 0.11768579644662289,
+      "final_effectiveness_rmse": 0.10222048496676482,
+      "current_rmse": 0.04255109737116896,
+      "final_current_rmse": 0.030637348264103033,
+      "control_current_rmse": 0.04255109737116896,
+      "final_control_current_rmse": 0.030637348264103033,
+      "change_steps_by_agent": {
+        "ground_rover_1": [
+          19
+        ],
+        "ground_rover_2": [
+          12,
+          39
+        ],
+        "surface_vessel": [
+          19,
+          39,
+          57,
+          70,
+          85,
+          101
+        ],
+        "underwater_rov": [
+          8,
+          18,
+          28,
+          41
+        ]
+      },
+      "recovery_offset_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [
+          39
+        ],
+        "surface_vessel": [
+          39
+        ],
+        "underwater_rov": []
+      },
+      "recovery_offset_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "recovery_offset_unarmed_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 2,
+        "underwater_rov": 0
+      },
+      "recovery_offset_episode_limit_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 2,
+        "underwater_rov": 0
+      },
+      "recovery_offset_dwell_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "valid": true,
+      "all_goals_reached": true,
+      "first_goal_steps": {
+        "ground_rover_1": 22,
+        "ground_rover_2": 46,
+        "surface_vessel": 63,
+        "underwater_rov": 34
+      },
+      "final_goal_errors": {
+        "ground_rover_1": 0.011084215056649424,
+        "ground_rover_2": 0.0035021061778388197,
+        "surface_vessel": 0.09891121171229185,
+        "underwater_rov": 0.02837202275231665
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.0073600296128017995,
+        "ground_rover_2": 0.016811423101900314,
+        "surface_vessel": 0.08748449437887063,
+        "underwater_rov": 0.00464911484999755
+      },
+      "min_pairwise_distance": 1.3312470913633083,
+      "pairwise_violation_count": 0,
+      "max_collision_slack": 0.0,
+      "max_domain_buffer_slack": 7.05870463272901e-06,
+      "max_dynamic_state_slack": 0.0009738010272679273,
+      "dynamic_state_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 96,
+        "underwater_rov": 0
+      },
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "sustained_completion_cost": 165,
+      "event_recall": 0.875,
+      "false_inflations": 6,
+      "mean_detection_delay": 6.142857142857143,
+      "probe_count": 0,
+      "probe_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      }
+    },
+    {
+      "seed": 14221,
+      "observation_seed": 31221,
+      "controller": "Hard-envelope transient-offset RLS",
+      "fault_event_steps": {
+        "ground_rover_1": [
+          12,
+          36
+        ],
+        "ground_rover_2": [
+          15,
+          34
+        ],
+        "surface_vessel": [
+          11,
+          29
+        ],
+        "underwater_rov": [
+          18,
+          44
+        ]
+      },
+      "hidden_fault_schedule": {
+        "ground_rover_1": [
+          {
+            "step": 12,
+            "effectiveness": [
+              0.8726103400988822,
+              0.5865606689142098
+            ]
+          },
+          {
+            "step": 36,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "ground_rover_2": [
+          {
+            "step": 15,
+            "effectiveness": [
+              0.7828186249914155,
+              0.7617456646835618
+            ]
+          },
+          {
+            "step": 34,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "surface_vessel": [
+          {
+            "step": 11,
+            "effectiveness": [
+              0.6177880833716045,
+              0.6118272284660011
+            ]
+          },
+          {
+            "step": 29,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "underwater_rov": [
+          {
+            "step": 18,
+            "effectiveness": [
+              0.8217885641979708,
+              0.7803604828876889,
+              0.6440954859138065,
+              0.5521815965939784,
+              0.8470429215632326,
+              0.7568081715908463,
+              0.6090827632059356,
+              0.6079611793320168
+            ]
+          },
+          {
+            "step": 44,
+            "effectiveness": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      "hidden_water_current": {
+        "surface_vessel": [
+          -0.06122130830326581,
+          0.0,
+          0.0
+        ],
+        "underwater_rov": [
+          -0.06122130830326581,
+          0.0,
+          0.01407248504021551
+        ]
+      },
+      "residual_projection_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "platform_fault_rmse": {
+        "ground_rover_1": 0.0275728481355544,
+        "ground_rover_2": 0.0258812630340264,
+        "surface_vessel": 0.18516517229209092,
+        "underwater_rov": 0.24757525910126446
+      },
+      "platform_recovery_rmse": {
+        "ground_rover_1": 0.25239605707540835,
+        "ground_rover_2": 0.012779388000386017,
+        "surface_vessel": 0.0360013091026698,
+        "underwater_rov": 0.10999708038963124
+      },
+      "fault_interval_rmse": 0.12154863564073404,
+      "recovery_rmse": 0.10279345864202385,
+      "final_effectiveness_rmse": 0.09688074210590905,
+      "current_rmse": 0.040952667222155736,
+      "final_current_rmse": 0.05001091341323994,
+      "control_current_rmse": 0.040952667222155736,
+      "final_control_current_rmse": 0.05001091341323994,
+      "change_steps_by_agent": {
+        "ground_rover_1": [
+          13
+        ],
+        "ground_rover_2": [
+          16,
+          36
+        ],
+        "surface_vessel": [
+          19,
+          30,
+          63,
+          73,
+          137
+        ],
+        "underwater_rov": [
+          8,
+          19,
+          29,
+          42,
+          53
+        ]
+      },
+      "recovery_offset_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [
+          36
+        ],
+        "surface_vessel": [
+          73
+        ],
+        "underwater_rov": []
+      },
+      "recovery_offset_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 1
+      },
+      "recovery_offset_unarmed_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 1
+      },
+      "recovery_offset_episode_limit_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 1,
+        "underwater_rov": 0
+      },
+      "recovery_offset_dwell_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 1,
+        "underwater_rov": 0
+      },
+      "valid": true,
+      "all_goals_reached": true,
+      "first_goal_steps": {
+        "ground_rover_1": 28,
+        "ground_rover_2": 42,
+        "surface_vessel": 57,
+        "underwater_rov": 32
+      },
+      "final_goal_errors": {
+        "ground_rover_1": 0.018390095140383415,
+        "ground_rover_2": 0.015100097265316689,
+        "surface_vessel": 0.143833354869047,
+        "underwater_rov": 0.028502148698439752
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.011872760011630845,
+        "ground_rover_2": 0.004912282098690213,
+        "surface_vessel": 0.1486252298480184,
+        "underwater_rov": 0.0039036803674664063
+      },
+      "min_pairwise_distance": 1.427643087840986,
+      "pairwise_violation_count": 0,
+      "max_collision_slack": 0.0,
+      "max_domain_buffer_slack": 7.0659320133357354e-06,
+      "max_dynamic_state_slack": 1.2925880100692787e-28,
+      "dynamic_state_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "sustained_completion_cost": 159,
+      "event_recall": 0.875,
+      "false_inflations": 6,
+      "mean_detection_delay": 3.2857142857142856,
+      "probe_count": 0,
+      "probe_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      }
+    },
+    {
+      "seed": 14221,
+      "observation_seed": 31221,
+      "controller": "Retry-elastic transient-offset RLS",
+      "fault_event_steps": {
+        "ground_rover_1": [
+          12,
+          36
+        ],
+        "ground_rover_2": [
+          15,
+          34
+        ],
+        "surface_vessel": [
+          11,
+          29
+        ],
+        "underwater_rov": [
+          18,
+          44
+        ]
+      },
+      "hidden_fault_schedule": {
+        "ground_rover_1": [
+          {
+            "step": 12,
+            "effectiveness": [
+              0.8726103400988822,
+              0.5865606689142098
+            ]
+          },
+          {
+            "step": 36,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "ground_rover_2": [
+          {
+            "step": 15,
+            "effectiveness": [
+              0.7828186249914155,
+              0.7617456646835618
+            ]
+          },
+          {
+            "step": 34,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "surface_vessel": [
+          {
+            "step": 11,
+            "effectiveness": [
+              0.6177880833716045,
+              0.6118272284660011
+            ]
+          },
+          {
+            "step": 29,
+            "effectiveness": [
+              1.0,
+              1.0
+            ]
+          }
+        ],
+        "underwater_rov": [
+          {
+            "step": 18,
+            "effectiveness": [
+              0.8217885641979708,
+              0.7803604828876889,
+              0.6440954859138065,
+              0.5521815965939784,
+              0.8470429215632326,
+              0.7568081715908463,
+              0.6090827632059356,
+              0.6079611793320168
+            ]
+          },
+          {
+            "step": 44,
+            "effectiveness": [
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        ]
+      },
+      "hidden_water_current": {
+        "surface_vessel": [
+          -0.06122130830326581,
+          0.0,
+          0.0
+        ],
+        "underwater_rov": [
+          -0.06122130830326581,
+          0.0,
+          0.01407248504021551
+        ]
+      },
+      "residual_projection_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "platform_fault_rmse": {
+        "ground_rover_1": 0.02757284813555441,
+        "ground_rover_2": 0.0258812630340264,
+        "surface_vessel": 0.18516517229209092,
+        "underwater_rov": 0.2475752591010741
+      },
+      "platform_recovery_rmse": {
+        "ground_rover_1": 0.2523960676686657,
+        "ground_rover_2": 0.012779390194245515,
+        "surface_vessel": 0.03588653011561073,
+        "underwater_rov": 0.10999708038996321
+      },
+      "fault_interval_rmse": 0.12154863564068646,
+      "recovery_rmse": 0.10276476709212128,
+      "final_effectiveness_rmse": 0.09688146051135813,
+      "current_rmse": 0.040952710815940006,
+      "final_current_rmse": 0.05001191283090759,
+      "control_current_rmse": 0.040952710815940006,
+      "final_control_current_rmse": 0.05001191283090759,
+      "change_steps_by_agent": {
+        "ground_rover_1": [
+          13
+        ],
+        "ground_rover_2": [
+          16,
+          36
+        ],
+        "surface_vessel": [
+          19,
+          30,
+          63,
+          73,
+          137
+        ],
+        "underwater_rov": [
+          8,
+          19,
+          29,
+          42,
+          53
+        ]
+      },
+      "recovery_offset_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [
+          36
+        ],
+        "surface_vessel": [
+          73
+        ],
+        "underwater_rov": []
+      },
+      "recovery_offset_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 1
+      },
+      "recovery_offset_unarmed_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 1
+      },
+      "recovery_offset_episode_limit_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 1,
+        "underwater_rov": 0
+      },
+      "recovery_offset_dwell_rejections_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 1,
+        "underwater_rov": 0
+      },
+      "valid": true,
+      "all_goals_reached": true,
+      "first_goal_steps": {
+        "ground_rover_1": 28,
+        "ground_rover_2": 42,
+        "surface_vessel": 57,
+        "underwater_rov": 32
+      },
+      "final_goal_errors": {
+        "ground_rover_1": 0.018390110172932177,
+        "ground_rover_2": 0.015100096776301263,
+        "surface_vessel": 0.14393463146494798,
+        "underwater_rov": 0.028502148698319373
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.011872714198757794,
+        "ground_rover_2": 0.004912282821783354,
+        "surface_vessel": 0.14867130640100745,
+        "underwater_rov": 0.00390368036744725
+      },
+      "min_pairwise_distance": 1.427643087840986,
+      "pairwise_violation_count": 0,
+      "max_collision_slack": 0.0,
+      "max_domain_buffer_slack": 7.065931763429654e-06,
+      "max_dynamic_state_slack": 0.0007322598529740194,
+      "dynamic_state_retry_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 89,
+        "underwater_rov": 0
+      },
+      "solver_fallbacks": 0,
+      "solver_fallbacks_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      },
+      "solver_failure_steps_by_agent": {
+        "ground_rover_1": [],
+        "ground_rover_2": [],
+        "surface_vessel": [],
+        "underwater_rov": []
+      },
+      "solver_failure_status_counts": {},
+      "sustained_completion_cost": 159,
+      "event_recall": 0.875,
+      "false_inflations": 6,
+      "mean_detection_delay": 3.2857142857142856,
+      "probe_count": 0,
+      "probe_count_by_agent": {
+        "ground_rover_1": 0,
+        "ground_rover_2": 0,
+        "surface_vessel": 0,
+        "underwater_rov": 0
+      }
+    }
+  ],
+  "dynamic_envelope_criteria": {
+    "controller_labels": [
+      "Hard-envelope transient-offset RLS",
+      "Retry-elastic transient-offset RLS"
+    ],
+    "minimum_candidate_completion_rate": 1.0,
+    "minimum_completion_rescue_rate": 0.1,
+    "maximum_completion_regression_rate": 0.0,
+    "minimum_safety_rate": 1.0,
+    "minimum_fallback_free_rate": 1.0,
+    "maximum_mean_completion_cost_delta": 5.0,
+    "maximum_mean_recovery_rmse_delta": 0.001,
+    "maximum_mean_current_rmse_delta": 0.001,
+    "maximum_dynamic_state_slack": 0.02
+  },
+  "dynamic_envelope_development_screen": {
+    "passed": false,
+    "checks": {
+      "candidate_completion_rate": true,
+      "completion_rescue_rate": false,
+      "completion_regression_rate": true,
+      "safety_rate": true,
+      "fallback_free_rate": true,
+      "completion_cost_delta": true,
+      "recovery_rmse_delta": false,
+      "current_rmse_delta": true,
+      "dynamic_state_slack": true
+    },
+    "observed": {
+      "trials": 5,
+      "completion_rescues": 0,
+      "completion_regressions": 0,
+      "baseline_completion_rate": 1.0,
+      "candidate_completion_rate": 1.0,
+      "candidate_safety_rate": 1.0,
+      "candidate_fallback_free_rate": 1.0,
+      "mean_completion_cost_delta": 0.0,
+      "mean_recovery_rmse_delta": 0.0013986203343330644,
+      "mean_current_rmse_delta": -5.776714150573098e-05,
+      "maximum_dynamic_state_slack": 0.0039853093947771236,
+      "mean_dynamic_state_slack": 0.001574012745860329,
+      "mean_usv_final_yaw_error_delta": 0.024311765685517094
+    }
+  }
+}

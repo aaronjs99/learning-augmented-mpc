@@ -33,6 +33,16 @@ physical experiment and disabled only in the frozen reduced benchmark.
 `domain_boundary_margin` creates an interior warning band around each operating
 domain. The true domain remains hard; bounded warning-band slack is penalized by
 `domain_boundary_slack_weight` and reported independently from collision slack.
+`dynamic_state_slack_bound` and `dynamic_state_slack_weight` define a distinct
+elastic envelope for predicted velocity/rate states. Set the bound to zero for
+the nominal hard controller. `dynamic_state_slack_retry_bound` optionally builds
+a second optimizer, while the retry orientation threshold and goal radius gate
+its USV station-keeping use. This does not relax controls, collisions, medium
+membership, or the physical operating-domain boundary.
+
+Joint-uncertainty, projected-residual, and dynamic-envelope sections use
+disjoint development and confirmation seeds. A confirmation section is not a
+tuning set; failed development leaves it untouched.
 
 `actuator_fault_study` defines hidden effectiveness vectors by agent name, so
 RobEn and Inspector-Gadget can have different left/right drive faults even

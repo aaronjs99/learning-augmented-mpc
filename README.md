@@ -133,6 +133,18 @@ Rank-gated transient-recovery development and frozen confirmation:
 
 `python3 run.py harbor-temporary-fault-generalization --transient-recovery-confirmation`
 
+Joint hidden-current/temporary-fault development and frozen confirmation:
+
+`python3 run.py harbor-joint-uncertainty-study`
+
+`python3 run.py harbor-joint-uncertainty-study --confirmation`
+
+Controllability-projected residual and dynamic-envelope ablations:
+
+`python3 run.py harbor-projected-residual-study`
+
+`python3 run.py harbor-dynamic-envelope-study`
+
 These commands overwrite curated artifacts in `results/latest/harbor/`. The
 robustness command writes one metrics JSON, one combined diagnostic, and one
 GIF. Plant parameters are hidden from the controllers. Joint adaptation first
@@ -170,11 +182,25 @@ matching JSON artifact. The dwell-gated transient comparator passed its
 independent simulation confirmation and is the confirmed recovery
 accommodation layered over the ordinary threshold-RLS estimator.
 
+The later joint-current confirmation did not pass its frozen task gates:
+recovery tracking improved, but three USV station-keeping cases were
+incomplete. Always-on actuation-subspace residual projection and always-on
+elastic dynamic-state envelopes were then rejected on separate development
+ensembles. A measured-yaw-gated elastic retry rescues the exposed failure with
+`0.0030` maximum relaxation, but fresh development produced no completion
+rescues and slightly worse yaw/recovery metrics. Its confirmation set remains
+untouched. These are retained negative ablations, not promoted defaults.
+
 Harbor MPC keeps the physical operating-domain boundary hard. A configurable
 interior warning band uses bounded, heavily penalized slack so underactuated
 marine agents can recover inside their valid medium without converting land or
 surface penetration into an accepted solution. Maximum warning-band use is
 reported separately from collision slack.
+Velocity and angular-rate envelopes have separately bounded quadratic slack
+for explicit feasibility diagnostics. The default controller keeps them hard;
+the experimental retry policy can expose the elastic optimizer only near a USV
+goal after a measured yaw miss. Collision, actuator, medium, and true domain
+constraints remain hard in both solves.
 
 Useful overrides:
 

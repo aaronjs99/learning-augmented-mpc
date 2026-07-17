@@ -434,6 +434,33 @@ They are appropriate for steady current, generalized actuator loss, and local
 bias. They do not identify rapidly varying waves or coupled unmodeled velocity
 dynamics.
 
+### Dynamic-state envelope feasibility
+
+Nominal velocity and angular-rate limits are componentwise
+
+```text
+l_i <= x_(i,k) <= u_i.
+```
+
+The diagnostic elastic formulation introduces nonnegative lower/upper slacks,
+
+```text
+l_i - s^-_(i,k) <= x_(i,k) <= u_i + s^+_(i,k),
+0 <= s^+_(i,k), s^-_(i,k) <= s_max,
+J_slack = w_s sum_k ||s_k||_2^2.
+```
+
+Actuator bounds, collision separation, medium membership, and true map-domain
+bounds remain hard. The nominal controller sets `s_max=0`. The experimental
+USV retry first solves that hard problem and exposes a separately built elastic
+optimizer only inside a configured goal radius after measured yaw error exceeds
+its event threshold. Maximum accepted slack and retry counts are recorded.
+
+This mechanism restored one exposed joint-uncertainty failure (`0.268` to
+`0.043` rad final USV yaw with `0.0030` maximum slack), but it did not outperform
+the hard controller on the fresh five-case development ensemble. It therefore
+remains a feasibility ablation rather than the default control law.
+
 ## Reduced reproducibility models
 
 `config/harbor_reduced.yaml` preserves the earlier unicycle, scalar surge/yaw,

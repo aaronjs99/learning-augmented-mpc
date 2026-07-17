@@ -123,8 +123,16 @@ def summarize_recovery_prior(
     seeds = sorted({record["seed"] for record in records})
     by_key = {(record["seed"], record["controller"]): record for record in records}
 
-    def values(label: str, metric: str) -> np.ndarray:
-        return np.asarray([by_key[(seed, label)][metric] for seed in seeds], dtype=float)
+    def values(
+        label: str, metric: str, *, default: float | None = None
+    ) -> np.ndarray:
+        if default is None:
+            samples = [by_key[(seed, label)][metric] for seed in seeds]
+        else:
+            samples = [
+                by_key[(seed, label)].get(metric, default) for seed in seeds
+            ]
+        return np.asarray(samples, dtype=float)
 
     baseline_recovery = values(baseline_label, "recovery_rmse")
     candidate_recovery = values(candidate_label, "recovery_rmse")
@@ -133,6 +141,14 @@ def summarize_recovery_prior(
     candidate_fault = values(candidate_label, "fault_interval_rmse")
     baseline_final = values(baseline_label, "final_effectiveness_rmse")
     candidate_final = values(candidate_label, "final_effectiveness_rmse")
+    baseline_current = values(baseline_label, "current_rmse", default=0.0)
+    candidate_current = values(candidate_label, "current_rmse", default=0.0)
+    baseline_final_current = values(
+        baseline_label, "final_current_rmse", default=0.0
+    )
+    candidate_final_current = values(
+        candidate_label, "final_current_rmse", default=0.0
+    )
     cost_delta = values(candidate_label, "sustained_completion_cost") - values(
         baseline_label, "sustained_completion_cost"
     )
@@ -161,6 +177,12 @@ def summarize_recovery_prior(
         ),
         "mean_final_rmse_reduction": float(
             np.mean(baseline_final - candidate_final)
+        ),
+        "mean_current_rmse_delta": float(
+            np.mean(candidate_current - baseline_current)
+        ),
+        "mean_final_current_rmse_delta": float(
+            np.mean(candidate_final_current - baseline_final_current)
         ),
         "mean_completion_cost_delta": float(np.mean(cost_delta)),
         "completion_rate": float(
@@ -216,6 +238,14 @@ def evaluate_recovery_confirmation(
             comparison["mean_completion_cost_delta"]
             <= criteria.maximum_mean_completion_cost_delta
         ),
+        "current_rmse_delta": (
+            comparison["mean_current_rmse_delta"]
+            <= criteria.maximum_mean_current_rmse_delta
+        ),
+        "final_current_rmse_delta": (
+            comparison["mean_final_current_rmse_delta"]
+            <= criteria.maximum_mean_final_current_rmse_delta
+        ),
     }
     return {
         "passed": all(checks.values()),
@@ -232,6 +262,10 @@ def evaluate_recovery_confirmation(
             "mean_final_rmse_delta": final_rmse_delta,
             "mean_completion_cost_delta": comparison[
                 "mean_completion_cost_delta"
+            ],
+            "mean_current_rmse_delta": comparison["mean_current_rmse_delta"],
+            "mean_final_current_rmse_delta": comparison[
+                "mean_final_current_rmse_delta"
             ],
         },
     }

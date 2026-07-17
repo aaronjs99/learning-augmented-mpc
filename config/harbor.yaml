@@ -199,6 +199,148 @@ temporary_fault_transient_recovery_confirmation_criteria:
   maximum_mean_final_rmse_delta: 0.0
   maximum_mean_completion_cost_delta: 0.0
 
+joint_uncertainty_development:
+  seeds: [4513, 4621, 4733, 4847, 4951]
+  observation_seed_offset: 11000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 5000
+  water_current_min: [-0.10, 0.0, 0.01]
+  water_current_max: [-0.04, 0.0, 0.03]
+
+joint_uncertainty_confirmation:
+  seeds: [9067, 9181, 9293, 9413, 9533, 9649, 9767, 9883, 10007, 10133]
+  observation_seed_offset: 12000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 10000
+  water_current_min: [-0.10, 0.0, 0.01]
+  water_current_max: [-0.04, 0.0, 0.03]
+
+joint_uncertainty_confirmation_criteria:
+  controller_labels: [Innovation-threshold RLS, Transient-offset threshold RLS]
+  minimum_candidate_completion_rate: 1.0
+  minimum_completion_rescue_rate: 0.1
+  maximum_completion_regression_rate: 0.0
+  minimum_safety_rate: 1.0
+  minimum_fallback_free_rate: 1.0
+  minimum_recovery_win_rate: 0.6
+  maximum_mean_completion_cost_delta: 0.0
+  maximum_mean_final_effectiveness_rmse_delta: 0.0
+  maximum_mean_current_rmse_delta: 0.001
+  maximum_mean_final_current_rmse_delta: 0.001
+
+projected_residual_development:
+  seeds: [10253, 10369, 10477, 10589, 10709]
+  observation_seed_offset: 13000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 5000
+  water_current_min: [-0.10, 0.0, 0.01]
+  water_current_max: [-0.04, 0.0, 0.03]
+
+projected_residual_confirmation:
+  seeds: [10831, 10949, 11059, 11173, 11287, 11411, 11527, 11657, 11777, 11903]
+  observation_seed_offset: 14000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 10000
+  water_current_min: [-0.10, 0.0, 0.01]
+  water_current_max: [-0.04, 0.0, 0.03]
+
+projected_residual_confirmation_criteria:
+  controller_labels: [Transient-offset threshold RLS, Projected transient-offset RLS]
+  minimum_candidate_completion_rate: 1.0
+  minimum_completion_rescue_rate: 0.1
+  maximum_completion_regression_rate: 0.0
+  minimum_safety_rate: 1.0
+  minimum_fallback_free_rate: 1.0
+  maximum_mean_completion_cost_delta: 0.0
+  maximum_mean_recovery_rmse_delta: 0.001
+  maximum_mean_current_rmse_delta: 0.001
+  maximum_mean_control_current_rmse_delta: 0.0
+  maximum_mean_final_control_current_rmse_delta: 0.0
+
+dynamic_envelope_development:
+  seeds: [12011, 12119, 12227, 12343, 12457]
+  observation_seed_offset: 15000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 5000
+  water_current_min: [-0.10, 0.0, 0.01]
+  water_current_max: [-0.04, 0.0, 0.03]
+
+dynamic_envelope_confirmation:
+  seeds: [12569, 12689, 12809, 12923, 13043, 13159, 13277, 13397, 13513, 13633]
+  observation_seed_offset: 16000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 10000
+  water_current_min: [-0.10, 0.0, 0.01]
+  water_current_max: [-0.04, 0.0, 0.03]
+
+dynamic_envelope_confirmation_criteria:
+  controller_labels: [Hard-envelope transient-offset RLS, Retry-elastic transient-offset RLS]
+  minimum_candidate_completion_rate: 1.0
+  minimum_completion_rescue_rate: 0.1
+  maximum_completion_regression_rate: 0.0
+  minimum_safety_rate: 1.0
+  minimum_fallback_free_rate: 1.0
+  maximum_mean_completion_cost_delta: 5.0
+  maximum_mean_recovery_rmse_delta: 0.001
+  maximum_mean_current_rmse_delta: 0.001
+  maximum_dynamic_state_slack: 0.02
+
+dynamic_envelope_retry_development:
+  seeds: [13751, 13873, 13997, 14107, 14221]
+  observation_seed_offset: 17000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 5000
+  water_current_min: [-0.10, 0.0, 0.01]
+  water_current_max: [-0.04, 0.0, 0.03]
+
+dynamic_envelope_retry_confirmation:
+  seeds: [14341, 14461, 14591, 14713, 14831, 14951, 15077, 15193, 15313, 15439]
+  observation_seed_offset: 18000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 10000
+  water_current_min: [-0.10, 0.0, 0.01]
+  water_current_max: [-0.04, 0.0, 0.03]
+
 harbor_mpc:
   prediction_horizon: 12
   replan_interval_steps: 1
@@ -220,7 +362,14 @@ harbor_mpc:
   collision_slack_bound: 0.0
   domain_boundary_margin: 0.15
   domain_boundary_slack_weight: 100000.0
+  dynamic_state_slack_bound: 0.10
+  dynamic_state_slack_weight: 100000.0
+  dynamic_state_slack_retry_bound: 0.0
+  dynamic_state_slack_retry_orientation_error: 0.0
+  dynamic_state_slack_retry_goal_radius: 0.0
   residual_adaptation: false
+  residual_adaptation_kinds: [ugv, usv, rov]
+  residual_control_projection: full
   residual_estimator_gain: 0.35
   residual_max_speed: 0.35
   control_effectiveness_adaptation: false

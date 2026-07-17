@@ -17,6 +17,7 @@ from scripts.harbor import (
     HarborObservationNoiseConfig,
     load_harbor_config,
     load_harbor_confirmation_criteria_config,
+    load_harbor_dynamic_envelope_criteria_config,
     load_harbor_recovery_confirmation_criteria_config,
     load_harbor_disturbance_config,
     load_harbor_fault_ensemble_config,
@@ -39,6 +40,7 @@ from scripts.harbor.mpc import (
     _approach_pose_goal,
     _apply_nominal_recovery_prior,
     _channel_selective_recovery_offset,
+    _control_position_drift,
     _estimate_control_effectiveness,
     _estimate_diagonal_control_effectiveness,
     _effectiveness_change_is_loss,
@@ -65,9 +67,43 @@ from scripts.run_harbor_temporary_fault_generalization import (
     evaluate_recovery_confirmation,
     summarize_recovery_prior,
 )
+from scripts.run_harbor_dynamic_envelope_study import (
+    evaluate_dynamic_envelope,
+    summarize_dynamic_envelope,
+)
 
 
 class HarborTests(unittest.TestCase):
+    def test_dynamic_envelope_summary_and_frozen_gates(self) -> None:
+        records = []
+        for seed, baseline_complete in ((11, False), (17, True)):
+            for controller, complete, slack in (
+                ("Hard-envelope transient-offset RLS", baseline_complete, 0.0),
+                ("Retry-elastic transient-offset RLS", True, 0.004),
+            ):
+                records.append(
+                    {
+                        "seed": seed,
+                        "controller": controller,
+                        "all_goals_reached": complete,
+                        "pairwise_violation_count": 0,
+                        "max_collision_slack": 0.0,
+                        "solver_fallbacks": 0,
+                        "sustained_completion_cost": 40.0,
+                        "recovery_rmse": 0.1,
+                        "current_rmse": 0.02,
+                        "max_dynamic_state_slack": slack,
+                        "final_orientation_errors": {"surface_vessel": 0.05},
+                    }
+                )
+        summary = summarize_dynamic_envelope(records)
+        self.assertEqual(summary["completion_rescues"], 1)
+        self.assertEqual(summary["completion_regressions"], 0)
+        result = evaluate_dynamic_envelope(
+            summary, load_harbor_dynamic_envelope_criteria_config()
+        )
+        self.assertTrue(result["passed"])
+
     def test_effectiveness_change_direction_separates_loss_and_recovery(self) -> None:
         prior = np.array([0.9, 0.8, 0.7])
         self.assertTrue(
@@ -142,6 +178,34 @@ class HarborTests(unittest.TestCase):
         )
         self.assertFalse(
             _has_full_column_rank(np.array([[1.0, 1.0], [2.0, 2.0]]), 1.0e-8)
+        )
+
+    def test_usv_residual_projection_uses_surge_subspace(self) -> None:
+        agents, _, _ = load_harbor_config()
+        usv = next(agent for agent in agents if agent.model.kind == "usv")
+        state = np.zeros(usv.model.state_dim)
+        state[2] = np.pi / 2.0
+        estimate = np.array([0.3, -0.2, 0.0])
+        np.testing.assert_allclose(
+            _control_position_drift(
+                usv.model, state, estimate, "actuation_subspace"
+            ),
+            [0.0, -0.2, 0.0],
+            atol=1.0e-12,
+        )
+        np.testing.assert_allclose(
+            _control_position_drift(usv.model, state, estimate, "full"),
+            estimate,
+        )
+        np.testing.assert_allclose(
+            _control_position_drift(
+                usv.model,
+                state,
+                estimate,
+                "station_keeping_subspace",
+                np.array([1.0, 0.0, 0.0]),
+            ),
+            estimate,
         )
 
     def test_recursive_estimator_can_request_active_identification(self) -> None:
@@ -1213,6 +1277,53 @@ class HarborTests(unittest.TestCase):
         self.assertLessEqual(
             float(np.max(result.predicted_states[:, 1])),
             agent.domain.y_bounds[1] + 1.0e-9,
+        )
+
+    def test_usv_dynamic_envelope_relaxes_small_sway_mismatch(self) -> None:
+        agents, simulation, _ = load_harbor_config()
+        agent = agents[2]
+        other = agents[0]
+        config = replace(
+            load_harbor_mpc_config(),
+            prediction_horizon=3,
+            active_identification=False,
+        )
+        optimizer = HarborAgentOptimizer(
+            agent=agent,
+            other_agents=[other],
+            config=config,
+            dt=simulation.dt,
+            learning=False,
+        )
+        state = agent.start.copy()
+        state[4] = agent.model.max_sway_speed + 0.03
+        warm_states = [state.copy()]
+        for _ in range(config.prediction_horizon):
+            warm_states.append(
+                agent.model.step(
+                    warm_states[-1],
+                    np.zeros(agent.model.control_dim),
+                    simulation.dt,
+                )
+            )
+        result = optimizer.solve(
+            state=state,
+            goal=agent.goal,
+            obstacle_predictions={other.name: np.full((3, 3), 100.0)},
+            safe_states=np.repeat(state[None, :], 3, axis=0),
+            safe_costs=np.zeros(config.terminal_samples),
+            warm_states=np.asarray(warm_states),
+            warm_controls=np.zeros((3, agent.model.control_dim)),
+            previous_control=np.zeros(agent.model.control_dim),
+            position_drift=np.zeros(3),
+            control_effectiveness=np.ones(agent.model.control_dim),
+            identification_probe=np.zeros(agent.model.control_dim),
+            identification_probe_mask=np.zeros(agent.model.control_dim),
+        )
+        self.assertGreater(result.max_dynamic_state_slack, 0.0)
+        self.assertLessEqual(
+            result.max_dynamic_state_slack,
+            config.dynamic_state_slack_bound + 1.0e-9,
         )
 
     def test_hidden_current_advects_only_marine_execution_plant(self) -> None:

@@ -412,6 +412,13 @@ lowering cost from `141` to `131`. Joint LMPC lowers cost again to `128` but has
 `0.081 m` combined marine error, exposing a measurable completion-speed versus
 regulation-accuracy tradeoff.
 
+The later joint-current/temporary-fault holdout is intentionally reported as a
+negative result: estimator recovery improves, but USV yaw hold lowers task
+completion to `70%`. Projection and elastic-envelope follow-ups are available
+as explicit development ablations; neither cleared its predeclared gates, so
+the hard nominal envelope and confirmed dwell-gated transient RLS remain the
+default architecture.
+
 Sweep delay and dropout over five deterministic seeds and generate a robustness
 heatmap:
 

@@ -394,6 +394,26 @@ in the configured benchmark. Broader novelty still requires comparison against
 observer-based and optimal-input-design baselines, noisy Monte Carlo trials,
 and hardware or higher-fidelity validation.
 
+### Joint uncertainty and rejected controller extensions
+
+The temporary-fault generator now independently samples hidden marine current
+without changing the established fault draws. Raw residual estimates remain
+available for diagnostics while control-facing residuals can be restricted by
+platform kind and projected into an underactuated USV's surge subspace. An
+untouched ten-case joint-current/fault confirmation improved recovery RMSE in
+all ten pairs but reached only `70%` completion and therefore failed its frozen
+task gates.
+
+That failure motivated three controlled extensions. Always-on residual
+projection degraded the five-case development aggregate. Always-on elastic
+velocity/rate envelopes caused one completion regression. A feedback-gated
+elastic retry rescued the exposed USV case with a tiny measured relaxation, but
+fresh development had `0/5` rescues, equal completion/cost, and slightly worse
+yaw and recovery RMSE. No confirmation was run for either rejected candidate.
+The research contribution here is the reproducible diagnosis, telemetry, and
+falsification workflow; the confirmed dwell-gated transient actuator-recovery
+method remains the supported adaptation result.
+
 The strongest manta-specific case remains `manta_crossover`:
 
 ```text

@@ -41,7 +41,11 @@ class HarborRobustnessTrial:
     solver_failure_status_counts: dict[str, int]
     max_collision_slack: float
     max_domain_buffer_slack: float
+    max_dynamic_state_slack: float
     residual_history: dict[str, np.ndarray]
+    control_residual_history: dict[str, np.ndarray]
+    residual_projection_retry_count_by_agent: dict[str, int]
+    dynamic_state_retry_count_by_agent: dict[str, int]
     final_residual_estimates: dict[str, np.ndarray]
     effectiveness_history: dict[str, np.ndarray]
     raw_effectiveness_history: dict[str, np.ndarray]
@@ -276,10 +280,21 @@ def run_model_mismatch_study(
                 solver_failure_status_counts=controller.failure_status_counts.copy(),
                 max_collision_slack=controller.max_collision_slack,
                 max_domain_buffer_slack=controller.max_domain_buffer_slack,
+                max_dynamic_state_slack=controller.max_dynamic_state_slack,
                 residual_history={
                     name: np.asarray(values, dtype=float)
                     for name, values in controller.residual_history.items()
                 },
+                control_residual_history={
+                    name: np.asarray(values, dtype=float)
+                    for name, values in controller.control_residual_history.items()
+                },
+                residual_projection_retry_count_by_agent=dict(
+                    controller.residual_projection_retry_count_by_agent
+                ),
+                dynamic_state_retry_count_by_agent=dict(
+                    controller.dynamic_state_retry_count_by_agent
+                ),
                 final_residual_estimates={
                     name: value.copy()
                     for name, value in controller.position_drift_estimates.items()
@@ -536,12 +551,24 @@ def generate_temporary_fault_ensemble(
                 (onset + duration, tuple(np.ones(dimension))),
             )
             channel_offset += dimension
+        water_current = base_disturbance.water_current
+        if config.water_current_min is not None:
+            current_rng = np.random.default_rng(
+                np.random.SeedSequence([seed_value, 20260718])
+            )
+            water_current = tuple(
+                current_rng.uniform(
+                    np.asarray(config.water_current_min, dtype=float),
+                    np.asarray(config.water_current_max, dtype=float),
+                )
+            )
         cases.append(
             (
                 seed_value,
                 config.observation_seed_offset + seed_value,
                 replace(
                     base_disturbance,
+                    water_current=water_current,
                     agent_control_effectiveness={},
                     agent_control_effectiveness_schedule=schedule,
                 ),
@@ -816,6 +843,8 @@ def run_temporary_fault_generalization(
     ensemble_config: HarborTemporaryFaultEnsembleConfig,
     observation_noise: HarborObservationNoiseConfig,
     controller_labels: tuple[str, ...] | None = None,
+    residual_adaptation: bool = False,
+    residual_adaptation_kinds: tuple[str, ...] | None = None,
 ) -> list[HarborFaultEnsembleCase]:
     """Evaluate temporary-fault adaptation across hidden severities and timings."""
     study_mpc = replace(
@@ -866,6 +895,8 @@ def run_temporary_fault_generalization(
             experiment_config,
             noise,
             controller_labels=controller_labels,
+            residual_adaptation=residual_adaptation,
+            residual_adaptation_kinds=residual_adaptation_kinds,
         )
         cases.append(
             HarborFaultEnsembleCase(
@@ -889,6 +920,8 @@ def _run_temporary_fault_trials(
     experiment_config,
     observation_noise,
     controller_labels: tuple[str, ...] | None = None,
+    residual_adaptation: bool = False,
+    residual_adaptation_kinds: tuple[str, ...] | None = None,
 ) -> list[HarborRobustnessTrial]:
     """Run the matched passive and event-triggered temporary-fault policies."""
     available = {
@@ -896,12 +929,22 @@ def _run_temporary_fault_trials(
         "Innovation-threshold RLS",
         "Recovery-prior threshold RLS",
         "Transient-offset threshold RLS",
+        "Projected transient-offset RLS",
+        "Event-projected transient-offset RLS",
+        "Hard-envelope transient-offset RLS",
+        "Elastic-envelope transient-offset RLS",
+        "Retry-elastic transient-offset RLS",
         "Chi-square CUSUM RLS",
         "CUSUM-triggered probing RLS",
     }
     default = available - {
         "Recovery-prior threshold RLS",
         "Transient-offset threshold RLS",
+        "Projected transient-offset RLS",
+        "Event-projected transient-offset RLS",
+        "Hard-envelope transient-offset RLS",
+        "Elastic-envelope transient-offset RLS",
+        "Retry-elastic transient-offset RLS",
     }
     selected = default if controller_labels is None else set(controller_labels)
     if not selected or not selected <= available:
@@ -916,15 +959,36 @@ def _run_temporary_fault_trials(
         ),
     )
     trials = []
-    for label, adaptive, detector, recovery_gain, recovery_mode in (
-        ("Fixed-covariance RLS", False, "threshold", 0.0, "embedded"),
-        ("Innovation-threshold RLS", True, "threshold", 0.0, "embedded"),
+    for (
+        label,
+        adaptive,
+        detector,
+        recovery_gain,
+        recovery_mode,
+        projection,
+        dynamic_slack_bound,
+        dynamic_slack_retry_bound,
+    ) in (
+        ("Fixed-covariance RLS", False, "threshold", 0.0, "embedded", "full", None, None),
+        (
+            "Innovation-threshold RLS",
+            True,
+            "threshold",
+            0.0,
+            "embedded",
+            "full",
+            None,
+            None,
+        ),
         (
             "Recovery-prior threshold RLS",
             True,
             "threshold",
             experiment_config.recovery_prior_gain,
             "embedded",
+            "full",
+            None,
+            None,
         ),
         (
             "Transient-offset threshold RLS",
@@ -932,8 +996,61 @@ def _run_temporary_fault_trials(
             "threshold",
             experiment_config.recovery_prior_gain,
             "transient",
+            "full",
+            None,
+            None,
         ),
-        ("Chi-square CUSUM RLS", True, "cusum", 0.0, "embedded"),
+        (
+            "Projected transient-offset RLS",
+            True,
+            "threshold",
+            experiment_config.recovery_prior_gain,
+            "transient",
+            "actuation_subspace",
+            None,
+            None,
+        ),
+        (
+            "Event-projected transient-offset RLS",
+            True,
+            "threshold",
+            experiment_config.recovery_prior_gain,
+            "transient",
+            "station_keeping_subspace",
+            None,
+            None,
+        ),
+        (
+            "Hard-envelope transient-offset RLS",
+            True,
+            "threshold",
+            experiment_config.recovery_prior_gain,
+            "transient",
+            "full",
+            0.0,
+            0.0,
+        ),
+        (
+            "Elastic-envelope transient-offset RLS",
+            True,
+            "threshold",
+            experiment_config.recovery_prior_gain,
+            "transient",
+            "full",
+            None,
+            None,
+        ),
+        (
+            "Retry-elastic transient-offset RLS",
+            True,
+            "threshold",
+            experiment_config.recovery_prior_gain,
+            "transient",
+            "full",
+            0.0,
+            study_mpc.dynamic_state_slack_bound,
+        ),
+        ("Chi-square CUSUM RLS", True, "cusum", 0.0, "embedded", "full", None, None),
     ):
         if label not in selected:
             continue
@@ -955,6 +1072,27 @@ def _run_temporary_fault_trials(
                     ),
                     effectiveness_recovery_prior_gain=recovery_gain,
                     effectiveness_recovery_prior_mode=recovery_mode,
+                    residual_control_projection=projection,
+                    dynamic_state_slack_bound=(
+                        study_mpc.dynamic_state_slack_bound
+                        if dynamic_slack_bound is None
+                        else dynamic_slack_bound
+                    ),
+                    dynamic_state_slack_retry_bound=(
+                        study_mpc.dynamic_state_slack_retry_bound
+                        if dynamic_slack_retry_bound is None
+                        else dynamic_slack_retry_bound
+                    ),
+                    dynamic_state_slack_retry_orientation_error=(
+                        0.12
+                        if label == "Retry-elastic transient-offset RLS"
+                        else study_mpc.dynamic_state_slack_retry_orientation_error
+                    ),
+                    dynamic_state_slack_retry_goal_radius=(
+                        0.5
+                        if label == "Retry-elastic transient-offset RLS"
+                        else study_mpc.dynamic_state_slack_retry_goal_radius
+                    ),
                 ),
                 disturbance,
                 seed_result,
@@ -971,6 +1109,8 @@ def _run_temporary_fault_trials(
                     ),
                 ),
                 observation_noise=observation_noise,
+                residual_adaptation=residual_adaptation,
+                residual_adaptation_kinds=residual_adaptation_kinds,
             )
         )
     if "CUSUM-triggered probing RLS" in selected:
@@ -1009,6 +1149,8 @@ def _run_temporary_fault_trials(
                     ),
                 ),
                 observation_noise=observation_noise,
+                residual_adaptation=residual_adaptation,
+                residual_adaptation_kinds=residual_adaptation_kinds,
             )
         )
     return trials
@@ -1024,6 +1166,8 @@ def _run_fault_trials(
     seed_result,
     definitions,
     observation_noise: HarborObservationNoiseConfig | None = None,
+    residual_adaptation: bool = False,
+    residual_adaptation_kinds: tuple[str, ...] | None = None,
 ) -> list[HarborRobustnessTrial]:
     """Run matched fault definitions from one common safe trajectory."""
     trials = []
@@ -1047,7 +1191,12 @@ def _run_fault_trials(
             agents=agents,
             config=replace(
                 study_mpc,
-                residual_adaptation=False,
+                residual_adaptation=residual_adaptation,
+                residual_adaptation_kinds=(
+                    study_mpc.residual_adaptation_kinds
+                    if residual_adaptation_kinds is None
+                    else residual_adaptation_kinds
+                ),
                 control_effectiveness_adaptation=adaptive,
                 effectiveness_estimator_mode=estimator_mode,
                 active_identification=active,
@@ -1099,10 +1248,21 @@ def _run_fault_trials(
                 solver_failure_status_counts=controller.failure_status_counts.copy(),
                 max_collision_slack=controller.max_collision_slack,
                 max_domain_buffer_slack=controller.max_domain_buffer_slack,
+                max_dynamic_state_slack=controller.max_dynamic_state_slack,
                 residual_history={
                     name: np.asarray(values, dtype=float)
                     for name, values in controller.residual_history.items()
                 },
+                control_residual_history={
+                    name: np.asarray(values, dtype=float)
+                    for name, values in controller.control_residual_history.items()
+                },
+                residual_projection_retry_count_by_agent=dict(
+                    controller.residual_projection_retry_count_by_agent
+                ),
+                dynamic_state_retry_count_by_agent=dict(
+                    controller.dynamic_state_retry_count_by_agent
+                ),
                 final_residual_estimates={
                     name: value.copy()
                     for name, value in controller.position_drift_estimates.items()

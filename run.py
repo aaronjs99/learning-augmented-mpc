@@ -90,6 +90,27 @@ def main() -> None:
         )
 
         run_temporary_fault_generalization()
+    elif command == "harbor-joint-uncertainty-study":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_joint_uncertainty_study import (
+            main as run_joint_uncertainty,
+        )
+
+        run_joint_uncertainty()
+    elif command == "harbor-projected-residual-study":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_projected_residual_study import (
+            main as run_projected_residual,
+        )
+
+        run_projected_residual()
+    elif command == "harbor-dynamic-envelope-study":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_dynamic_envelope_study import (
+            main as run_dynamic_envelope,
+        )
+
+        run_dynamic_envelope()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 
