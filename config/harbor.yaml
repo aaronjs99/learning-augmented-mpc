@@ -438,6 +438,9 @@ harbor_mpc:
   terminal_slack_weight: 500.0
   terminal_slack_bound: 1.0
   collision_buffer: 0.12
+  belief_safety_enabled: false
+  belief_safety_quantile: 2.0
+  belief_safety_max_margin: 0.5
   collision_slack_weight: 100000.0
   collision_slack_bound: 0.0
   domain_boundary_margin: 0.15

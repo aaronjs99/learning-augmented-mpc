@@ -36,6 +36,9 @@ class HarborMPCConfig:
     terminal_slack_weight: float = 5000.0
     terminal_slack_bound: float = 1.0
     collision_buffer: float = 0.1
+    belief_safety_enabled: bool = False
+    belief_safety_quantile: float = 2.0
+    belief_safety_max_margin: float = 0.5
     collision_slack_weight: float = 100000.0
     collision_slack_bound: float = 0.0
     domain_boundary_margin: float = 0.0
@@ -169,6 +172,8 @@ class HarborMPCConfig:
             self.terminal_slack_weight,
             self.terminal_slack_bound,
             self.collision_buffer,
+            self.belief_safety_quantile,
+            self.belief_safety_max_margin,
             self.collision_slack_weight,
             self.collision_slack_bound,
             self.domain_boundary_margin,
@@ -398,6 +403,7 @@ class HarborAgentOptimizer:
         control_effectiveness: np.ndarray,
         identification_probe: np.ndarray,
         identification_probe_mask: np.ndarray,
+        belief_collision_margin: float = 0.0,
     ) -> HarborMPCStep:
         opti = self.opti
         opti.set_value(self.p_initial, state)
@@ -405,6 +411,7 @@ class HarborAgentOptimizer:
         opti.set_value(self.p_previous_control, previous_control)
         opti.set_value(self.p_position_drift, position_drift)
         opti.set_value(self.p_control_effectiveness, control_effectiveness)
+        opti.set_value(self.p_belief_collision_margin, float(max(belief_collision_margin, 0.0)))
         if self.p_identification_probe is not None:
             opti.set_value(self.p_identification_probe, identification_probe)
             opti.set_value(
@@ -517,6 +524,7 @@ class HarborAgentOptimizer:
         p_previous_control = opti.parameter(nu, 1)
         p_position_drift = opti.parameter(3, 1)
         p_control_effectiveness = opti.parameter(nu, 1)
+        p_belief_collision_margin = opti.parameter()
         p_identification_probe = (
             opti.parameter(nu, 1) if cfg.active_identification else None
         )
@@ -584,6 +592,7 @@ class HarborAgentOptimizer:
                 relative = own_position - p_obstacles[obstacle_index][:, index]
                 required = (
                     self.agent.radius + other.radius + cfg.collision_buffer
+                    + p_belief_collision_margin
                 )
                 opti.subject_to(
                     ca.dot(relative, relative) + collision_slack[obstacle_index, index]
@@ -652,6 +661,7 @@ class HarborAgentOptimizer:
         self.p_previous_control = p_previous_control
         self.p_position_drift = p_position_drift
         self.p_control_effectiveness = p_control_effectiveness
+        self.p_belief_collision_margin = p_belief_collision_margin
         self.p_identification_probe = p_identification_probe
         self.p_identification_probe_mask = p_identification_probe_mask
         self.p_obstacles = p_obstacles
@@ -980,6 +990,7 @@ class DistributedHarborMPC:
         inbox: dict[str, AgentMessage],
         step: int,
         dt: float,
+        belief: dict | None = None,
     ) -> np.ndarray:
         self.observe(agent=agent, state=state, step=step, dt=dt)
         safe_states = self.safe_states[agent.name]
@@ -1013,6 +1024,15 @@ class DistributedHarborMPC:
             self.config.residual_control_projection,
             desired_velocity,
         )
+        belief_margin = 0.0
+        if self.config.belief_safety_enabled and belief is not None:
+            covariance = np.asarray(belief.get("position_covariance", []), dtype=float)
+            if covariance.ndim == 2 and covariance.size:
+                belief_margin = min(
+                    self.config.belief_safety_max_margin,
+                    self.config.belief_safety_quantile
+                    * float(np.sqrt(max(np.trace(covariance), 0.0))),
+                )
         solve_arguments = dict(
             state=np.asarray(state, dtype=float),
             goal=_approach_pose_goal(
@@ -1030,6 +1050,7 @@ class DistributedHarborMPC:
             control_effectiveness=self.control_effectiveness_estimates[agent.name],
             identification_probe=probe,
             identification_probe_mask=probe_mask,
+            belief_collision_margin=belief_margin,
         )
         used_dynamic_retry = False
         try:

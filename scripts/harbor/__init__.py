@@ -47,6 +47,7 @@ from .localization import (
     load_range_aided_slam_config,
 )
 from .factor_graph import FactorGraphConfig, FactorGraphReport, FixedLagRangeSLAM, GraphRange, huber_weight
+from .information import choose_information_waypoint, information_score, range_information
 from .mpc import HarborMPCConfig, load_harbor_mpc_config
 from .simulation import (
     HarborAgent,
@@ -113,6 +114,9 @@ __all__ = [
     "FixedLagRangeSLAM",
     "GraphRange",
     "huber_weight",
+    "choose_information_waypoint",
+    "information_score",
+    "range_information",
     "make_platform_model",
     "run_harbor_simulation",
 ]

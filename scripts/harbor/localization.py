@@ -368,6 +368,21 @@ class HarborRangeLocalization:
         estimated[:dimension] = estimator.position
         return estimated
 
+    def belief(self, agent_name: str) -> dict:
+        """Expose estimator uncertainty without exposing plant truth."""
+        estimator = self.estimators.get(agent_name)
+        if estimator is None:
+            return {"position_covariance": np.eye(3), "observability": None}
+        if isinstance(estimator, FixedLagRangeSLAM):
+            covariance = np.eye(estimator.position.size) * max(
+                estimator.last_report.condition_number, 1.0
+            )
+            report = estimator.last_report
+        else:
+            covariance = estimator.covariance[:estimator.dimension, :estimator.dimension].copy()
+            report = estimator.observability()
+        return {"position_covariance": covariance, "observability": report}
+
 
 def load_range_aided_slam_config(path: str | Path) -> RangeAidedSLAMConfig:
     """Load nested range-SLAM settings while rejecting unknown fields."""

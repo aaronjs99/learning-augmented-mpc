@@ -573,6 +573,9 @@ def run_harbor_simulation(
                         inbox=inboxes[name],
                         step=step,
                         dt=config.dt,
+                        belief=(localization_provider.belief(name)
+                                if localization_provider is not None
+                                and hasattr(localization_provider, "belief") else None),
                     )
                     smoothing = 1.0
                 control = (
