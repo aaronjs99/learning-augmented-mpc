@@ -43,6 +43,13 @@ Their probabilities, magnitudes, burst duration, and seed are configured in
 `range_aided_slam`; fault telemetry is evidence and is never supplied to the
 controller as truth.
 
+Delayed or stale measurements carry their capture step and are delivered through
+a deterministic queue. `active_observability` can insert a bounded local
+information detour only while the estimator is weakly observable. The detour is
+limited by `information_max_excursion`; normal task guidance resumes as soon as
+the geometry becomes observable. Physical domain and collision constraints stay
+in the MPC layer.
+
 ## Observability
 
 The estimator stores a sliding window of measurement Jacobians and reports

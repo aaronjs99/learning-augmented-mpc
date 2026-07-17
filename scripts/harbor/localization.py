@@ -9,6 +9,7 @@ import numpy as np
 import yaml
 
 from .factor_graph import FactorGraphConfig, FixedLagRangeSLAM, GraphRange
+from .information import choose_information_waypoint
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,10 @@ class RangeAidedSLAMConfig:
     burst_dropout_probability: float = 0.0
     burst_dropout_steps: int = 0
     measurement_delay_steps: int = 0
+    stale_measurement_probability: float = 0.0
+    active_observability: bool = False
+    information_weight: float = 0.25
+    information_max_excursion: float = 0.5
     maximum_range: float = 20.0
     update_interval_steps: int = 1
     motion_std: tuple[float, ...] = (0.03, 0.03, 0.02)
@@ -81,8 +86,12 @@ class RangeAidedSLAMConfig:
             raise ValueError("range fault probabilities must lie in [0, 1]")
         if self.nlos_bias < 0.0 or self.outlier_std <= 0.0:
             raise ValueError("NLOS bias must be nonnegative and outlier_std positive")
+        if not 0.0 <= self.stale_measurement_probability <= 1.0:
+            raise ValueError("stale_measurement_probability must lie in [0, 1]")
         if self.burst_dropout_steps < 0 or self.measurement_delay_steps < 0:
             raise ValueError("range delay settings must be nonnegative")
+        if self.information_weight < 0.0 or self.information_max_excursion <= 0.0:
+            raise ValueError("information settings must be nonnegative and bounded")
         if self.update_interval_steps <= 0 or self.observability_window <= 0:
             raise ValueError("range update interval and observability window must be positive")
         if self.initial_pose_std <= 0.0 or self.initial_landmark_std <= 0.0:
@@ -104,6 +113,7 @@ class RangeMeasurement:
 
     beacon: str
     distance: float
+    capture_step: int = 0
 
 
 @dataclass(frozen=True)
@@ -124,19 +134,22 @@ class RangeSensor:
         self.config = config
         self._rng = np.random.default_rng(config.seed)
         self._dropout_remaining = 0
+        self._pending: list[tuple[int, RangeMeasurement]] = []
         self.telemetry: list[dict] = []
 
     def measure(self, position: np.ndarray, step: int) -> tuple[RangeMeasurement, ...]:
+        delivered = [measurement for due, measurement in self._pending if due <= step]
+        self._pending = [(due, measurement) for due, measurement in self._pending if due > step]
         if not self.config.enabled or step % self.config.update_interval_steps:
-            return ()
+            return tuple(delivered)
         if self._dropout_remaining:
             self._dropout_remaining -= 1
             self.telemetry.append({"step": step, "fault": "burst_dropout", "count": 0})
-            return ()
+            return tuple(delivered)
         if self._rng.random() < self.config.burst_dropout_probability:
             self._dropout_remaining = self.config.burst_dropout_steps
             self.telemetry.append({"step": step, "fault": "burst_dropout", "count": 0})
-            return ()
+            return tuple(delivered)
         position = np.asarray(position, dtype=float)
         measurements = []
         for beacon in self.config.beacons:
@@ -163,9 +176,18 @@ class RangeSensor:
             noisy = distance + bias + self._rng.normal(
                 0.0, noise_std
             )
-            measurements.append(RangeMeasurement(beacon.name, max(0.0, float(noisy))))
-            self.telemetry.append({"step": step, "beacon": beacon.name, "fault": fault})
-        return tuple(measurements)
+            measurement = RangeMeasurement(beacon.name, max(0.0, float(noisy)), step)
+            delay = self.config.measurement_delay_steps
+            if self._rng.random() < self.config.stale_measurement_probability:
+                delay = max(delay, 1)
+                fault = "stale" if fault == "none" else f"{fault}_stale"
+            if delay:
+                self._pending.append((step + delay, measurement))
+            else:
+                measurements.append(measurement)
+            self.telemetry.append({"step": step, "beacon": beacon.name, "fault": fault,
+                                   "delivery_step": step + delay})
+        return tuple(delivered + measurements)
 
 
 class RangeAidedEKF:
@@ -418,6 +440,39 @@ class HarborRangeLocalization:
             covariance = estimator.covariance[:estimator.dimension, :estimator.dimension].copy()
             report = estimator.observability()
         return {"position_covariance": covariance, "observability": report}
+
+    def information_goal(self, agent, state: np.ndarray, goal: np.ndarray) -> np.ndarray:
+        """Return a bounded sensing detour only during weak observability."""
+        if not self.config.active_observability or agent.name not in self.estimators:
+            return np.asarray(goal, dtype=float)
+        report = self.belief(agent.name)["observability"]
+        if report is None or getattr(report, "observable", False):
+            return np.asarray(goal, dtype=float)
+        dimension = 3 if agent.model.kind == "rov" else 2
+        position = np.asarray(agent.model.position(state), dtype=float)[:dimension]
+        beacons = [
+            np.asarray(beacon.true_position, dtype=float)[:dimension]
+            for beacon in self.config.beacons
+            if len(beacon.true_position) >= dimension
+        ]
+        if len(beacons) < dimension:
+            return np.asarray(goal, dtype=float)
+        step = self.config.information_max_excursion
+        candidates = np.vstack([position] + [
+            position + direction * step
+            for axis in range(dimension)
+            for direction in (-np.eye(dimension)[axis], np.eye(dimension)[axis])
+        ])
+        candidate, gain = choose_information_waypoint(
+            position, candidates, np.asarray(beacons),
+            information_weight=self.config.information_weight,
+            max_step=step,
+        )
+        if gain <= 1.0e-8:
+            return np.asarray(goal, dtype=float)
+        detour = np.asarray(goal, dtype=float).copy()
+        detour[:dimension] = candidate
+        return detour
 
 
 def load_range_aided_slam_config(path: str | Path) -> RangeAidedSLAMConfig:

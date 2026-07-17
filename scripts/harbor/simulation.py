@@ -504,6 +504,10 @@ def run_harbor_simulation(
             ):
                 route_indices[name] += 1
             navigation_goal = route[route_indices[name]]
+            if localization_provider is not None and hasattr(localization_provider, "information_goal"):
+                navigation_goal = localization_provider.information_goal(
+                    agent, measured[name], navigation_goal
+                )
             navigation_position = agent.model.goal_position(navigation_goal)
             goal_delta = navigation_position - position
             goal_distance = float(np.linalg.norm(goal_delta))

@@ -82,6 +82,10 @@ range_aided_slam:
   burst_dropout_probability: 0.0
   burst_dropout_steps: 0
   measurement_delay_steps: 0
+  stale_measurement_probability: 0.0
+  active_observability: false
+  information_weight: 0.25
+  information_max_excursion: 0.5
   maximum_range: 20.0
   update_interval_steps: 1
   motion_std: [0.03, 0.03, 0.02]

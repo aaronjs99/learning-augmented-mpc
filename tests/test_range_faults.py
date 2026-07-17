@@ -25,3 +25,11 @@ def test_burst_dropout_is_bounded_and_recorded():
     assert sensor.measure(np.array([0.0, 0.0]), 1) == ()
     assert sensor.measure(np.array([0.0, 0.0]), 2) == ()
 
+
+def test_delayed_measurement_preserves_capture_step():
+    sensor = RangeSensor(_config(measurement_delay_steps=2))
+    assert sensor.measure(np.array([0.0, 0.0]), 0) == ()
+    assert sensor.measure(np.array([0.0, 0.0]), 1) == ()
+    delivered = sensor.measure(np.array([0.0, 0.0]), 2)
+    assert len(delivered) == 1
+    assert delivered[0].capture_step == 0
