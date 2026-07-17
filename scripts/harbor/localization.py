@@ -55,6 +55,8 @@ class RangeAidedSLAMConfig:
     active_observability: bool = False
     information_weight: float = 0.25
     information_max_excursion: float = 0.5
+    rov_depth_std: float = 0.06
+    rov_depth_bias: float = 0.0
     maximum_range: float = 20.0
     update_interval_steps: int = 1
     motion_std: tuple[float, ...] = (0.03, 0.03, 0.02)
@@ -92,6 +94,8 @@ class RangeAidedSLAMConfig:
             raise ValueError("range delay settings must be nonnegative")
         if self.information_weight < 0.0 or self.information_max_excursion <= 0.0:
             raise ValueError("information settings must be nonnegative and bounded")
+        if self.rov_depth_std <= 0.0:
+            raise ValueError("rov_depth_std must be positive")
         if self.update_interval_steps <= 0 or self.observability_window <= 0:
             raise ValueError("range update interval and observability window must be positive")
         if self.initial_pose_std <= 0.0 or self.initial_landmark_std <= 0.0:
@@ -373,13 +377,18 @@ class HarborRangeLocalization:
                     if len(beacon.initial_position) >= dimension
                 }
                 fixed = {beacon.name for beacon in self.config.beacons if beacon.fixed}
+                initial_pose = (
+                    np.asarray(onboard, dtype=float)[:6]
+                    if agent.model.kind == "rov" else onboard_position
+                )
                 self.estimators[agent.name] = FixedLagRangeSLAM(
                     FactorGraphConfig(
                         lag=self.config.fixed_lag,
                         iterations=self.config.factor_iterations,
                         range_std=self.config.range_std,
                         odometry_std=max(float(np.mean(self.config.motion_std[:dimension])), 1.0e-3),
-                    ), onboard_position, compatible, fixed,
+                        depth_std=self.config.rov_depth_std,
+                    ), initial_pose, compatible, fixed,
                 )
             else:
                 self.estimators[agent.name] = RangeAidedEKF(self.config, onboard_position)
@@ -405,7 +414,10 @@ class HarborRangeLocalization:
                 GraphRange(m.beacon, m.distance, robust=self.config.robust_range_loss != "none")
                 for m in self.sensors[agent.name].measure(truth_position, step)
             )
-            estimator.update(displacement, graph_measurements)
+            attitude = np.asarray(onboard, dtype=float)[3:6] if agent.model.kind == "rov" else None
+            depth = (float(onboard[2]) + self.config.rov_depth_bias
+                     if agent.model.kind == "rov" else None)
+            estimator.update(displacement, graph_measurements, attitude=attitude, depth=depth)
             self._last_onboard_position[agent.name] = onboard_position.copy()
             self.reports[agent.name].append(
                 ObservabilityReport(
@@ -415,8 +427,11 @@ class HarborRangeLocalization:
                 )
             )
             estimated = np.asarray(onboard, dtype=float).copy()
-            estimated[:dimension] = estimator.position
-            return estimated
+            if agent.model.kind == "rov":
+                estimated[:6] = estimator.pose
+            else:
+                estimated[:dimension] = estimator.position
+            return agent.domain.project(agent.model, estimated)
         estimator.predict(displacement)
         measurements = self.sensors[agent.name].measure(truth_position, step)
         estimator.update(measurements)
@@ -424,7 +439,7 @@ class HarborRangeLocalization:
         self.reports[agent.name].append(estimator.observability())
         estimated = np.asarray(onboard, dtype=float).copy()
         estimated[:dimension] = estimator.position
-        return estimated
+        return agent.domain.project(agent.model, estimated)
 
     def belief(self, agent_name: str) -> dict:
         """Expose estimator uncertainty without exposing plant truth."""

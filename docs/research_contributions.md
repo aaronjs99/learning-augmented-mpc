@@ -1,5 +1,13 @@
 # Research Contributions
 
+## Scope boundary
+
+This repository is a simulator-first research benchmark. Results describe
+deterministic software experiments with modeled vehicle dynamics, sensors,
+communications, and disturbances; they are not hardware-validation claims.
+Any physical deployment requires separate system identification, sensor timing,
+state-estimation, safety review, and field trials.
+
 This project is an adaptation of decentralized LMPC to simplified robotic manta
 agents. The implementation intentionally differs from the vehicle paper in
 dynamics, safe-set construction, terminal constraints, and collision handling.

@@ -320,3 +320,10 @@ configurable. Each update reports residual RMS, rejected factors, window size,
 Jacobian rank, smallest singular value, and condition number. The dependency-
 free solver is a transparent research reference; solve time must be reported
 before claiming real-time performance.
+
+For the ROV, the smoother also receives a modeled depth observation
+`z_depth = z + b_depth + v_depth`. This explicit depth factor is separate from
+horizontal range geometry and is configured by `rov_depth_std` and
+`rov_depth_bias` in `range_aided_slam`. Estimated poses are projected into the
+configured physical domain before entering MPC; plant truth remains the sole
+source for safety scoring.

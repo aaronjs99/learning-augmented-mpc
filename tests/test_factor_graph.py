@@ -30,6 +30,8 @@ def test_fixed_lag_window_and_range_rejection_telemetry():
     assert len(estimator.poses) == 3
     assert report.rejected_ranges >= 1
     assert estimator.telemetry[-1]["window_size"] == 3
+    assert len(estimator._odometry_history) == 2
+    assert len(estimator._range_history) == 3
 
 
 def test_full_rov_pose_has_attitude_factors_and_psd_covariance_proxy():
@@ -43,8 +45,10 @@ def test_full_rov_pose_has_attitude_factors_and_psd_covariance_proxy():
         np.array([0.2, 0.0, -0.1]),
         (GraphRange("a", np.sqrt(4.0**2 + 2.0**2 + 2.0**2)),),
         attitude=np.array([0.0, 0.1, 0.0]),
+        depth=-0.1,
     )
     assert estimator.pose.shape == (6,)
     assert report.window_size == 2
     assert np.all(np.isfinite(estimator.pose))
+    assert abs(estimator.pose[2] + 0.1) < 0.1
     assert np.all(np.linalg.eigvalsh(estimator.position_covariance) >= -1.0e-10)

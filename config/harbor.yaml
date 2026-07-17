@@ -86,6 +86,8 @@ range_aided_slam:
   active_observability: false
   information_weight: 0.25
   information_max_excursion: 0.5
+  rov_depth_std: 0.06
+  rov_depth_bias: 0.0
   maximum_range: 20.0
   update_interval_steps: 1
   motion_std: [0.03, 0.03, 0.02]
