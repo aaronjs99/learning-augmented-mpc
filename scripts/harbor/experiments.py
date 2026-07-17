@@ -866,10 +866,12 @@ def _run_temporary_fault_trials(
     available = {
         "Fixed-covariance RLS",
         "Innovation-threshold RLS",
+        "Recovery-prior threshold RLS",
         "Chi-square CUSUM RLS",
         "CUSUM-triggered probing RLS",
     }
-    selected = available if controller_labels is None else set(controller_labels)
+    default = available - {"Recovery-prior threshold RLS"}
+    selected = default if controller_labels is None else set(controller_labels)
     if not selected or not selected <= available:
         raise ValueError("temporary-fault controller labels must be known and nonempty")
     study_mpc = replace(
@@ -882,10 +884,16 @@ def _run_temporary_fault_trials(
         ),
     )
     trials = []
-    for label, adaptive, detector in (
-        ("Fixed-covariance RLS", False, "threshold"),
-        ("Innovation-threshold RLS", True, "threshold"),
-        ("Chi-square CUSUM RLS", True, "cusum"),
+    for label, adaptive, detector, recovery_gain in (
+        ("Fixed-covariance RLS", False, "threshold", 0.0),
+        ("Innovation-threshold RLS", True, "threshold", 0.0),
+        (
+            "Recovery-prior threshold RLS",
+            True,
+            "threshold",
+            experiment_config.recovery_prior_gain,
+        ),
+        ("Chi-square CUSUM RLS", True, "cusum", 0.0),
     ):
         if label not in selected:
             continue
@@ -905,6 +913,7 @@ def _run_temporary_fault_trials(
                     effectiveness_rls_covariance_inflation=(
                         experiment_config.covariance_inflation
                     ),
+                    effectiveness_recovery_prior_gain=recovery_gain,
                 ),
                 disturbance,
                 seed_result,

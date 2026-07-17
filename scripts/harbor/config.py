@@ -84,6 +84,7 @@ class HarborTimeVaryingFaultConfig:
     event_detection_window_steps: int = 16
     change_warmup_steps: int = 8
     change_cooldown_steps: int = 10
+    recovery_prior_gain: float = 0.20
 
     def __post_init__(self) -> None:
         seeds = tuple(int(seed) for seed in self.observation_seeds)
@@ -95,6 +96,8 @@ class HarborTimeVaryingFaultConfig:
             raise ValueError(
                 "change threshold must be positive and covariance inflation at least 1"
             )
+        if not 0.0 <= self.recovery_prior_gain <= 1.0:
+            raise ValueError("recovery prior gain must lie in [0, 1]")
         integer_steps = (
             self.event_detection_window_steps,
             self.change_warmup_steps,
@@ -198,6 +201,51 @@ class HarborConfirmationCriteriaConfig:
             raise ValueError("confirmation rates must lie in [0, 1]")
         if not np.isfinite(self.maximum_mean_completion_cost_delta):
             raise ValueError("confirmation completion-cost bound must be finite")
+        object.__setattr__(self, "controller_labels", labels)
+
+
+@dataclass(frozen=True)
+class HarborRecoveryConfirmationCriteriaConfig:
+    """Predeclared gates for recovery-prior confirmation."""
+
+    controller_labels: tuple[str, ...] = (
+        "Fixed-covariance RLS",
+        "Innovation-threshold RLS",
+        "Recovery-prior threshold RLS",
+    )
+    minimum_recovery_win_rate: float = 0.8
+    require_positive_bootstrap_lower_bound: bool = True
+    minimum_completion_rate: float = 1.0
+    minimum_safety_rate: float = 1.0
+    minimum_fallback_free_rate: float = 1.0
+    maximum_mean_fault_interval_rmse_delta: float = 0.0
+    maximum_mean_final_rmse_delta: float = 0.0
+    maximum_mean_completion_cost_delta: float = 0.0
+
+    def __post_init__(self) -> None:
+        labels = tuple(str(label) for label in self.controller_labels)
+        expected = (
+            "Fixed-covariance RLS",
+            "Innovation-threshold RLS",
+            "Recovery-prior threshold RLS",
+        )
+        if labels != expected:
+            raise ValueError("recovery confirmation controllers are fixed")
+        rates = (
+            self.minimum_recovery_win_rate,
+            self.minimum_completion_rate,
+            self.minimum_safety_rate,
+            self.minimum_fallback_free_rate,
+        )
+        if any(not 0.0 <= value <= 1.0 for value in rates):
+            raise ValueError("recovery confirmation rates must lie in [0, 1]")
+        bounds = (
+            self.maximum_mean_fault_interval_rmse_delta,
+            self.maximum_mean_final_rmse_delta,
+            self.maximum_mean_completion_cost_delta,
+        )
+        if any(not np.isfinite(value) for value in bounds):
+            raise ValueError("recovery confirmation bounds must be finite")
         object.__setattr__(self, "controller_labels", labels)
 
 
@@ -412,6 +460,23 @@ def load_harbor_confirmation_criteria_config(
         HarborConfirmationCriteriaConfig,
         raw.get("temporary_fault_confirmation_criteria", {}),
         "temporary_fault_confirmation_criteria",
+    )
+
+
+def load_harbor_recovery_confirmation_criteria_config(
+    path: str | Path = DEFAULT_HARBOR_CONFIG,
+) -> HarborRecoveryConfirmationCriteriaConfig:
+    """Load predeclared recovery-prior confirmation gates."""
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / config_path
+    with config_path.open("r", encoding="utf-8") as stream:
+        raw = yaml.safe_load(stream) or {}
+    section = "temporary_fault_recovery_confirmation_criteria"
+    return _dataclass_from_mapping(
+        HarborRecoveryConfirmationCriteriaConfig,
+        raw.get(section, {}),
+        section,
     )
 
 

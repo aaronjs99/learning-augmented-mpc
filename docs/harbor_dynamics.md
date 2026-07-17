@@ -276,6 +276,39 @@ restoration update still receives covariance adaptation but does not reset
 information or request probes. This classifier is intentionally modest: mixed-
 sign simultaneous channel changes remain outside the current benchmark.
 
+### Experimental nominal-recovery prior
+
+Temporary restoration can leave RLS biased when an agent reaches its goal and
+commands no longer excite every physical channel. The opt-in recovery comparator
+first classifies the aggregate local update without using plant truth:
+
+```text
+r_k = mean(eta_hat_k^+ - eta_hat_k^-)
+```
+
+It acts only when the innovation detector fires and `r_k > epsilon`. For each
+positively moving channel `j`, it applies
+
+```text
+eta_hat_(j,k) <- clip(
+    eta_hat_(j,k)^+ + gamma_recovery (1 - eta_hat_(j,k)^+),
+    eta_min,
+    eta_max
+)
+```
+
+Channels with nonpositive updates are unchanged. Nominal effectiveness `1`
+means a healthy actuator, not knowledge of the hidden failure schedule.
+Covariance inflation remains active so later measurements can override the
+prior. The experiment gain is `0.20`; the base MPC gain remains zero, and only
+the explicit recovery comparator enables it.
+
+This is a project-specific regularization of event-adaptive diagonal RLS, not a
+claim that covariance resetting or event-triggered fault accommodation is new.
+Independent evidence improves average recovery tracking but fails stricter
+final-bias and task-cost gates, so it remains an ablation rather than the
+deployed estimator.
+
 For distributed collision prediction, a received peer message contains
 position `p`, velocity `v`, and goal `g`. Legacy prediction uses `p(t)=p+tv`
 for the full horizon. The goal-bounded model first computes

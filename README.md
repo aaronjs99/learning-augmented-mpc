@@ -121,6 +121,12 @@ Frozen fixed-versus-threshold confirmation after candidate selection:
 
 `python3 run.py harbor-temporary-fault-generalization --confirmation`
 
+Recovery-prior development and separately frozen confirmation:
+
+`python3 run.py harbor-temporary-fault-generalization --recovery-development`
+
+`python3 run.py harbor-temporary-fault-generalization --recovery-confirmation`
+
 These commands overwrite curated artifacts in `results/latest/harbor/`. The
 robustness command writes one metrics JSON, one combined diagnostic, and one
 GIF. Plant parameters are hidden from the controllers. Joint adaptation first
@@ -147,6 +153,10 @@ per-agent onset, duration, and observation seed. The holdout seeds are separate
 from development and must not be used for controller tuning. The confirmation
 command uses a third seed set, only the selected threshold-RLS and fixed
 comparator, and YAML-predeclared closed-loop pass/fail gates.
+
+The recovery-prior commands evaluate an aggregate-direction-gated,
+channel-selective nominal prior. Its independent confirmation did not pass every
+gate, so ordinary innovation-threshold RLS remains the confirmed default.
 
 Useful overrides:
 

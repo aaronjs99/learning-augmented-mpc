@@ -89,6 +89,7 @@ time_varying_fault_experiment:
   event_detection_window_steps: 16
   change_warmup_steps: 8
   change_cooldown_steps: 10
+  recovery_prior_gain: 0.20
 
 temporary_fault_ensemble:
   seeds: [149, 211, 307, 401, 503]
@@ -132,6 +133,39 @@ temporary_fault_confirmation_criteria:
   minimum_fallback_free_rate: 1.0
   maximum_mean_completion_cost_delta: 0.0
 
+temporary_fault_recovery_development:
+  seeds: [2203, 2309, 2411, 2521, 2633]
+  observation_seed_offset: 4000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 5000
+
+temporary_fault_recovery_confirmation:
+  seeds: [2741, 2851, 2963, 3079, 3181, 3299, 3407, 3529, 3631, 3761]
+  observation_seed_offset: 5000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 10000
+
+temporary_fault_recovery_confirmation_criteria:
+  controller_labels: [Fixed-covariance RLS, Innovation-threshold RLS, Recovery-prior threshold RLS]
+  minimum_recovery_win_rate: 0.8
+  require_positive_bootstrap_lower_bound: true
+  minimum_completion_rate: 1.0
+  minimum_safety_rate: 1.0
+  minimum_fallback_free_rate: 1.0
+  maximum_mean_fault_interval_rmse_delta: 0.0
+  maximum_mean_final_rmse_delta: 0.0
+  maximum_mean_completion_cost_delta: 0.0
+
 harbor_mpc:
   prediction_horizon: 12
   replan_interval_steps: 1
@@ -167,6 +201,8 @@ harbor_mpc:
   effectiveness_rls_change_persistence: 1
   effectiveness_rls_change_cooldown_steps: 20
   effectiveness_rls_change_warmup_steps: 0
+  effectiveness_recovery_prior_gain: 0.0
+  effectiveness_recovery_direction_tolerance: 0.000001
   effectiveness_rls_cusum_drift: 2.5
   effectiveness_rls_cusum_threshold: 12.0
   effectiveness_min: 0.5

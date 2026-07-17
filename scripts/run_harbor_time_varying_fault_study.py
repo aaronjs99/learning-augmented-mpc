@@ -23,6 +23,7 @@ from scripts.harbor.plotting import save_time_varying_fault_plot
 CONTROLLER_LABELS = (
     "Fixed-covariance RLS",
     "Innovation-threshold RLS",
+    "Recovery-prior threshold RLS",
     "Chi-square CUSUM RLS",
     "CUSUM-triggered probing RLS",
 )
@@ -356,6 +357,30 @@ def build_time_varying_fault_records(
                     "fault_event_steps": fault_event_steps,
                     "hidden_fault_schedule": hidden_schedule,
                     "tracking_rmse_history": global_history,
+                    "effectiveness_estimate_history": {
+                        agent.name: trial.effectiveness_history[agent.name][
+                            :count
+                        ].tolist()
+                        for agent in agents
+                    },
+                    "applied_effectiveness_history": {
+                        agent.name: trial.result.applied_effectiveness[agent.name][
+                            :count
+                        ].tolist()
+                        for agent in agents
+                    },
+                    "information_std_history": {
+                        agent.name: trial.information_std_history[agent.name][
+                            :count
+                        ].tolist()
+                        for agent in agents
+                    },
+                    "excitation_history": {
+                        agent.name: trial.excitation_history[agent.name][
+                            :count
+                        ].tolist()
+                        for agent in agents
+                    },
                     "platform_fault_rmse": platform_fault_rmse,
                     "platform_recovery_rmse": platform_recovery_rmse,
                     "fault_interval_rmse": float(

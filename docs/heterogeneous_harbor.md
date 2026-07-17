@@ -291,6 +291,29 @@ inflations per run. The confirmed simulation claim is therefore improved
 tracking during temporary actuator degradation with preserved safety and lower
 task cost under the configured heterogeneous distributed MPC benchmark.
 
+### Recovery-prior ablation and confirmation
+
+```text
+python run.py harbor-temporary-fault-generalization --recovery-development
+python run.py harbor-temporary-fault-generalization --recovery-confirmation
+```
+
+The recovery comparator adds an aggregate-direction gate and pulls only
+positively moving local actuator channels toward nominal effectiveness. It never
+reads fault times or magnitudes. On five development cases it wins `5/5`, lowers
+mean post-recovery RMSE by `7.13%`, and has positive paired interval
+`[0.00332, 0.02560]`; all runs complete safely without fallback.
+
+Before the next run, ten new seeds and strict gates were frozen in YAML. The
+independent confirmation wins `9/10` recovery pairs and lowers mean recovery
+RMSE by `3.23%`, with paired interval `[0.00162, 0.00613]`. It preserves `100%`
+completion, safety, and fallback-free execution and improves degraded-interval
+RMSE by `0.00123`. The full gate nevertheless fails: final estimate RMSE worsens
+by `0.00411`, and mean completion cost rises by `0.4` steps. Most confirmed
+recovery benefit comes from UGV 2 and the USV; UGV 1 is slightly worse. The
+recovery prior remains experimental, while ordinary innovation-threshold RLS
+remains the confirmed deployment candidate.
+
 ## Initial Evidence
 
 Run the deterministic ablation without creating an output file:

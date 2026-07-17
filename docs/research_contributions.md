@@ -274,6 +274,22 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       closed-loop task performance in simulation, not certified diagnosis,
       recovery convergence, population-level generalization, or hardware proof.
 
+21. **Direction-gated channel-selective recovery regularization (ablation)**
+    - A local detector event is classified by the mean diagonal-RLS update. Only
+      aggregate positive events enable a nominal-health prior, and only channels
+      with positive updates are moved. The controller remains blind to hidden
+      fault schedules and values.
+    - Five development cases show `5/5` recovery wins and `7.13%` lower mean
+      post-recovery RMSE with a positive paired interval while preserving
+      completion, safety, and fallback-free operation.
+    - A separately frozen ten-case confirmation shows `9/10` recovery wins,
+      `3.23%` mean recovery improvement, and paired interval
+      `[0.00162, 0.00613]`. Degraded-interval RMSE also improves by `0.00123`.
+    - The predeclared overall gate fails because final estimate RMSE worsens by
+      `0.00411` and mean task cost increases by `0.4` steps. The result supports
+      a repeatable short-horizon recovery effect, not promotion to the default
+      controller or a broad novelty claim.
+
 ## Current Evidence
 
 The nominal horizon study exposes where learning helps and where it does not:

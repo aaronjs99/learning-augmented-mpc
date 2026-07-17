@@ -1286,6 +1286,7 @@ def save_temporary_fault_generalization_plot(
     path: str | Path,
     *,
     study_title: str = "Generalization Across Hidden Temporary Actuator Faults",
+    headline: str | None = None,
 ) -> Path:
     """Plot paired adaptation benefits across hidden temporary-fault cases."""
     output = Path(path)
@@ -1293,6 +1294,7 @@ def save_temporary_fault_generalization_plot(
     fixed_label = "Fixed-covariance RLS"
     label_metadata = {
         "Innovation-threshold RLS": ("Threshold", "#2f9c95"),
+        "Recovery-prior threshold RLS": ("Threshold + recovery prior", "#d18f32"),
         "Chi-square CUSUM RLS": ("CUSUM", "#3974a8"),
         "CUSUM-triggered probing RLS": ("CUSUM + probes", "#7048a8"),
     }
@@ -1340,30 +1342,74 @@ def save_temporary_fault_generalization_plot(
     cost_axis.set_title("Task-Cost Tradeoff")
     cost_axis.set_ylabel("adaptive cost - fixed cost")
 
-    all_labels = (fixed_label, *labels)
-    all_short = ("Fixed", *short_labels)
-    all_colors = ("#b66a50", *colors)
-    label_x = np.arange(len(all_labels))
-    recall = [
-        100.0 * summary["controllers"][label]["mean_event_recall"]
-        for label in all_labels
-    ]
-    bars = event_axis.bar(label_x, recall, color=all_colors)
-    for bar, label in zip(bars, all_labels, strict=True):
-        false_count = summary["controllers"][label]["mean_false_inflations"]
-        event_axis.text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + 2.0,
-            f"false {false_count:.1f}",
-            ha="center",
-            va="bottom",
-            fontsize=8,
+    recovery_label = "Recovery-prior threshold RLS"
+    if recovery_label in labels:
+        platform_names = tuple(
+            by_key[(seeds[0], recovery_label)]["platform_recovery_rmse"]
         )
-    event_axis.set_title("Change-Event Coverage")
-    event_axis.set_ylabel("events matched within causal window (%)")
-    event_axis.set_ylim(0.0, 112.0)
-    event_axis.set_xticks(label_x, all_short, rotation=12)
-    event_axis.grid(True, axis="y", alpha=0.25)
+        platform_delta = [
+            np.mean(
+                [
+                    by_key[(seed, "Innovation-threshold RLS")][
+                        "platform_recovery_rmse"
+                    ][name]
+                    - by_key[(seed, recovery_label)]["platform_recovery_rmse"][name]
+                    for seed in seeds
+                ]
+            )
+            for name in platform_names
+        ]
+        platform_x = np.arange(len(platform_names))
+        platform_colors = ("#4978a8", "#5f8f52", "#2f9c95", "#7048a8")
+        event_axis.bar(
+            platform_x,
+            platform_delta,
+            color=[
+                platform_colors[index % len(platform_colors)]
+                for index in range(len(platform_names))
+            ],
+        )
+        event_axis.axhline(0.0, color="#555555", linewidth=1, linestyle="--")
+        event_axis.set_title("Recovery-Prior Benefit by Platform")
+        event_axis.set_ylabel("threshold RMSE - recovery-prior RMSE")
+        event_axis.set_xticks(
+            platform_x,
+            [
+                {
+                    "ground_rover_1": "UGV 1",
+                    "ground_rover_2": "UGV 2",
+                    "surface_vessel": "USV",
+                    "underwater_rov": "ROV",
+                }.get(name, name.replace("_", " "))
+                for name in platform_names
+            ],
+        )
+        event_axis.grid(True, axis="y", alpha=0.25)
+    else:
+        all_labels = (fixed_label, *labels)
+        all_short = ("Fixed", *short_labels)
+        all_colors = ("#b66a50", *colors)
+        label_x = np.arange(len(all_labels))
+        recall = [
+            100.0 * summary["controllers"][label]["mean_event_recall"]
+            for label in all_labels
+        ]
+        bars = event_axis.bar(label_x, recall, color=all_colors)
+        for bar, label in zip(bars, all_labels, strict=True):
+            false_count = summary["controllers"][label]["mean_false_inflations"]
+            event_axis.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 2.0,
+                f"false {false_count:.1f}",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
+        event_axis.set_title("Change-Event Coverage")
+        event_axis.set_ylabel("events matched within causal window (%)")
+        event_axis.set_ylim(0.0, 112.0)
+        event_axis.set_xticks(label_x, all_short, rotation=12)
+        event_axis.grid(True, axis="y", alpha=0.25)
 
     threshold = summary["paired_vs_fixed"]["Innovation-threshold RLS"]
     threshold_clean = summary["controllers"]["Innovation-threshold RLS"][
@@ -1371,10 +1417,16 @@ def save_temporary_fault_generalization_plot(
     ]
     fig.suptitle(
         f"{study_title}\n"
-        f"threshold-RLS wins {threshold['adaptive_wins']}/{threshold['trials']}; "
-        f"mean RMSE reduction "
-        f"{100.0 * threshold['mean_relative_rmse_reduction']:.1f}%; "
-        f"fallback-free {100.0 * threshold_clean:.0f}%",
+        + (
+            headline
+            if headline is not None
+            else (
+                f"threshold-RLS wins {threshold['adaptive_wins']}/"
+                f"{threshold['trials']}; mean RMSE reduction "
+                f"{100.0 * threshold['mean_relative_rmse_reduction']:.1f}%; "
+                f"fallback-free {100.0 * threshold_clean:.0f}%"
+            )
+        ),
         fontsize=15,
     )
     fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.92))

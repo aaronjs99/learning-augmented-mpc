@@ -55,6 +55,8 @@ class HarborMPCConfig:
     effectiveness_rls_change_persistence: int = 1
     effectiveness_rls_change_cooldown_steps: int = 20
     effectiveness_rls_change_warmup_steps: int = 0
+    effectiveness_recovery_prior_gain: float = 0.0
+    effectiveness_recovery_direction_tolerance: float = 1.0e-6
     effectiveness_rls_cusum_drift: float = 1.5
     effectiveness_rls_cusum_threshold: float = 4.0
     effectiveness_min: float = 0.5
@@ -124,6 +126,8 @@ class HarborMPCConfig:
             self.effectiveness_rls_covariance_inflation,
             self.effectiveness_rls_cusum_drift,
             self.effectiveness_rls_cusum_threshold,
+            self.effectiveness_recovery_prior_gain,
+            self.effectiveness_recovery_direction_tolerance,
             self.effectiveness_min,
             self.effectiveness_max,
             self.effectiveness_excitation_threshold,
@@ -153,6 +157,8 @@ class HarborMPCConfig:
             raise ValueError("RLS noise, gates, and covariance inflation must be positive")
         if self.effectiveness_rls_covariance_inflation < 1.0:
             raise ValueError("effectiveness_rls_covariance_inflation must be at least 1")
+        if self.effectiveness_recovery_prior_gain > 1.0:
+            raise ValueError("effectiveness_recovery_prior_gain must be in [0, 1]")
         if self.effectiveness_rls_change_detector not in {"threshold", "cusum"}:
             raise ValueError(
                 "effectiveness_rls_change_detector must be threshold or cusum"
@@ -900,8 +906,6 @@ class DistributedHarborMPC:
                     )
                 )
                 self.effectiveness_change_evidence_by_agent[agent.name] = evidence
-                self.control_effectiveness_estimates[agent.name] = estimate
-                self.effectiveness_covariances[agent.name] = covariance
                 if change_detected:
                     self.effectiveness_change_steps_by_agent[agent.name].append(
                         current_step
@@ -912,6 +916,20 @@ class DistributedHarborMPC:
                     loss_detected = _effectiveness_change_is_loss(
                         previous_effectiveness, estimate
                     )
+                    recovery_detected = _effectiveness_change_is_recovery(
+                        previous_effectiveness,
+                        estimate,
+                        self.config.effectiveness_recovery_direction_tolerance,
+                    )
+                    if recovery_detected:
+                        estimate = _apply_nominal_recovery_prior(
+                            previous_effectiveness,
+                            estimate,
+                            self.config.effectiveness_recovery_prior_gain,
+                            self.config.effectiveness_recovery_direction_tolerance,
+                            self.config.effectiveness_min,
+                            self.config.effectiveness_max,
+                        )
                     permit_identification = (
                         not self.config.identification_arm_on_loss_only
                         or loss_detected
@@ -929,6 +947,8 @@ class DistributedHarborMPC:
                         and permit_identification
                     ):
                         self.identification_change_armed_by_agent[agent.name] = True
+                self.control_effectiveness_estimates[agent.name] = estimate
+                self.effectiveness_covariances[agent.name] = covariance
             else:
                 self.control_effectiveness_estimates[agent.name] = (
                     _estimate_effectiveness_vector(
@@ -1133,6 +1153,31 @@ def _effectiveness_change_is_loss(
     previous = np.asarray(previous, dtype=float)
     updated = np.asarray(updated, dtype=float)
     return bool(np.mean(updated - previous) < -tolerance)
+
+
+def _effectiveness_change_is_recovery(
+    previous: np.ndarray, updated: np.ndarray, tolerance: float = 1.0e-6
+) -> bool:
+    """Classify an aggregate positive actuator change without plant truth."""
+    previous = np.asarray(previous, dtype=float)
+    updated = np.asarray(updated, dtype=float)
+    return bool(np.mean(updated - previous) > tolerance)
+
+
+def _apply_nominal_recovery_prior(
+    previous: np.ndarray,
+    updated: np.ndarray,
+    gain: float,
+    direction_tolerance: float,
+    lower: float,
+    upper: float,
+) -> np.ndarray:
+    """Pull only positively changing actuator channels toward nominal health."""
+    previous = np.asarray(previous, dtype=float)
+    result = np.asarray(updated, dtype=float).copy()
+    recovering = result - previous > direction_tolerance
+    result[recovering] += gain * (1.0 - result[recovering])
+    return np.clip(result, lower, upper)
 
 
 def _dynamic_state_scale(model: PlatformModel) -> np.ndarray:

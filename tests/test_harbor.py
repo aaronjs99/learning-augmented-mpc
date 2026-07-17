@@ -17,6 +17,7 @@ from scripts.harbor import (
     HarborObservationNoiseConfig,
     load_harbor_config,
     load_harbor_confirmation_criteria_config,
+    load_harbor_recovery_confirmation_criteria_config,
     load_harbor_disturbance_config,
     load_harbor_fault_ensemble_config,
     load_harbor_fault_config,
@@ -36,9 +37,11 @@ from scripts.harbor.mpc import (
     DistributedHarborMPC,
     HarborAgentOptimizer,
     _approach_pose_goal,
+    _apply_nominal_recovery_prior,
     _estimate_control_effectiveness,
     _estimate_diagonal_control_effectiveness,
     _effectiveness_change_is_loss,
+    _effectiveness_change_is_recovery,
     _goal_bounded_velocity_prediction,
     _identification_channel,
     _information_identification_channel,
@@ -57,6 +60,8 @@ from scripts.run_harbor_time_varying_fault_study import (
 )
 from scripts.run_harbor_temporary_fault_generalization import (
     evaluate_confirmation,
+    evaluate_recovery_confirmation,
+    summarize_recovery_prior,
 )
 
 
@@ -68,6 +73,36 @@ class HarborTests(unittest.TestCase):
         )
         self.assertFalse(
             _effectiveness_change_is_loss(prior, np.array([1.0, 0.9, 0.8]))
+        )
+        self.assertTrue(
+            _effectiveness_change_is_recovery(prior, np.array([1.0, 0.9, 0.8]))
+        )
+        self.assertFalse(
+            _effectiveness_change_is_recovery(prior, np.array([0.7, 0.8, 0.8]))
+        )
+
+    def test_nominal_recovery_prior_updates_only_positive_channels(self) -> None:
+        previous = np.array([0.60, 0.80, 0.90])
+        updated = np.array([0.70, 0.75, 0.90])
+        recovered = _apply_nominal_recovery_prior(
+            previous,
+            updated,
+            gain=0.5,
+            direction_tolerance=1.0e-6,
+            lower=0.5,
+            upper=1.2,
+        )
+        np.testing.assert_allclose(recovered, [0.85, 0.75, 0.90])
+        np.testing.assert_allclose(
+            _apply_nominal_recovery_prior(
+                previous,
+                updated,
+                gain=0.0,
+                direction_tolerance=1.0e-6,
+                lower=0.5,
+                upper=1.2,
+            ),
+            updated,
         )
 
     def test_recursive_estimator_can_request_active_identification(self) -> None:
@@ -235,6 +270,71 @@ class HarborTests(unittest.TestCase):
         )
         self.assertFalse(rejected["passed"])
         self.assertFalse(rejected["checks"]["completion_cost_delta"])
+
+    def test_recovery_prior_summary_uses_paired_threshold_trials(self) -> None:
+        records = []
+        for seed, baseline_recovery, candidate_recovery in (
+            (11, 0.20, 0.10),
+            (17, 0.30, 0.15),
+        ):
+            for label, recovery, fault_rmse, final_rmse, cost in (
+                (
+                    "Innovation-threshold RLS",
+                    baseline_recovery,
+                    0.10,
+                    0.20,
+                    50.0,
+                ),
+                (
+                    "Recovery-prior threshold RLS",
+                    candidate_recovery,
+                    0.11,
+                    0.12,
+                    49.0,
+                ),
+            ):
+                records.append(
+                    {
+                        "seed": seed,
+                        "controller": label,
+                        "recovery_rmse": recovery,
+                        "fault_interval_rmse": fault_rmse,
+                        "final_effectiveness_rmse": final_rmse,
+                        "sustained_completion_cost": cost,
+                        "all_goals_reached": True,
+                        "pairwise_violation_count": 0,
+                        "max_collision_slack": 0.0,
+                        "solver_fallbacks": 0,
+                    }
+                )
+        result = summarize_recovery_prior(records, bootstrap_samples=200)
+        self.assertEqual(result["recovery_wins"], 2)
+        self.assertAlmostEqual(result["mean_recovery_rmse_reduction"], 0.125)
+        self.assertAlmostEqual(result["mean_relative_recovery_rmse_reduction"], 0.5)
+        self.assertAlmostEqual(result["mean_fault_interval_rmse_delta"], 0.01)
+        self.assertAlmostEqual(result["mean_final_rmse_reduction"], 0.08)
+        self.assertAlmostEqual(result["mean_completion_cost_delta"], -1.0)
+        self.assertEqual(result["completion_rate"], 1.0)
+        self.assertGreater(
+            result["paired_mean_recovery_reduction_bootstrap_95_ci"][0], 0.0
+        )
+
+        criteria = load_harbor_recovery_confirmation_criteria_config()
+        self.assertEqual(
+            criteria.controller_labels[-1], "Recovery-prior threshold RLS"
+        )
+        confirmation = evaluate_recovery_confirmation(result, criteria)
+        self.assertFalse(confirmation["passed"])
+        self.assertFalse(confirmation["checks"]["fault_interval_rmse_delta"])
+        accepted = evaluate_recovery_confirmation(
+            {
+                **result,
+                "mean_fault_interval_rmse_delta": -0.01,
+                "mean_final_rmse_reduction": 0.01,
+            },
+            criteria,
+        )
+        self.assertTrue(accepted["passed"])
 
     def test_scheduled_faults_switch_execution_truth_at_configured_steps(self) -> None:
         agents, simulation, communication = load_harbor_config()
