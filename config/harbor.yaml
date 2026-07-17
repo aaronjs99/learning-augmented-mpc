@@ -65,6 +65,30 @@ observation_noise:
     # ROV: [x, y, z, roll, pitch, yaw, u, v, w, p, q, r]
     rov: [0.02, 0.02, 0.015, 0.008, 0.008, 0.01, 0.02, 0.02, 0.015, 0.008, 0.008, 0.008]
 
+range_aided_slam:
+  enabled: false
+  mode: joint_landmark_ekf
+  range_std: 0.08
+  range_bias: 0.0
+  dropout_probability: 0.05
+  maximum_range: 20.0
+  update_interval_steps: 1
+  motion_std: [0.03, 0.03, 0.02]
+  odometry_bias: [0.002, -0.001, 0.001]
+  simulate_odometry_noise: true
+  initial_pose_std: 0.5
+  initial_landmark_std: 2.0
+  observability_window: 20
+  observability_rank_tolerance: 0.000001
+  defer_landmarks_until_pose_observable: true
+  landmark_pose_coupling_std: 0.01
+  seed: 801
+  beacons:
+    - {name: quay_west, true_position: [-4.2, 4.8, 0.0], initial_position: [-4.2, 4.8, 0.0], fixed: true}
+    - {name: quay_east, true_position: [4.2, 4.8, 0.0], initial_position: [4.2, 4.8, 0.0], fixed: true}
+    - {name: subsea_west, true_position: [-3.5, 0.5, -3.5], initial_position: [-2.8, 0.0, -3.0], fixed: false}
+    - {name: subsea_east, true_position: [3.5, 0.5, -3.5], initial_position: [2.8, 0.0, -3.0], fixed: false}
+
 time_varying_fault_study:
   water_current: [0.0, 0.0, 0.0]
   evaluation_hold_steps: 12
@@ -341,6 +365,44 @@ dynamic_envelope_retry_confirmation:
   water_current_min: [-0.10, 0.0, 0.01]
   water_current_max: [-0.04, 0.0, 0.03]
 
+station_keeping_development:
+  seeds: [15557, 15679, 15803, 15923, 16057]
+  observation_seed_offset: 19000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 5000
+  water_current_min: [-0.10, 0.0, 0.01]
+  water_current_max: [-0.04, 0.0, 0.03]
+
+station_keeping_confirmation:
+  seeds: [16183, 16301, 16421, 16547, 16673, 16787, 16901, 17027, 17159, 17291]
+  observation_seed_offset: 20000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 10000
+  water_current_min: [-0.10, 0.0, 0.01]
+  water_current_max: [-0.04, 0.0, 0.03]
+
+station_keeping_confirmation_criteria:
+  controller_labels: [Hard-envelope transient-offset RLS, Kinematic-current RLS transient-offset RLS]
+  minimum_candidate_completion_rate: 1.0
+  minimum_usv_yaw_win_rate: 0.8
+  minimum_safety_rate: 1.0
+  minimum_fallback_free_rate: 1.0
+  maximum_mean_usv_yaw_error_delta: -0.01
+  maximum_mean_usv_position_error_delta: 0.03
+  maximum_mean_usv_current_rmse_delta: -0.01
+  maximum_mean_recovery_rmse_delta: 0.002
+  maximum_mean_completion_cost_delta: 15.0
+
 harbor_mpc:
   prediction_horizon: 12
   replan_interval_steps: 1
@@ -372,6 +434,13 @@ harbor_mpc:
   residual_control_projection: full
   residual_estimator_gain: 0.35
   residual_max_speed: 0.35
+  residual_estimator_mode: ewma
+  residual_measurement_source: model_prediction
+  residual_rls_initial_std: 0.20
+  residual_rls_measurement_noise: 0.25
+  residual_rls_process_noise: 0.0001
+  residual_rls_innovation_gate: 3.0
+  residual_change_holdoff_steps: 0
   control_effectiveness_adaptation: false
   effectiveness_estimator_gain: 0.25
   effectiveness_rls_forgetting_factor: 0.995

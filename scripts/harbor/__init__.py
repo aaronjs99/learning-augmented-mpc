@@ -12,6 +12,7 @@ from .config import (
     HarborJointUncertaintyCriteriaConfig,
     HarborProjectedResidualCriteriaConfig,
     HarborDynamicEnvelopeCriteriaConfig,
+    HarborStationKeepingCriteriaConfig,
     load_harbor_config,
     load_harbor_disturbance_config,
     load_harbor_fault_config,
@@ -25,6 +26,7 @@ from .config import (
     load_harbor_joint_uncertainty_criteria_config,
     load_harbor_projected_residual_criteria_config,
     load_harbor_dynamic_envelope_criteria_config,
+    load_harbor_station_keeping_criteria_config,
 )
 from .models import (
     PlatformModel,
@@ -33,6 +35,16 @@ from .models import (
     UGVModel,
     USVModel,
     make_platform_model,
+)
+from .localization import (
+    ObservabilityReport,
+    HarborRangeLocalization,
+    RangeAidedEKF,
+    RangeAidedSLAMConfig,
+    RangeBeacon,
+    RangeMeasurement,
+    RangeSensor,
+    load_range_aided_slam_config,
 )
 from .mpc import HarborMPCConfig, load_harbor_mpc_config
 from .simulation import (
@@ -59,15 +71,23 @@ __all__ = [
     "HarborJointUncertaintyCriteriaConfig",
     "HarborProjectedResidualCriteriaConfig",
     "HarborDynamicEnvelopeCriteriaConfig",
+    "HarborStationKeepingCriteriaConfig",
     "HarborDisturbanceConfig",
     "HarborResult",
     "HarborSimulationConfig",
     "LinkConfig",
     "HarborMPCConfig",
     "HarborObservationNoiseConfig",
+    "HarborRangeLocalization",
     "OperatingDomain",
+    "ObservabilityReport",
     "PlatformModel",
     "ROVModel",
+    "RangeAidedEKF",
+    "RangeAidedSLAMConfig",
+    "RangeBeacon",
+    "RangeMeasurement",
+    "RangeSensor",
     "SkidSteerUGVModel",
     "UGVModel",
     "USVModel",
@@ -85,6 +105,8 @@ __all__ = [
     "load_harbor_joint_uncertainty_criteria_config",
     "load_harbor_projected_residual_criteria_config",
     "load_harbor_dynamic_envelope_criteria_config",
+    "load_harbor_station_keeping_criteria_config",
+    "load_range_aided_slam_config",
     "make_platform_model",
     "run_harbor_simulation",
 ]

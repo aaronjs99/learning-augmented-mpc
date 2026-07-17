@@ -316,6 +316,9 @@ def build_time_varying_fault_records(
             platform_histories = {agent.name: [] for agent in agents}
             current_history = []
             control_current_history = []
+            platform_current_histories = {
+                agent.name: [] for agent in marine_agents
+            }
             for step in range(count):
                 errors = []
                 for agent in agents:
@@ -329,7 +332,11 @@ def build_time_varying_fault_records(
                 for agent in marine_agents:
                     estimate = trial.residual_history[agent.name][step]
                     truth = case.disturbance.current(agent.model)
-                    current_errors.extend((estimate - truth).tolist())
+                    error = estimate - truth
+                    current_errors.extend(error.tolist())
+                    platform_current_histories[agent.name].append(
+                        float(np.sqrt(np.mean(error * error)))
+                    )
                 current_history.append(
                     float(np.sqrt(np.mean(np.square(current_errors))))
                 )
@@ -443,6 +450,14 @@ def build_time_varying_fault_records(
                     "final_effectiveness_rmse": global_history[-1],
                     "current_rmse": float(np.mean(current_history)),
                     "final_current_rmse": current_history[-1],
+                    "platform_current_rmse": {
+                        name: float(np.mean(values))
+                        for name, values in platform_current_histories.items()
+                    },
+                    "platform_final_current_rmse": {
+                        name: values[-1]
+                        for name, values in platform_current_histories.items()
+                    },
                     "control_current_rmse": float(
                         np.mean(control_current_history)
                     ),
@@ -478,6 +493,9 @@ def build_time_varying_fault_records(
                     "dynamic_state_retry_count_by_agent": (
                         trial.dynamic_state_retry_count_by_agent
                     ),
+                    "residual_rejection_count_by_agent": (
+                        trial.residual_rejection_count_by_agent
+                    ),
                     "solver_fallbacks": trial.solver_fallbacks,
                     "solver_fallbacks_by_agent": trial.solver_fallbacks_by_agent,
                     "solver_failure_steps_by_agent": (
@@ -487,6 +505,18 @@ def build_time_varying_fault_records(
                         trial.solver_failure_status_counts
                     ),
                     "sustained_completion_cost": sustained_cost,
+                    "control_total_variation": {
+                        agent.name: float(
+                            np.sum(
+                                np.abs(
+                                    np.diff(
+                                        trial.result.controls[agent.name], axis=0
+                                    )
+                                )
+                            )
+                        )
+                        for agent in agents
+                    },
                     "event_recall": event_recall,
                     "false_inflations": false_inflations,
                     "mean_detection_delay": mean_detection_delay,

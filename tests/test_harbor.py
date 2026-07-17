@@ -15,6 +15,12 @@ from scripts.harbor import (
     DEFAULT_HARBOR_CONFIG,
     HarborDisturbanceConfig,
     HarborObservationNoiseConfig,
+    HarborRangeLocalization,
+    RangeAidedEKF,
+    RangeAidedSLAMConfig,
+    RangeBeacon,
+    RangeMeasurement,
+    RangeSensor,
     load_harbor_config,
     load_harbor_confirmation_criteria_config,
     load_harbor_dynamic_envelope_criteria_config,
@@ -25,6 +31,7 @@ from scripts.harbor import (
     load_harbor_observation_noise_config,
     load_harbor_temporary_fault_ensemble_config,
     load_harbor_time_varying_fault_config,
+    load_range_aided_slam_config,
     run_harbor_simulation,
 )
 from scripts.harbor.experiments import (
@@ -40,6 +47,7 @@ from scripts.harbor.mpc import (
     _approach_pose_goal,
     _apply_nominal_recovery_prior,
     _channel_selective_recovery_offset,
+    _constant_bias_residual_update,
     _control_position_drift,
     _estimate_control_effectiveness,
     _estimate_diagonal_control_effectiveness,
@@ -49,6 +57,7 @@ from scripts.harbor.mpc import (
     _has_full_column_rank,
     _identification_channel,
     _information_identification_channel,
+    _kinematic_position_drift_measurement,
     _least_excited_channel,
     _recursive_diagonal_effectiveness_update,
     load_harbor_mpc_config,
@@ -74,6 +83,116 @@ from scripts.run_harbor_dynamic_envelope_study import (
 
 
 class HarborTests(unittest.TestCase):
+    def test_range_localization_runs_behind_simulator_observation_boundary(self) -> None:
+        agents, simulation, communication = load_harbor_config()
+        range_config = replace(
+            load_range_aided_slam_config(DEFAULT_HARBOR_CONFIG),
+            enabled=True,
+            dropout_probability=0.0,
+        )
+        localization = HarborRangeLocalization(range_config)
+        result = run_harbor_simulation(
+            agents,
+            replace(simulation, horizon=3),
+            replace(communication, enabled=False),
+            observation_noise=HarborObservationNoiseConfig(enabled=True, seed=41),
+            localization_provider=localization,
+        )
+        self.assertEqual(set(localization.reports), {agent.name for agent in agents})
+        self.assertTrue(all(len(reports) >= 2 for reports in localization.reports.values()))
+        self.assertEqual(result.observed_states["underwater_rov"].shape[1], 12)
+
+    def test_range_sensor_noise_dropout_and_config_are_reproducible(self) -> None:
+        configured = load_range_aided_slam_config(DEFAULT_HARBOR_CONFIG)
+        self.assertEqual(configured.mode, "joint_landmark_ekf")
+        config = RangeAidedSLAMConfig(
+            enabled=True,
+            range_std=0.01,
+            dropout_probability=0.0,
+            seed=17,
+            beacons=(RangeBeacon("a", (3.0, 4.0), (3.0, 4.0), True),),
+        )
+        first = RangeSensor(config).measure(np.zeros(2), 0)
+        second = RangeSensor(config).measure(np.zeros(2), 0)
+        self.assertEqual(first, second)
+        self.assertAlmostEqual(first[0].distance, 5.0, delta=0.05)
+
+    def test_known_anchor_ranges_recover_position_and_observability(self) -> None:
+        beacons = (
+            RangeBeacon("a", (0.0, 0.0), (0.0, 0.0), True),
+            RangeBeacon("b", (5.0, 0.0), (5.0, 0.0), True),
+            RangeBeacon("c", (0.0, 5.0), (0.0, 5.0), True),
+        )
+        config = RangeAidedSLAMConfig(
+            enabled=True,
+            mode="known_anchor_ekf",
+            range_std=0.03,
+            initial_pose_std=1.0,
+            beacons=beacons,
+        )
+        estimator = RangeAidedEKF(config, np.array([2.8, 1.2]))
+        truth = np.array([2.0, 2.0])
+        measurements = tuple(
+            RangeMeasurement(beacon.name, float(np.linalg.norm(truth - beacon.true_position)))
+            for beacon in beacons
+        )
+        for _ in range(5):
+            estimator.update(measurements)
+        np.testing.assert_allclose(estimator.position, truth, atol=0.05)
+        report = estimator.observability()
+        self.assertTrue(report.observable)
+        self.assertEqual(report.rank, 2)
+
+    def test_unknown_beacon_slam_exposes_gauge_unobservability(self) -> None:
+        config = RangeAidedSLAMConfig(
+            enabled=True,
+            mode="joint_landmark_ekf",
+            range_std=0.05,
+            beacons=(RangeBeacon("unknown", (4.0, 0.0), (3.0, 1.0), False),),
+        )
+        estimator = RangeAidedEKF(config, np.array([0.0, 0.0]))
+        estimator.update((RangeMeasurement("unknown", 4.0),))
+        report = estimator.observability()
+        self.assertFalse(report.observable)
+        self.assertLess(report.rank, report.state_dimension)
+
+    def test_kinematic_usv_current_measurement_ignores_actuator_model(self) -> None:
+        agents, simulation, _ = load_harbor_config()
+        usv = agents[2]
+        previous = usv.start.copy()
+        current = usv.model.step(
+            previous,
+            np.array([4.0, 11.0]),
+            simulation.dt,
+        )
+        hidden_current = np.array([-0.08, 0.03, 0.0])
+        current[:2] += simulation.dt * hidden_current[:2]
+        measured = _kinematic_position_drift_measurement(
+            usv.model, previous, current, simulation.dt, 1
+        )
+        np.testing.assert_allclose(measured, hidden_current, atol=1.0e-12)
+
+    def test_constant_bias_residual_rejects_outlier_and_reduces_variance(self) -> None:
+        config = replace(
+            load_harbor_mpc_config(),
+            residual_estimator_mode="constant_bias_rls",
+            residual_rls_innovation_gate=2.0,
+        )
+        prior = np.zeros(3)
+        variance = np.full(3, 0.04)
+        estimate, posterior, rejected = _constant_bias_residual_update(
+            prior,
+            variance,
+            np.array([-0.08, 0.03, 2.0]),
+            config,
+        )
+        self.assertEqual(rejected, 1)
+        self.assertLess(estimate[0], 0.0)
+        self.assertGreater(estimate[1], 0.0)
+        self.assertEqual(estimate[2], 0.0)
+        self.assertTrue(np.all(posterior[:2] < variance[:2]))
+        self.assertGreater(posterior[2], variance[2])
+
     def test_dynamic_envelope_summary_and_frozen_gates(self) -> None:
         records = []
         for seed, baseline_complete in ((11, False), (17, True)):

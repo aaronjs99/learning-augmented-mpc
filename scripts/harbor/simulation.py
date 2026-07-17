@@ -409,6 +409,7 @@ def run_harbor_simulation(
     control_provider: HarborControlProvider | None = None,
     disturbance: HarborDisturbanceConfig | None = None,
     observation_noise: HarborObservationNoiseConfig | None = None,
+    localization_provider=None,
 ) -> HarborResult:
     """Simulate independent platforms coordinated only by received messages."""
     if len(agents) < 2:
@@ -426,12 +427,19 @@ def run_harbor_simulation(
         agent.name: np.random.default_rng(child)
         for agent, child in zip(agents, seed_sequence.spawn(len(agents)), strict=True)
     }
-    observed_histories = {
-        agent.name: [
-            sensor.measure(agent, current[agent.name], sensor_rngs[agent.name])
-        ]
-        for agent in agents
-    }
+    observed_histories = {}
+    for agent in agents:
+        onboard = sensor.measure(
+            agent, current[agent.name], sensor_rngs[agent.name]
+        )
+        if localization_provider is not None:
+            onboard = localization_provider.estimate(
+                agent=agent,
+                truth=current[agent.name],
+                onboard=onboard,
+                step=0,
+            )
+        observed_histories[agent.name] = [onboard]
     controls = {name: [] for name in names}
     applied_controls = {name: [] for name in names}
     applied_effectiveness = {name: [] for name in names}
@@ -470,6 +478,18 @@ def run_harbor_simulation(
         inboxes = network.exchange(step, observations)
         next_states = {}
         for name, agent in by_name.items():
+            observe = (
+                getattr(control_provider, "observe", None)
+                if control_provider is not None
+                else None
+            )
+            if observe is not None:
+                observe(
+                    agent=agent,
+                    state=measured[name],
+                    step=step,
+                    dt=config.dt,
+                )
             position = observations[name][0]
             route = agent.route
             while (
@@ -580,11 +600,17 @@ def run_harbor_simulation(
         current = next_states
         for name in names:
             histories[name].append(current[name].copy())
-            observed_histories[name].append(
-                sensor.measure(
-                    by_name[name], current[name], sensor_rngs[name]
-                )
+            onboard = sensor.measure(
+                by_name[name], current[name], sensor_rngs[name]
             )
+            if localization_provider is not None:
+                onboard = localization_provider.estimate(
+                    agent=by_name[name],
+                    truth=current[name],
+                    onboard=onboard,
+                    step=step + 1,
+                )
+            observed_histories[name].append(onboard)
             goal_hold_counts[name] = (
                 goal_hold_counts[name] + 1
                 if _goal_reached(by_name[name], current[name], by_name[name].goal, config)

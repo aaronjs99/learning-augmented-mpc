@@ -1759,6 +1759,67 @@ def save_dynamic_envelope_plot(
     return output
 
 
+def save_station_keeping_plot(
+    records, summary, path: str | Path, confirmation: dict | None = None
+) -> Path:
+    """Plot paired current-observer and Heron station-keeping outcomes."""
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    labels = tuple(summary["controllers"])
+    seeds = sorted({record["seed"] for record in records})
+    by_key = {(record["seed"], record["controller"]): record for record in records}
+    colors = ("#5b6472", "#2a9d8f", "#1976b9")
+    short = {
+        "Hard-envelope transient-offset RLS": "model residual",
+        "Kinematic-current EWMA transient-offset RLS": "kinematic EWMA",
+        "Kinematic-current RLS transient-offset RLS": "kinematic RLS",
+    }
+    fig, axes = plt.subplots(2, 2, figsize=(13.5, 8.5), sharex=True)
+    x = np.arange(len(seeds))
+    metrics = (
+        ("final_orientation_errors", "Heron final yaw error", "absolute error [rad]"),
+        ("final_goal_errors", "Heron final position error", "error [m]"),
+        ("platform_current_rmse", "Heron current-estimation RMSE", "RMSE [m/s]"),
+        ("control_total_variation", "Heron waterjet command variation", "total variation"),
+    )
+    for axis, (field, title, ylabel) in zip(axes.flat, metrics):
+        for label, color in zip(labels, colors):
+            axis.plot(
+                x,
+                [by_key[(seed, label)][field]["surface_vessel"] for seed in seeds],
+                "o-",
+                color=color,
+                linewidth=1.8,
+                markersize=5,
+                label=short.get(label, label),
+            )
+        axis.set_title(title)
+        axis.set_ylabel(ylabel)
+        axis.grid(True, alpha=0.25)
+    axes[0, 0].axhline(0.15, color="#b44a4a", linestyle="--", label="yaw tolerance")
+    for axis in axes[1]:
+        axis.set_xticks(x, [str(seed) for seed in seeds], rotation=30)
+        axis.set_xlabel("matched hidden-current and actuator-fault case")
+    for axis in axes.flat:
+        axis.legend(fontsize=8)
+    gate = (
+        "development"
+        if confirmation is None
+        else f"confirmation {'PASSED' if confirmation['passed'] else 'FAILED'}"
+    )
+    fig.suptitle(
+        "Actuator-Independent Current Observation for Heron Station Keeping\n"
+        f"{gate}; kinematic RLS yaw wins {summary['usv_yaw_wins']}/"
+        f"{summary['trials']}; mean current-RMSE delta "
+        f"{summary['mean_usv_current_rmse_delta']:+.3f} m/s",
+        fontsize=15,
+    )
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.91))
+    fig.savefig(output, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+    return output
+
+
 def _effectiveness_rmse_history(trial, agents, disturbance) -> np.ndarray:
     lengths = [len(trial.effectiveness_history[agent.name]) for agent in agents]
     count = min(lengths, default=0)

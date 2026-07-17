@@ -30,3 +30,7 @@ ignored. Core artifacts include:
 - `temporary_fault_holdout.{json,png}`: separately seeded one-way evaluation.
 - `temporary_fault_confirmation.{json,png}`: frozen threshold-RLS confirmation
   with machine-readable acceptance gates.
+- `station_keeping_development.{json,png}`: actuator-independent marine-current
+  observer evidence with an untouched confirmation ensemble.
+- `range_aided_slam_development.{json,png}`: dead-reckoning, known-map,
+  joint-landmark, and high-dropout localization evidence.

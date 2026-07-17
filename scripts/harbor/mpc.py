@@ -50,6 +50,13 @@ class HarborMPCConfig:
     residual_control_projection: str = "full"
     residual_estimator_gain: float = 0.35
     residual_max_speed: float = 0.35
+    residual_estimator_mode: str = "ewma"
+    residual_measurement_source: str = "model_prediction"
+    residual_rls_initial_std: float = 0.20
+    residual_rls_measurement_noise: float = 0.25
+    residual_rls_process_noise: float = 1.0e-4
+    residual_rls_innovation_gate: float = 3.0
+    residual_change_holdoff_steps: int = 0
     control_effectiveness_adaptation: bool = False
     effectiveness_estimator_mode: str = "scalar"
     effectiveness_estimator_gain: float = 0.25
@@ -115,6 +122,18 @@ class HarborMPCConfig:
                 "residual_control_projection must be full, actuation_subspace, "
                 "or station_keeping_subspace"
             )
+        if self.residual_estimator_mode not in {"ewma", "constant_bias_rls"}:
+            raise ValueError(
+                "residual_estimator_mode must be ewma or constant_bias_rls"
+            )
+        if self.residual_measurement_source not in {
+            "model_prediction",
+            "kinematic_velocity",
+        }:
+            raise ValueError(
+                "residual_measurement_source must be model_prediction or "
+                "kinematic_velocity"
+            )
         integer_values = {
             "prediction_horizon": self.prediction_horizon,
             "replan_interval_steps": self.replan_interval_steps,
@@ -135,6 +154,10 @@ class HarborMPCConfig:
             raise ValueError("effectiveness RLS change warmup must be an integer")
         if self.effectiveness_rls_change_warmup_steps < 0:
             raise ValueError("effectiveness RLS change warmup must be nonnegative")
+        if int(self.residual_change_holdoff_steps) != self.residual_change_holdoff_steps:
+            raise ValueError("residual change holdoff must be an integer")
+        if self.residual_change_holdoff_steps < 0:
+            raise ValueError("residual change holdoff must be nonnegative")
         nonnegative = (
             self.position_weight,
             self.orientation_weight,
@@ -157,6 +180,10 @@ class HarborMPCConfig:
             self.dynamic_state_slack_retry_goal_radius,
             self.residual_estimator_gain,
             self.residual_max_speed,
+            self.residual_rls_initial_std,
+            self.residual_rls_measurement_noise,
+            self.residual_rls_process_noise,
+            self.residual_rls_innovation_gate,
             self.effectiveness_estimator_gain,
             self.effectiveness_rls_measurement_noise,
             self.effectiveness_rls_process_noise,
@@ -184,6 +211,12 @@ class HarborMPCConfig:
             raise ValueError("harbor_mpc weights and slack bounds must be nonnegative")
         if self.residual_estimator_gain > 1.0:
             raise ValueError("residual_estimator_gain must be in [0, 1]")
+        if min(
+            self.residual_rls_initial_std,
+            self.residual_rls_measurement_noise,
+            self.residual_rls_innovation_gate,
+        ) <= 0.0:
+            raise ValueError("residual RLS uncertainty and gate must be positive")
         if self.effectiveness_estimator_gain > 1.0:
             raise ValueError("effectiveness_estimator_gain must be in [0, 1]")
         if not 0.0 < self.effectiveness_rls_forgetting_factor <= 1.0:
@@ -794,8 +827,16 @@ class DistributedHarborMPC:
             agent.name: np.zeros(agent.model.control_dim) for agent in agents
         }
         self.previous_states: dict[str, np.ndarray] = {}
+        self.previous_update_steps: dict[str, int] = {}
         self.position_drift_estimates = {
             agent.name: np.zeros(3) for agent in agents
+        }
+        self.position_drift_variances = {
+            agent.name: np.full(3, config.residual_rls_initial_std**2)
+            for agent in agents
+        }
+        self.residual_rejection_count_by_agent = {
+            agent.name: 0 for agent in agents
         }
         self.residual_history = {agent.name: [] for agent in agents}
         self.control_residual_history = {agent.name: [] for agent in agents}
@@ -940,7 +981,7 @@ class DistributedHarborMPC:
         step: int,
         dt: float,
     ) -> np.ndarray:
-        self._update_model_estimates(agent, state, step)
+        self.observe(agent=agent, state=state, step=step, dt=dt)
         safe_states = self.safe_states[agent.name]
         safe_controls = self.safe_controls[agent.name]
         nearest = _nearest_reference_index(agent.model, safe_states, state)
@@ -1140,12 +1181,29 @@ class DistributedHarborMPC:
                 )
         self.solve_time_seconds += perf_counter() - started
         self.previous_controls[agent.name] = np.asarray(control, dtype=float)
-        self.previous_states[agent.name] = np.asarray(state, dtype=float).copy()
-        self.residual_history[agent.name].append(
-            self.position_drift_estimates[agent.name].copy()
-        )
         self.control_residual_history[agent.name].append(
             control_position_drift.copy()
+        )
+        return self.previous_controls[agent.name]
+
+    def observe(
+        self,
+        *,
+        agent: HarborAgent,
+        state: np.ndarray,
+        step: int,
+        dt: float,
+    ) -> None:
+        """Update local estimators at plant rate without forcing an NLP solve."""
+        if not np.isclose(dt, self.dt):
+            raise ValueError("observer and MPC sample times must match")
+        if self.previous_update_steps.get(agent.name) == step:
+            return
+        self._update_model_estimates(agent, state, step)
+        self.previous_states[agent.name] = np.asarray(state, dtype=float).copy()
+        self.previous_update_steps[agent.name] = step
+        self.residual_history[agent.name].append(
+            self.position_drift_estimates[agent.name].copy()
         )
         self.effectiveness_history[agent.name].append(
             self.control_effectiveness_estimates[agent.name].copy()
@@ -1161,7 +1219,6 @@ class DistributedHarborMPC:
                 self.information_matrices[agent.name], self.config
             )
         )
-        return self.previous_controls[agent.name]
 
     def _update_model_estimates(
         self, agent: HarborAgent, current_state: np.ndarray, current_step: int
@@ -1171,6 +1228,10 @@ class DistributedHarborMPC:
             return
         previous_state = self.previous_states[agent.name]
         previous_control = self.previous_controls[agent.name]
+        elapsed_steps = current_step - self.previous_update_steps[agent.name]
+        if elapsed_steps <= 0:
+            raise ValueError("MPC estimator updates must advance in time")
+        elapsed_dt = elapsed_steps * self.dt
         normalized = previous_control / agent.model.control_scale()
         self.excitation_energy[agent.name] += normalized * normalized
         recursive_prior = (
@@ -1182,7 +1243,7 @@ class DistributedHarborMPC:
             agent.model,
             previous_state,
             previous_control,
-            self.dt,
+            elapsed_dt,
             recursive_prior,
             self.config,
             normalize_dynamic_state=True,
@@ -1206,7 +1267,7 @@ class DistributedHarborMPC:
                         previous_state,
                         previous_control,
                         np.asarray(current_state, dtype=float),
-                        self.dt,
+                        elapsed_dt,
                         recursive_prior,
                         self.effectiveness_covariances[agent.name],
                         self.config,
@@ -1355,7 +1416,7 @@ class DistributedHarborMPC:
                         previous_state,
                         previous_control,
                         np.asarray(current_state, dtype=float),
-                        self.dt,
+                        elapsed_dt,
                         self.control_effectiveness_estimates[agent.name],
                         self.config,
                     )
@@ -1373,19 +1434,51 @@ class DistributedHarborMPC:
             if self.config.effectiveness_recovery_prior_mode == "transient"
             else self.control_effectiveness_estimates[agent.name]
         )
-        predicted = agent.model.step(
-            previous_state,
-            effectiveness * previous_control,
-            self.dt,
-        )
-        measured_velocity_error = (
-            agent.model.position(current_state) - agent.model.position(predicted)
-        ) / self.dt
-        gain = self.config.residual_estimator_gain
-        estimate = (
-            (1.0 - gain) * self.position_drift_estimates[agent.name]
-            + gain * measured_velocity_error
-        )
+        if self.config.residual_measurement_source == "kinematic_velocity":
+            measured_velocity_error = _kinematic_position_drift_measurement(
+                agent.model,
+                previous_state,
+                current_state,
+                elapsed_dt,
+                elapsed_steps,
+            )
+        else:
+            predicted = agent.model.step(
+                previous_state,
+                effectiveness * previous_control,
+                elapsed_dt,
+            )
+            measured_velocity_error = (
+                agent.model.position(current_state)
+                - agent.model.position(predicted)
+            ) / elapsed_dt
+        if self.config.residual_estimator_mode == "constant_bias_rls":
+            elapsed_since_change = (
+                current_step
+                - self.effectiveness_last_change_step_by_agent[agent.name]
+            )
+            if (
+                0 <= elapsed_since_change
+                < self.config.residual_change_holdoff_steps
+            ):
+                self.position_drift_variances[agent.name] += (
+                    self.config.residual_rls_process_noise
+                )
+                return
+            estimate, variance, rejected = _constant_bias_residual_update(
+                self.position_drift_estimates[agent.name],
+                self.position_drift_variances[agent.name],
+                measured_velocity_error,
+                self.config,
+            )
+            self.position_drift_variances[agent.name] = variance
+            self.residual_rejection_count_by_agent[agent.name] += rejected
+        else:
+            gain = self.config.residual_estimator_gain
+            estimate = (
+                (1.0 - gain) * self.position_drift_estimates[agent.name]
+                + gain * measured_velocity_error
+            )
         norm = float(np.linalg.norm(estimate))
         if norm > self.config.residual_max_speed:
             estimate *= self.config.residual_max_speed / norm
@@ -1999,6 +2092,58 @@ def _estimate_diagonal_control_effectiveness(
     )
     gain = config.effectiveness_estimator_gain
     return (1.0 - gain) * prior + gain * instantaneous
+
+
+def _constant_bias_residual_update(
+    prior: np.ndarray,
+    variance: np.ndarray,
+    measurement: np.ndarray,
+    config: HarborMPCConfig,
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Update independent constant-current states with innovation gating."""
+    estimate = np.asarray(prior, dtype=float).copy()
+    predicted_variance = (
+        np.asarray(variance, dtype=float)
+        + config.residual_rls_process_noise
+    )
+    innovation = np.asarray(measurement, dtype=float) - estimate
+    innovation_variance = (
+        predicted_variance + config.residual_rls_measurement_noise**2
+    )
+    normalized = np.abs(innovation) / np.sqrt(innovation_variance)
+    accepted = normalized <= config.residual_rls_innovation_gate
+    gain = predicted_variance / innovation_variance
+    estimate[accepted] += gain[accepted] * innovation[accepted]
+    posterior_variance = predicted_variance.copy()
+    posterior_variance[accepted] *= 1.0 - gain[accepted]
+    return estimate, posterior_variance, int(np.count_nonzero(~accepted))
+
+
+def _kinematic_position_drift_measurement(
+    model: PlatformModel,
+    previous_state: np.ndarray,
+    current_state: np.ndarray,
+    dt: float,
+    elapsed_steps: int,
+) -> np.ndarray:
+    """Infer world-frame drift without using controls or actuator estimates."""
+    prior = np.asarray(previous_state, dtype=float)
+    current = np.asarray(current_state, dtype=float)
+    ground_velocity = (
+        model.position(current) - model.position(prior)
+    ) / dt
+    if elapsed_steps == 1:
+        velocity_state = current.copy()
+        if model.kind == "usv":
+            velocity_state[2] = prior[2]
+        elif model.kind == "rov":
+            velocity_state[3:6] = prior[3:6]
+        through_water_velocity = model.velocity(velocity_state)
+    else:
+        through_water_velocity = 0.5 * (
+            model.velocity(prior) + model.velocity(current)
+        )
+    return ground_velocity - through_water_velocity
 
 
 def _approach_pose_goal(

@@ -111,6 +111,18 @@ def main() -> None:
         )
 
         run_dynamic_envelope()
+    elif command == "harbor-station-keeping-study":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_station_keeping_study import (
+            main as run_station_keeping,
+        )
+
+        run_station_keeping()
+    elif command == "harbor-localization-study":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_localization_study import main as run_localization
+
+        run_localization()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

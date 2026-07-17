@@ -46,6 +46,7 @@ class HarborRobustnessTrial:
     control_residual_history: dict[str, np.ndarray]
     residual_projection_retry_count_by_agent: dict[str, int]
     dynamic_state_retry_count_by_agent: dict[str, int]
+    residual_rejection_count_by_agent: dict[str, int]
     final_residual_estimates: dict[str, np.ndarray]
     effectiveness_history: dict[str, np.ndarray]
     raw_effectiveness_history: dict[str, np.ndarray]
@@ -294,6 +295,9 @@ def run_model_mismatch_study(
                 ),
                 dynamic_state_retry_count_by_agent=dict(
                     controller.dynamic_state_retry_count_by_agent
+                ),
+                residual_rejection_count_by_agent=dict(
+                    controller.residual_rejection_count_by_agent
                 ),
                 final_residual_estimates={
                     name: value.copy()
@@ -934,6 +938,10 @@ def _run_temporary_fault_trials(
         "Hard-envelope transient-offset RLS",
         "Elastic-envelope transient-offset RLS",
         "Retry-elastic transient-offset RLS",
+        "Constant-current transient-offset RLS",
+        "Event-isolated current transient-offset RLS",
+        "Kinematic-current EWMA transient-offset RLS",
+        "Kinematic-current RLS transient-offset RLS",
         "Chi-square CUSUM RLS",
         "CUSUM-triggered probing RLS",
     }
@@ -945,6 +953,10 @@ def _run_temporary_fault_trials(
         "Hard-envelope transient-offset RLS",
         "Elastic-envelope transient-offset RLS",
         "Retry-elastic transient-offset RLS",
+        "Constant-current transient-offset RLS",
+        "Event-isolated current transient-offset RLS",
+        "Kinematic-current EWMA transient-offset RLS",
+        "Kinematic-current RLS transient-offset RLS",
     }
     selected = default if controller_labels is None else set(controller_labels)
     if not selected or not selected <= available:
@@ -1050,6 +1062,46 @@ def _run_temporary_fault_trials(
             0.0,
             study_mpc.dynamic_state_slack_bound,
         ),
+        (
+            "Constant-current transient-offset RLS",
+            True,
+            "threshold",
+            experiment_config.recovery_prior_gain,
+            "transient",
+            "full",
+            0.0,
+            0.0,
+        ),
+        (
+            "Event-isolated current transient-offset RLS",
+            True,
+            "threshold",
+            experiment_config.recovery_prior_gain,
+            "transient",
+            "full",
+            0.0,
+            0.0,
+        ),
+        (
+            "Kinematic-current EWMA transient-offset RLS",
+            True,
+            "threshold",
+            experiment_config.recovery_prior_gain,
+            "transient",
+            "full",
+            0.0,
+            0.0,
+        ),
+        (
+            "Kinematic-current RLS transient-offset RLS",
+            True,
+            "threshold",
+            experiment_config.recovery_prior_gain,
+            "transient",
+            "full",
+            0.0,
+            0.0,
+        ),
         ("Chi-square CUSUM RLS", True, "cusum", 0.0, "embedded", "full", None, None),
     ):
         if label not in selected:
@@ -1092,6 +1144,32 @@ def _run_temporary_fault_trials(
                         0.5
                         if label == "Retry-elastic transient-offset RLS"
                         else study_mpc.dynamic_state_slack_retry_goal_radius
+                    ),
+                    residual_estimator_mode=(
+                        "constant_bias_rls"
+                        if label
+                        in {
+                            "Constant-current transient-offset RLS",
+                            "Event-isolated current transient-offset RLS",
+                            "Kinematic-current RLS transient-offset RLS",
+                        }
+                        else study_mpc.residual_estimator_mode
+                    ),
+                    residual_change_holdoff_steps=(
+                        5
+                        if label == "Event-isolated current transient-offset RLS"
+                        else 0
+                        if label == "Constant-current transient-offset RLS"
+                        else study_mpc.residual_change_holdoff_steps
+                    ),
+                    residual_measurement_source=(
+                        "kinematic_velocity"
+                        if label
+                        in {
+                            "Kinematic-current EWMA transient-offset RLS",
+                            "Kinematic-current RLS transient-offset RLS",
+                        }
+                        else study_mpc.residual_measurement_source
                     ),
                 ),
                 disturbance,
@@ -1262,6 +1340,9 @@ def _run_fault_trials(
                 ),
                 dynamic_state_retry_count_by_agent=dict(
                     controller.dynamic_state_retry_count_by_agent
+                ),
+                residual_rejection_count_by_agent=dict(
+                    controller.residual_rejection_count_by_agent
                 ),
                 final_residual_estimates={
                     name: value.copy()

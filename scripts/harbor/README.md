@@ -11,6 +11,8 @@ controllers behind the same simulation and communication boundary.
 - `simulation.py`: operating-domain projection, configurable hidden plant
   disturbances, sustained-goal evaluation, rollout orchestration, and swept
   3D separation metrics.
+- `localization.py`: seeded range sensing, 2D/3D dead reckoning, known-anchor
+  EKF, joint landmark EKF, and sliding-window observability diagnostics.
 - `config.py`: strict `config/harbor.yaml` loading and model construction.
 - `plotting.py`: safety envelopes, successful-rollout samples, pose-goal
   headings, ROV depth/attitude diagnostics, and a coordinated GIF.
@@ -62,11 +64,24 @@ the static diagnostic includes roll, pitch, and yaw histories.
 hidden current and actuator-effectiveness settings from `disturbance_study`.
 The joint estimator is local and causal. It first fits scalar control
 effectiveness from the measured velocity/rate response to the agent's previous
-command. It then compares measured position with the effectiveness-adjusted
-prediction and inserts the filtered remaining world-velocity residual into its
-own model. It receives neither configured disturbance nor another agent's
-state. The hold window prevents transient tolerance crossings from being
-reported as successful station keeping.
+command. Marine current can then be measured as ground velocity minus measured
+through-water velocity, so actuator-model error does not leak into the current
+estimate. The constant-bias observer updates at plant rate even when the
+nonlinear controller replans less often. It receives neither the configured
+disturbance nor another agent's state. The hold window prevents transient
+tolerance crossings from being reported as successful station keeping.
+
+`python run.py harbor-station-keeping-study` compares model-residual,
+kinematic-EWMA, and kinematic constant-bias observers under matched current,
+noise, and temporary actuator loss. Development improves Heron current RMSE
+and waterjet variation, but confirmation remains untouched because yaw wins
+and fallback-free rate do not yet meet every gate.
+
+`python run.py harbor-localization-study` compares GPS-denied dead reckoning,
+known-map range localization, joint unknown-beacon SLAM, and 60-percent range
+loss. The optional localization boundary can feed guidance, MPC, or LMPC while
+truth remains reserved for sensing and safety scoring. See
+`docs/range_aided_slam.md` for equations and current limitations.
 
 `python run.py harbor-fault-study` isolates asymmetric actuator faults without
 current. It compares nominal, scalar-adaptive, and diagonal-adaptive distributed

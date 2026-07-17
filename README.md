@@ -145,6 +145,14 @@ Controllability-projected residual and dynamic-envelope ablations:
 
 `python3 run.py harbor-dynamic-envelope-study`
 
+Actuator-independent marine-current station-keeping development:
+
+`python3 run.py harbor-station-keeping-study`
+
+GPS-denied dead reckoning, range localization, joint range SLAM, and dropout:
+
+`python3 run.py harbor-localization-study`
+
 These commands overwrite curated artifacts in `results/latest/harbor/`. The
 robustness command writes one metrics JSON, one combined diagnostic, and one
 GIF. Plant parameters are hidden from the controllers. Joint adaptation first
@@ -190,6 +198,19 @@ ensembles. A measured-yaw-gated elastic retry rescues the exposed failure with
 `0.0030` maximum relaxation, but fresh development produced no completion
 rescues and slightly worse yaw/recovery metrics. Its confirmation set remains
 untouched. These are retained negative ablations, not promoted defaults.
+
+The kinematic constant-bias current observer is a positive development result:
+five fresh matched cases reduced mean Heron current-estimation RMSE from
+`0.0425` to `0.0096 m/s`, final position error from `0.131` to `0.062 m`, and
+waterjet command variation by about `74%`. It won final yaw on only three of
+five cases and one case required solver fallbacks, so its independent
+confirmation set remains untouched.
+
+The optional range-aided localization boundary adds accumulated odometry drift,
+known and unknown harbor beacons, range noise/bias/dropout, and numerical
+observability reports. Its first development run shows a strong known-map
+localization benefit but no completed closed-loop task and no confirmed joint
+SLAM result. See `docs/range_aided_slam.md`; this remains active research.
 
 Harbor MPC keeps the physical operating-domain boundary hard. A configurable
 interior warning band uses bounded, heavily penalized slack so underactuated
