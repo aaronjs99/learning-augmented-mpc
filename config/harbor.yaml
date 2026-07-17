@@ -75,6 +75,13 @@ range_aided_slam:
   range_std: 0.08
   range_bias: 0.0
   dropout_probability: 0.05
+  nlos_probability: 0.0
+  nlos_bias: 0.0
+  outlier_probability: 0.0
+  outlier_std: 1.0
+  burst_dropout_probability: 0.0
+  burst_dropout_steps: 0
+  measurement_delay_steps: 0
   maximum_range: 20.0
   update_interval_steps: 1
   motion_std: [0.03, 0.03, 0.02]

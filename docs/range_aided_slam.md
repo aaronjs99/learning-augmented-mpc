@@ -37,6 +37,12 @@ UGV/USV positions and full six-component ROV pose states, with explicit
 odometry, range, attitude, and beacon-prior factors. Huber reweighting records
 downweighted range factors instead of silently accepting them as truth.
 
+The range sensor also exposes deterministic development faults: ordinary and
+burst dropout, positive NLOS bias, heavy-tailed outliers, and per-run telemetry.
+Their probabilities, magnitudes, burst duration, and seed are configured in
+`range_aided_slam`; fault telemetry is evidence and is never supplied to the
+controller as truth.
+
 ## Observability
 
 The estimator stores a sliding window of measurement Jacobians and reports

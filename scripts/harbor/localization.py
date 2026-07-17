@@ -43,6 +43,13 @@ class RangeAidedSLAMConfig:
     range_std: float = 0.08
     range_bias: float = 0.0
     dropout_probability: float = 0.0
+    nlos_probability: float = 0.0
+    nlos_bias: float = 0.0
+    outlier_probability: float = 0.0
+    outlier_std: float = 1.0
+    burst_dropout_probability: float = 0.0
+    burst_dropout_steps: int = 0
+    measurement_delay_steps: int = 0
     maximum_range: float = 20.0
     update_interval_steps: int = 1
     motion_std: tuple[float, ...] = (0.03, 0.03, 0.02)
@@ -68,6 +75,14 @@ class RangeAidedSLAMConfig:
             raise ValueError("range noise and maximum range must be positive")
         if not 0.0 <= self.dropout_probability <= 1.0:
             raise ValueError("range dropout probability must lie in [0, 1]")
+        probabilities = (self.nlos_probability, self.outlier_probability,
+                         self.burst_dropout_probability)
+        if any(not 0.0 <= value <= 1.0 for value in probabilities):
+            raise ValueError("range fault probabilities must lie in [0, 1]")
+        if self.nlos_bias < 0.0 or self.outlier_std <= 0.0:
+            raise ValueError("NLOS bias must be nonnegative and outlier_std positive")
+        if self.burst_dropout_steps < 0 or self.measurement_delay_steps < 0:
+            raise ValueError("range delay settings must be nonnegative")
         if self.update_interval_steps <= 0 or self.observability_window <= 0:
             raise ValueError("range update interval and observability window must be positive")
         if self.initial_pose_std <= 0.0 or self.initial_landmark_std <= 0.0:
@@ -108,9 +123,19 @@ class RangeSensor:
     def __init__(self, config: RangeAidedSLAMConfig):
         self.config = config
         self._rng = np.random.default_rng(config.seed)
+        self._dropout_remaining = 0
+        self.telemetry: list[dict] = []
 
     def measure(self, position: np.ndarray, step: int) -> tuple[RangeMeasurement, ...]:
         if not self.config.enabled or step % self.config.update_interval_steps:
+            return ()
+        if self._dropout_remaining:
+            self._dropout_remaining -= 1
+            self.telemetry.append({"step": step, "fault": "burst_dropout", "count": 0})
+            return ()
+        if self._rng.random() < self.config.burst_dropout_probability:
+            self._dropout_remaining = self.config.burst_dropout_steps
+            self.telemetry.append({"step": step, "fault": "burst_dropout", "count": 0})
             return ()
         position = np.asarray(position, dtype=float)
         measurements = []
@@ -124,11 +149,22 @@ class RangeSensor:
             if distance > self.config.maximum_range:
                 continue
             if self._rng.random() < self.config.dropout_probability:
+                self.telemetry.append({"step": step, "beacon": beacon.name, "fault": "dropout"})
                 continue
-            noisy = distance + self.config.range_bias + self._rng.normal(
-                0.0, self.config.range_std
+            fault = "none"
+            bias = self.config.range_bias
+            if self._rng.random() < self.config.nlos_probability:
+                bias += self.config.nlos_bias
+                fault = "nlos"
+            noise_std = self.config.range_std
+            if self._rng.random() < self.config.outlier_probability:
+                noise_std = self.config.outlier_std
+                fault = "outlier"
+            noisy = distance + bias + self._rng.normal(
+                0.0, noise_std
             )
             measurements.append(RangeMeasurement(beacon.name, max(0.0, float(noisy))))
+            self.telemetry.append({"step": step, "beacon": beacon.name, "fault": fault})
         return tuple(measurements)
 
 
