@@ -86,6 +86,7 @@ range_aided_slam:
   beacons:
     - {name: quay_west, true_position: [-4.2, 4.8, 0.0], initial_position: [-4.2, 4.8, 0.0], fixed: true}
     - {name: quay_east, true_position: [4.2, 4.8, 0.0], initial_position: [4.2, 4.8, 0.0], fixed: true}
+    - {name: harbor_mouth, true_position: [0.0, -4.5, 0.0], initial_position: [0.0, -4.5, 0.0], fixed: true}
     - {name: subsea_west, true_position: [-3.5, 0.5, -3.5], initial_position: [-2.8, 0.0, -3.0], fixed: false}
     - {name: subsea_east, true_position: [3.5, 0.5, -3.5], initial_position: [2.8, 0.0, -3.0], fixed: false}
 
@@ -402,6 +403,19 @@ station_keeping_confirmation_criteria:
   maximum_mean_usv_current_rmse_delta: -0.01
   maximum_mean_recovery_rmse_delta: 0.002
   maximum_mean_completion_cost_delta: 15.0
+
+joint_localization_development:
+  seeds: [17417, 17539, 17659]
+  observation_seed_offset: 21000
+  effectiveness_min: 0.55
+  effectiveness_max: 0.92
+  onset_step_min: 8
+  onset_step_max: 18
+  duration_step_min: 18
+  duration_step_max: 28
+  bootstrap_samples: 5000
+  water_current_min: [-0.10, 0.0, 0.01]
+  water_current_max: [-0.04, 0.0, 0.03]
 
 harbor_mpc:
   prediction_horizon: 12

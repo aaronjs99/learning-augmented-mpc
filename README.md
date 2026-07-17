@@ -13,6 +13,8 @@ marine dynamics. Named profiles distinguish RobEn/Jackal, Inspector-Gadget/
 Husky, full-payload Heron, and BlueROV2 Heavy. UGV/USV goals are 3-DOF planar
 poses and ROV goals are 6-DOF poses. See
 `docs/harbor_dynamics.md` for the exact equations and fidelity boundary.
+The complete estimator, optimization, safe-set, observability, fault-adaptation,
+and belief-retry equations are collected in `docs/harbor_control_math.md`.
 
 ## Workflow
 1. Generate iteration-0 safe trajectories with a staged APF autopilot.
@@ -153,6 +155,11 @@ GPS-denied dead reckoning, range localization, joint range SLAM, and dropout:
 
 `python3 run.py harbor-localization-study`
 
+Estimated-state distributed MPC under simultaneous localization error, hidden
+current, observation noise, and temporary actuator loss:
+
+`python3 run.py harbor-joint-localization-study`
+
 These commands overwrite curated artifacts in `results/latest/harbor/`. The
 robustness command writes one metrics JSON, one combined diagnostic, and one
 GIF. Plant parameters are hidden from the controllers. Joint adaptation first
@@ -208,9 +215,14 @@ confirmation set remains untouched.
 
 The optional range-aided localization boundary adds accumulated odometry drift,
 known and unknown harbor beacons, range noise/bias/dropout, and numerical
-observability reports. Its first development run shows a strong known-map
-localization benefit but no completed closed-loop task and no confirmed joint
-SLAM result. See `docs/range_aided_slam.md`; this remains active research.
+observability reports. In the first three-case joint development ensemble,
+dead reckoning completes `0/3`; joint SLAM plus a bounded belief-feasibility
+retry completes and remains collision-free in `3/3` with zero fallbacks. It
+matches the direct-position comparator's completion with a one-step larger mean
+completion cost (`158` versus `157`). The candidate uses one retry and `0.00148`
+maximum dynamic slack while retaining hard collision, actuator, medium, and
+world-domain constraints. This result is not yet independently confirmed. See
+`docs/harbor_control_math.md` and `docs/range_aided_slam.md`.
 
 Harbor MPC keeps the physical operating-domain boundary hard. A configurable
 interior warning band uses bounded, heavily penalized slack so underactuated

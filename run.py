@@ -123,6 +123,13 @@ def main() -> None:
         from scripts.run_harbor_localization_study import main as run_localization
 
         run_localization()
+    elif command == "harbor-joint-localization-study":
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        from scripts.run_harbor_joint_localization_study import (
+            main as run_joint_localization,
+        )
+
+        run_joint_localization()
     else:
         from scripts.run_manta_lmpc import main as run_manta
 

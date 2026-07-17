@@ -64,8 +64,16 @@ independently confirmed research claims.
 - Joint localization, current, actuation, and communication uncertainty. The
   interfaces compose, but a distributed-LMPC confirmation is still required.
 
-Run `python run.py harbor-localization-study`. The current matched development
-case reduces BlueROV2 position RMSE from about `0.579 m` under dead reckoning to
-`0.075 m` with a known map. Joint unknown-landmark SLAM remains worse than that
-bound, and the guidance task remains incomplete under all localization modes.
-Those are active research problems, not finished claims.
+Run `python run.py harbor-localization-study`. The matched estimator diagnostic
+reduces BlueROV2 position RMSE from about `0.579 m` under dead reckoning to
+`0.076 m` with a known map and `0.105 m` with joint unknown-landmark SLAM.
+
+Run `python run.py harbor-joint-localization-study` for the closed-loop test
+with distributed MPC, hidden current, observation noise, and temporary
+per-channel actuator losses. On the three-case development ensemble, dead
+reckoning completes `0/3`, known-map localization completes `2/3`, plain joint
+SLAM completes `3/3` with three solver fallbacks, and joint SLAM with the
+belief-feasibility retry completes safely in `3/3` with zero fallbacks. The
+candidate uses one retry over all three cases and `0.00148` maximum dynamic-
+envelope slack. This is positive development evidence; an untouched
+confirmation ensemble is still required.

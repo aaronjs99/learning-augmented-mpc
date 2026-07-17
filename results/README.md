@@ -34,3 +34,7 @@ ignored. Core artifacts include:
   observer evidence with an untouched confirmation ensemble.
 - `range_aided_slam_development.{json,png}`: dead-reckoning, known-map,
   joint-landmark, and high-dropout localization evidence.
+- `joint_localization_development.{json,png}`: estimated-state distributed MPC
+  under matched current, range, observation, and temporary-actuator uncertainty.
+- `joint_localization_candidate.gif`: representative complete, safe,
+  zero-fallback joint-SLAM and belief-retry rollout.

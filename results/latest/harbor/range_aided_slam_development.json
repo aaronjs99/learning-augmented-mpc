@@ -52,38 +52,38 @@
       "all_goals_reached": false,
       "pairwise_violation_count": 0,
       "position_rmse": {
-        "ground_rover_1": 0.07266496564339353,
-        "ground_rover_2": 0.08997518742882031,
-        "surface_vessel": 0.06284139935620431,
-        "underwater_rov": 0.07547870253462853
+        "ground_rover_1": 0.058590448142510555,
+        "ground_rover_2": 0.058624846407461524,
+        "surface_vessel": 0.058607095882555076,
+        "underwater_rov": 0.07590724154373812
       },
       "final_observability": {
         "ground_rover_1": {
           "rank": 2,
           "state_dimension": 2,
-          "smallest_singular_value": 34.38646254143469,
-          "condition_number": 1.2817430507222836,
+          "smallest_singular_value": 30.47152205421686,
+          "condition_number": 1.5380487671602214,
           "observable": true
         },
         "ground_rover_2": {
           "rank": 2,
           "state_dimension": 2,
-          "smallest_singular_value": 19.04821146350051,
-          "condition_number": 2.759120420951402,
+          "smallest_singular_value": 36.978505075788554,
+          "condition_number": 1.1337295241456702,
           "observable": true
         },
         "surface_vessel": {
           "rank": 2,
           "state_dimension": 2,
-          "smallest_singular_value": 36.91403222837402,
-          "condition_number": 1.1372478250142481,
+          "smallest_singular_value": 33.872632369474424,
+          "condition_number": 1.312880490221116,
           "observable": true
         },
         "underwater_rov": {
           "rank": 3,
           "state_dimension": 3,
-          "smallest_singular_value": 20.40213694200508,
-          "condition_number": 2.210057039059412,
+          "smallest_singular_value": 19.10511850586599,
+          "condition_number": 2.1292898704497407,
           "observable": true
         }
       },
@@ -99,38 +99,38 @@
       "all_goals_reached": false,
       "pairwise_violation_count": 0,
       "position_rmse": {
-        "ground_rover_1": 0.07266496564339353,
-        "ground_rover_2": 0.08997518742882031,
-        "surface_vessel": 0.0628415648489185,
-        "underwater_rov": 0.17234699720495375
+        "ground_rover_1": 0.058590448142510555,
+        "ground_rover_2": 0.058624846407461524,
+        "surface_vessel": 0.058602115729304405,
+        "underwater_rov": 0.1046477958655405
       },
       "final_observability": {
         "ground_rover_1": {
           "rank": 2,
           "state_dimension": 2,
-          "smallest_singular_value": 34.38646254143469,
-          "condition_number": 1.2817430507222836,
+          "smallest_singular_value": 30.47152205421686,
+          "condition_number": 1.5380487671602214,
           "observable": true
         },
         "ground_rover_2": {
           "rank": 2,
           "state_dimension": 2,
-          "smallest_singular_value": 19.04821146350051,
-          "condition_number": 2.759120420951402,
+          "smallest_singular_value": 36.978505075788554,
+          "condition_number": 1.1337295241456702,
           "observable": true
         },
         "surface_vessel": {
           "rank": 2,
           "state_dimension": 2,
-          "smallest_singular_value": 36.91579229445849,
-          "condition_number": 1.1371516777970578,
+          "smallest_singular_value": 33.876669726738626,
+          "condition_number": 1.3126332390154,
           "observable": true
         },
         "underwater_rov": {
           "rank": 9,
           "state_dimension": 9,
-          "smallest_singular_value": 0.026062053410562572,
-          "condition_number": 1890.599368383238,
+          "smallest_singular_value": 0.028316172054250358,
+          "condition_number": 1588.1086608676587,
           "observable": true
         }
       },
@@ -138,7 +138,7 @@
         "ground_rover_1": 1.0,
         "ground_rover_2": 1.0,
         "surface_vessel": 1.0,
-        "underwater_rov": 0.9834254143646409
+        "underwater_rov": 0.988950276243094
       }
     },
     {
@@ -146,46 +146,46 @@
       "all_goals_reached": false,
       "pairwise_violation_count": 0,
       "position_rmse": {
-        "ground_rover_1": 0.10073954049894346,
-        "ground_rover_2": 0.13870318441132953,
-        "surface_vessel": 0.08739207663891052,
-        "underwater_rov": 0.15324418872324233
+        "ground_rover_1": 0.07920574734876416,
+        "ground_rover_2": 0.09447667061373645,
+        "surface_vessel": 0.07020504493120062,
+        "underwater_rov": 0.10631159728727735
       },
       "final_observability": {
         "ground_rover_1": {
           "rank": 2,
           "state_dimension": 2,
-          "smallest_singular_value": 32.894186670798575,
-          "condition_number": 1.3740802768482876,
+          "smallest_singular_value": 32.35528889671136,
+          "condition_number": 1.4089371671105053,
           "observable": true
         },
         "ground_rover_2": {
           "rank": 2,
           "state_dimension": 2,
-          "smallest_singular_value": 20.872550002083987,
-          "condition_number": 2.4845461929698702,
+          "smallest_singular_value": 33.14677415476711,
+          "condition_number": 1.358030980096638,
           "observable": true
         },
         "surface_vessel": {
           "rank": 2,
           "state_dimension": 2,
-          "smallest_singular_value": 33.15068436382044,
-          "condition_number": 1.3577839333297321,
+          "smallest_singular_value": 29.234889245423254,
+          "condition_number": 1.6298296124648086,
           "observable": true
         },
         "underwater_rov": {
           "rank": 9,
           "state_dimension": 9,
-          "smallest_singular_value": 0.046073015945610814,
-          "condition_number": 1173.3433628891235,
+          "smallest_singular_value": 0.03127317612845772,
+          "condition_number": 1458.5068229491637,
           "observable": true
         }
       },
       "observable_fraction": {
         "ground_rover_1": 0.994475138121547,
-        "ground_rover_2": 0.994475138121547,
-        "surface_vessel": 0.994475138121547,
-        "underwater_rov": 0.8784530386740331
+        "ground_rover_2": 1.0,
+        "surface_vessel": 1.0,
+        "underwater_rov": 0.7292817679558011
       }
     }
   ]

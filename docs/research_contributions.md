@@ -322,6 +322,33 @@ dynamics, safe-set construction, terminal constraints, and collision handling.
       adaptive warning-band use is `7.07e-6 m`. This is a robust integration and
       auditability contribution, not a claim that soft constraint bands are new.
 
+24. **Observability-aware range SLAM inside fault-adaptive distributed MPC**
+    - A common simulator boundary now separates plant truth from controller
+      belief. UGV/USV positions use 2D filters and BlueROV2 uses a 3D filter;
+      range bias, Gaussian noise, range limit, update rate, dropout, odometry
+      bias, and odometry noise are independently configurable.
+    - The same estimator supports known-map localization and joint unknown-
+      beacon EKF-SLAM. A sliding Jacobian window reports numerical rank,
+      smallest singular value, and condition number. Unknown landmarks cannot
+      influence navigation until fixed-anchor geometry spans the position
+      subspace; high-uncertainty landmark updates preserve the pose block.
+    - A third non-collinear fixed harbor beacon corrects the globally weak
+      two-anchor geometry. In the isolated diagnostic, BlueROV2 RMSE is
+      `0.579 m` for dead reckoning, `0.076 m` for the known map, and `0.105 m`
+      for joint SLAM.
+    - The joint study composes range SLAM with local diagonal actuator RLS,
+      actuator-independent current estimation, communication, and distributed
+      nonlinear MPC. Across three fresh cases, dead reckoning completes `0/3`,
+      known-map ranges `2/3`, and joint SLAM `3/3`.
+    - A separate belief-feasibility comparator retries only after a hard MPC
+      failure and relaxes only internal dynamic-state envelopes. It preserves
+      hard collision, actuator, medium, depth, and world-domain constraints.
+      Joint SLAM plus retry is complete and collision-free in `3/3`, has zero
+      fallbacks, uses one retry total, and reaches `0.00148` maximum slack. Its
+      mean completion cost is `158` versus `157` for direct position sensing.
+      These are development results; no novelty or generalization claim is made
+      before an untouched confirmation ensemble and literature comparison.
+
 ## Current Evidence
 
 The nominal horizon study exposes where learning helps and where it does not:

@@ -80,9 +80,62 @@ from scripts.run_harbor_dynamic_envelope_study import (
     evaluate_dynamic_envelope,
     summarize_dynamic_envelope,
 )
+from scripts.run_harbor_joint_localization_study import (
+    _policy_controller_config,
+    summarize as summarize_joint_localization,
+)
 
 
 class HarborTests(unittest.TestCase):
+    def test_joint_localization_summary_separates_retry_and_physical_safety(self) -> None:
+        records = []
+        for policy, complete, fallbacks, retries, slack in (
+            ("Joint landmark SLAM", True, 2, 0, 0.0),
+            ("Joint SLAM + belief retry", True, 0, 1, 0.001),
+        ):
+            records.append(
+                {
+                    "policy": policy,
+                    "all_goals_reached": complete,
+                    "pairwise_violation_count": 0,
+                    "solver_fallbacks": fallbacks,
+                    "completion_step_sum": 160,
+                    "position_rmse": {"underwater_rov": 0.12},
+                    "current_rmse": {"surface_vessel": 0.04},
+                    "dynamic_state_retries": retries,
+                    "max_dynamic_state_slack": slack,
+                }
+            )
+        summary = summarize_joint_localization(records)
+        self.assertEqual(summary["Joint landmark SLAM"]["fallback_free_rate"], 0.0)
+        candidate = summary["Joint SLAM + belief retry"]
+        self.assertEqual(candidate["completion_rate"], 1.0)
+        self.assertEqual(candidate["safety_rate"], 1.0)
+        self.assertEqual(candidate["fallback_free_rate"], 1.0)
+        self.assertEqual(candidate["total_dynamic_state_retries"], 1)
+        self.assertAlmostEqual(candidate["maximum_dynamic_state_slack"], 0.001)
+
+    def test_belief_retry_changes_only_dynamic_retry_bound(self) -> None:
+        base = replace(
+            load_harbor_mpc_config(),
+            dynamic_state_slack_bound=0.0,
+            dynamic_state_slack_retry_bound=0.0,
+        )
+        candidate = _policy_controller_config(
+            base, "Joint SLAM + belief retry"
+        )
+        self.assertEqual(candidate.dynamic_state_slack_bound, 0.0)
+        self.assertEqual(candidate.dynamic_state_slack_retry_bound, 0.02)
+        self.assertEqual(candidate.collision_slack_bound, base.collision_slack_bound)
+
+    def test_configured_fixed_beacons_have_noncollinear_planar_geometry(self) -> None:
+        config = load_range_aided_slam_config(DEFAULT_HARBOR_CONFIG)
+        fixed = np.asarray(
+            [beacon.true_position[:2] for beacon in config.beacons if beacon.fixed]
+        )
+        self.assertGreaterEqual(len(fixed), 3)
+        self.assertEqual(np.linalg.matrix_rank(fixed - np.mean(fixed, axis=0)), 2)
+
     def test_range_localization_runs_behind_simulator_observation_boundary(self) -> None:
         agents, simulation, communication = load_harbor_config()
         range_config = replace(

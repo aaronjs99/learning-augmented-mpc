@@ -83,6 +83,14 @@ loss. The optional localization boundary can feed guidance, MPC, or LMPC while
 truth remains reserved for sensing and safety scoring. See
 `docs/range_aided_slam.md` for equations and current limitations.
 
+`python run.py harbor-joint-localization-study` composes estimated-state
+distributed MPC with hidden current and temporary channel-specific actuator
+loss. Its development comparators are direct position sensing, dead reckoning,
+known-map ranges, joint landmark SLAM, and joint SLAM with a post-failure
+belief-feasibility retry. Add `--case-seed SEED --policy "Joint SLAM + belief
+retry" --gif-only` to regenerate the representative candidate animation
+without replacing aggregate JSON/PNG evidence.
+
 `python run.py harbor-fault-study` isolates asymmetric actuator faults without
 current. It compares nominal, scalar-adaptive, and diagonal-adaptive distributed
 MPC plus diagonal-adaptive LMPC. Each named platform owns its hidden vector and

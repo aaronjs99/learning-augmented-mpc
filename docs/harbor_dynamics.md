@@ -420,8 +420,8 @@ parameters. The reported diagonal of `Sigma_k` is a
 linearized scheduling proxy: model mismatch and correlated finite-difference
 errors mean it is not a calibrated statistical confidence interval.
 
-Updates below a normalized command-excitation threshold are skipped. Using the
-effectiveness-adjusted transition, the same agent then computes
+Updates below a normalized command-excitation threshold are skipped. The legacy
+model-residual observer uses the effectiveness-adjusted transition,
 
 ```text
 r_measured = (p_k - p_model(x_(k-1), alpha_hat_k u_(k-1))) / dt
@@ -433,6 +433,23 @@ These are bounded local gain/residual models, not learned hydrodynamic models.
 They are appropriate for steady current, generalized actuator loss, and local
 bias. They do not identify rapidly varying waves or coupled unmodeled velocity
 dynamics.
+
+The preferred marine-current observer is actuator-independent. It subtracts
+measured through-water velocity, rotated into the world frame, from finite-
+difference ground velocity:
+
+```text
+v_ground,k = (p_k-p_(k-1))/Delta t
+v_water,world,k = R(eta_(k-1)) nu_water,k
+y_current,k = v_ground,k - v_water,world,k.
+```
+
+A constant-bias Kalman/RLS update filters `y_current` with configured process
+and measurement variances. Because neither commanded control nor estimated
+actuator effectiveness enters this measurement, an actuator-estimation error
+does not appear directly as current. The observer runs at plant rate even when
+MPC controls are held between replans. See `harbor_control_math.md` for the full
+closed-loop equations.
 
 ### Dynamic-state envelope feasibility
 
