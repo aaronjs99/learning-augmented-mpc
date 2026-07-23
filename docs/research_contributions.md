@@ -8,10 +8,10 @@ communications, and disturbances; they are not hardware-validation claims.
 Any physical deployment requires separate system identification, sensor timing,
 state-estimation, safety review, and field trials.
 
-The current robust fixed-lag-SLAM terminal-heading smoke case is complete,
+The current robust fixed-lag-SLAM development ensemble is `3/3` complete,
 safe, and fallback-free after adding the ROV depth factor and terminal-pose
-weight. It is only one development seed and is retained as a reproducibility
-smoke test, not an ensemble result or a confirmation claim.
+weight. Its mean BlueROV2 position-estimate RMSE is `0.064 m`. It remains
+development evidence, not an ensemble selection or confirmation claim.
 
 This project is an adaptation of decentralized LMPC to simplified robotic manta
 agents. The implementation intentionally differs from the vehicle paper in

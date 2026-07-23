@@ -38,6 +38,6 @@ ignored. Core artifacts include:
   under matched current, range, observation, and temporary-actuator uncertainty.
 - `joint_localization_candidate.gif`: representative complete, safe,
   zero-fallback joint-SLAM and belief-retry rollout.
-- `terminal_heading_smoke/`: one matched fixed-lag-SLAM development case after
-  the terminal-heading and ROV-depth corrections. It is a complete, safe,
-  zero-fallback smoke result, not a three-seed result or confirmation claim.
+- `fixed_lag_development.{json,png}`: three matched robust fixed-lag-SLAM
+  development cases after the terminal-heading and ROV-depth corrections. This
+  is development evidence, not a frozen confirmation result.

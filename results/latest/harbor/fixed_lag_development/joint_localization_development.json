@@ -1,0 +1,252 @@
+{
+  "ensemble": {
+    "seeds": [
+      17417,
+      17539,
+      17659
+    ],
+    "observation_seed_offset": 21000,
+    "effectiveness_min": 0.55,
+    "effectiveness_max": 0.92,
+    "onset_step_min": 8,
+    "onset_step_max": 18,
+    "duration_step_min": 18,
+    "duration_step_max": 28,
+    "bootstrap_samples": 5000,
+    "water_current_min": [
+      -0.1,
+      0.0,
+      0.01
+    ],
+    "water_current_max": [
+      -0.04,
+      0.0,
+      0.03
+    ]
+  },
+  "case_limit": null,
+  "controller_uses_plant_truth": false,
+  "summary": {
+    "Robust fixed-lag SLAM": {
+      "trials": 3,
+      "completion_rate": 1.0,
+      "safety_rate": 1.0,
+      "fallback_free_rate": 1.0,
+      "total_solver_fallbacks": 0,
+      "mean_completion_step_sum": 153.66666666666666,
+      "mean_bluerov2_position_rmse": 0.06399612412569777,
+      "mean_heron_current_rmse": 0.03575502817869151,
+      "total_dynamic_state_retries": 0,
+      "maximum_dynamic_state_slack": 5.169857260871178e-28
+    }
+  },
+  "records": [
+    {
+      "seed": 17417,
+      "observation_seed": 38417,
+      "policy": "Robust fixed-lag SLAM",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "minimum_pairwise_distance": 1.2990970257041132,
+      "completion_step_sum": 144,
+      "final_goal_errors": {
+        "ground_rover_1": 0.08295671707328309,
+        "ground_rover_2": 0.12514863569458093,
+        "surface_vessel": 0.023956063138755302,
+        "underwater_rov": 0.020258285565700015
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.10909805557871,
+        "ground_rover_2": 0.00979538808456537,
+        "surface_vessel": 0.0030266872510313902,
+        "underwater_rov": 0.006499824608565183
+      },
+      "solver_fallbacks": 0,
+      "max_collision_slack": 0.0,
+      "max_dynamic_state_slack": 1.2930384958287408e-28,
+      "dynamic_state_retries": 0,
+      "position_rmse": {
+        "ground_rover_1": 0.059214991889415834,
+        "ground_rover_2": 0.05731298899560241,
+        "surface_vessel": 0.07112336509222132,
+        "underwater_rov": 0.061287981230480515
+      },
+      "current_rmse": {
+        "surface_vessel": 0.04611763933881086,
+        "underwater_rov": 0.02247904637242961
+      },
+      "observability": {
+        "ground_rover_1": {
+          "observable_fraction": 1.0,
+          "final_rank": 2,
+          "final_state_dimension": 2,
+          "pose_observable": true,
+          "deferred_landmark_updates": 0,
+          "landmark_only_updates": 0
+        },
+        "ground_rover_2": {
+          "observable_fraction": 1.0,
+          "final_rank": 2,
+          "final_state_dimension": 2,
+          "pose_observable": true,
+          "deferred_landmark_updates": 0,
+          "landmark_only_updates": 0
+        },
+        "surface_vessel": {
+          "observable_fraction": 1.0,
+          "final_rank": 2,
+          "final_state_dimension": 2,
+          "pose_observable": true,
+          "deferred_landmark_updates": 0,
+          "landmark_only_updates": 0
+        },
+        "underwater_rov": {
+          "observable_fraction": 1.0,
+          "final_rank": 3,
+          "final_state_dimension": 6,
+          "pose_observable": true,
+          "deferred_landmark_updates": 0,
+          "landmark_only_updates": 0
+        }
+      }
+    },
+    {
+      "seed": 17539,
+      "observation_seed": 38539,
+      "policy": "Robust fixed-lag SLAM",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "minimum_pairwise_distance": 1.4000525974850258,
+      "completion_step_sum": 169,
+      "final_goal_errors": {
+        "ground_rover_1": 0.029750754637201216,
+        "ground_rover_2": 0.016115968090329856,
+        "surface_vessel": 0.0807243357095003,
+        "underwater_rov": 0.09574938893782181
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.10686915963201082,
+        "ground_rover_2": 0.08836473938947487,
+        "surface_vessel": 0.03523510396314089,
+        "underwater_rov": 0.01188290590035436
+      },
+      "solver_fallbacks": 0,
+      "max_collision_slack": 0.0,
+      "max_dynamic_state_slack": 5.169857260871178e-28,
+      "dynamic_state_retries": 0,
+      "position_rmse": {
+        "ground_rover_1": 0.0610358612509017,
+        "ground_rover_2": 0.05698837046768253,
+        "surface_vessel": 0.059848482518369654,
+        "underwater_rov": 0.06203511560369102
+      },
+      "current_rmse": {
+        "surface_vessel": 0.027370055981213625,
+        "underwater_rov": 0.025605221666125503
+      },
+      "observability": {
+        "ground_rover_1": {
+          "observable_fraction": 1.0,
+          "final_rank": 2,
+          "final_state_dimension": 2,
+          "pose_observable": true,
+          "deferred_landmark_updates": 0,
+          "landmark_only_updates": 0
+        },
+        "ground_rover_2": {
+          "observable_fraction": 1.0,
+          "final_rank": 2,
+          "final_state_dimension": 2,
+          "pose_observable": true,
+          "deferred_landmark_updates": 0,
+          "landmark_only_updates": 0
+        },
+        "surface_vessel": {
+          "observable_fraction": 1.0,
+          "final_rank": 2,
+          "final_state_dimension": 2,
+          "pose_observable": true,
+          "deferred_landmark_updates": 0,
+          "landmark_only_updates": 0
+        },
+        "underwater_rov": {
+          "observable_fraction": 1.0,
+          "final_rank": 3,
+          "final_state_dimension": 6,
+          "pose_observable": true,
+          "deferred_landmark_updates": 0,
+          "landmark_only_updates": 0
+        }
+      }
+    },
+    {
+      "seed": 17659,
+      "observation_seed": 38659,
+      "policy": "Robust fixed-lag SLAM",
+      "all_goals_reached": true,
+      "pairwise_violation_count": 0,
+      "minimum_pairwise_distance": 1.331776028368391,
+      "completion_step_sum": 148,
+      "final_goal_errors": {
+        "ground_rover_1": 0.050719610259196087,
+        "ground_rover_2": 0.02585563105187543,
+        "surface_vessel": 0.15560197925898173,
+        "underwater_rov": 0.060912500699784704
+      },
+      "final_orientation_errors": {
+        "ground_rover_1": 0.02698147440522325,
+        "ground_rover_2": 0.06440739108549698,
+        "surface_vessel": 0.08192580333630728,
+        "underwater_rov": 0.001851047831694396
+      },
+      "solver_fallbacks": 0,
+      "max_collision_slack": 0.0,
+      "max_dynamic_state_slack": 7.178112251264023e-29,
+      "dynamic_state_retries": 0,
+      "position_rmse": {
+        "ground_rover_1": 0.055804805591308744,
+        "ground_rover_2": 0.054849309390036745,
+        "surface_vessel": 0.06926533043149047,
+        "underwater_rov": 0.0686652755429218
+      },
+      "current_rmse": {
+        "surface_vessel": 0.03377738921605003,
+        "underwater_rov": 0.03917291937455
+      },
+      "observability": {
+        "ground_rover_1": {
+          "observable_fraction": 1.0,
+          "final_rank": 2,
+          "final_state_dimension": 2,
+          "pose_observable": true,
+          "deferred_landmark_updates": 0,
+          "landmark_only_updates": 0
+        },
+        "ground_rover_2": {
+          "observable_fraction": 1.0,
+          "final_rank": 2,
+          "final_state_dimension": 2,
+          "pose_observable": true,
+          "deferred_landmark_updates": 0,
+          "landmark_only_updates": 0
+        },
+        "surface_vessel": {
+          "observable_fraction": 1.0,
+          "final_rank": 2,
+          "final_state_dimension": 2,
+          "pose_observable": true,
+          "deferred_landmark_updates": 0,
+          "landmark_only_updates": 0
+        },
+        "underwater_rov": {
+          "observable_fraction": 1.0,
+          "final_rank": 3,
+          "final_state_dimension": 6,
+          "pose_observable": true,
+          "deferred_landmark_updates": 0,
+          "landmark_only_updates": 0
+        }
+      }
+    }
+  ]
+}
