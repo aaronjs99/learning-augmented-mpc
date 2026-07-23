@@ -8,6 +8,11 @@ communications, and disturbances; they are not hardware-validation claims.
 Any physical deployment requires separate system identification, sensor timing,
 state-estimation, safety review, and field trials.
 
+The current robust fixed-lag-SLAM terminal-heading smoke case is complete,
+safe, and fallback-free after adding the ROV depth factor and terminal-pose
+weight. It is only one development seed and is retained as a reproducibility
+smoke test, not an ensemble result or a confirmation claim.
+
 This project is an adaptation of decentralized LMPC to simplified robotic manta
 agents. The implementation intentionally differs from the vehicle paper in
 dynamics, safe-set construction, terminal constraints, and collision handling.

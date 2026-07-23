@@ -447,6 +447,7 @@ harbor_mpc:
   control_weight: 0.04
   control_rate_weight: 0.25
   terminal_goal_weight: 250.0
+  terminal_orientation_weight: 2.5
   terminal_safe_cost_weight: 10.0
   terminal_slack_weight: 500.0
   terminal_slack_bound: 1.0

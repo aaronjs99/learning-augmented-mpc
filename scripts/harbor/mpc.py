@@ -32,6 +32,7 @@ class HarborMPCConfig:
     control_weight: float = 0.04
     control_rate_weight: float = 0.25
     terminal_goal_weight: float = 20.0
+    terminal_orientation_weight: float = 2.5
     terminal_safe_cost_weight: float = 1.0
     terminal_slack_weight: float = 5000.0
     terminal_slack_bound: float = 1.0
@@ -168,6 +169,7 @@ class HarborMPCConfig:
             self.control_weight,
             self.control_rate_weight,
             self.terminal_goal_weight,
+            self.terminal_orientation_weight,
             self.terminal_safe_cost_weight,
             self.terminal_slack_weight,
             self.terminal_slack_bound,
@@ -685,7 +687,9 @@ class HarborAgentOptimizer:
         linear_dim = 2 if model.pose_dim == 3 else 3
         value = ca.sumsqr(pose[:linear_dim] - goal[:linear_dim])
         for index in range(linear_dim, model.pose_dim):
-            value += 2.0 * (1.0 - ca.cos(pose[index] - goal[index]))
+            value += self.config.terminal_orientation_weight * 2.0 * (
+                1.0 - ca.cos(pose[index] - goal[index])
+            )
         return value
 
     def _apply_bounds(
